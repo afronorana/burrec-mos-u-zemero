@@ -1,0 +1,12 @@
+/dist/css
+/dist/js
+/node_modules
+/releases
+/.idea
+/.vcode
+/.sass-cache
+mix.js
+yarn.lock
+package-lock.json
+*.SD_Store
+*SD_Store
