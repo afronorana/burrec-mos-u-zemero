@@ -1,16 +1,13 @@
 <template>
     <div>
 
-        <div class="board">
-            <a href="javascript:void(0);" @click="scream(i)" class="circle" v-for="i in 40">
-                {{i}}
-            </a>
-
-
-            <the-dice></the-dice>
+        <div class="dice text-right">
+            <a href="javascript:void(0);" @click="diceRoll">Roll the dice</a>
+            <br>
+            Rolled: {{diceStatus}}
         </div>
 
-
+        
 
     </div>
 </template>
@@ -25,12 +22,13 @@
         data() {
             return {
                 store: window.ApplicationStore,
+                diceStatus: ''
             }
         },
         events: {},
         methods: {
-            scream(nr) {
-                console.log ( nr );
+            diceRoll() {
+                this.diceStatus =  1+Math.floor(Math.random()*6);
             }
         }
     }

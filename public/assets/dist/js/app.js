@@ -63,7 +63,7 @@
 /******/ 	__webpack_require__.p = "";
 /******/
 /******/ 	// Load entry module and return exports
-/******/ 	return __webpack_require__(__webpack_require__.s = 32);
+/******/ 	return __webpack_require__(__webpack_require__.s = 27);
 /******/ })
 /************************************************************************/
 /******/ ([
@@ -582,7 +582,8 @@ window.EventBus = new (function () {
 window.ApplicationStore = {};
 
 // Components
-Vue.component('the-game', __webpack_require__(24));
+Vue.component('the-game', __webpack_require__(22));
+Vue.component('the-dice', __webpack_require__(32));
 
 var Burrec = new Vue({
     el: '#app',
@@ -691,6 +692,11 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
 //
 //
 //
+//
+//
+//
+//
+//
 
 /* harmony default export */ __webpack_exports__["default"] = ({
     components: {},
@@ -704,7 +710,11 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
     },
 
     events: {},
-    methods: {}
+    methods: {
+        scream: function scream(nr) {
+            console.log(nr);
+        }
+    }
 });
 
 /***/ }),
@@ -717,10 +727,10 @@ module.exports = {};
 /* 8 */
 /***/ (function(module, exports, __webpack_require__) {
 
-window._ = __webpack_require__(13);
-window.$ = window.jQuery = __webpack_require__(12);
-window.Promise = __webpack_require__(15);
-window.Vue = __webpack_require__(30);
+window._ = __webpack_require__(11);
+window.$ = window.jQuery = __webpack_require__(10);
+window.Promise = __webpack_require__(13);
+window.Vue = __webpack_require__(25);
 window.EventKeys = __webpack_require__(7);
 
 /***/ }),
@@ -730,9 +740,7 @@ window.EventKeys = __webpack_require__(7);
 
 
 /***/ }),
-/* 10 */,
-/* 11 */,
-/* 12 */
+/* 10 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;/*!
@@ -11103,7 +11111,7 @@ return jQuery;
 
 
 /***/ }),
-/* 13 */
+/* 11 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /* WEBPACK VAR INJECTION */(function(global, module) {var __WEBPACK_AMD_DEFINE_RESULT__;/**
@@ -28213,10 +28221,10 @@ return jQuery;
   }
 }.call(this));
 
-/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(1), __webpack_require__(31)(module)))
+/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(1), __webpack_require__(26)(module)))
 
 /***/ }),
-/* 14 */
+/* 12 */
 /***/ (function(module, exports) {
 
 // shim for using process in browser
@@ -28406,17 +28414,17 @@ process.umask = function() { return 0; };
 
 
 /***/ }),
-/* 15 */
+/* 13 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 
-module.exports = __webpack_require__(19)
+module.exports = __webpack_require__(17)
 
 
 /***/ }),
-/* 16 */
+/* 14 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -28436,7 +28444,7 @@ Promise.prototype.done = function (onFulfilled, onRejected) {
 
 
 /***/ }),
-/* 17 */
+/* 15 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -28550,7 +28558,7 @@ Promise.prototype['catch'] = function (onRejected) {
 
 
 /***/ }),
-/* 18 */
+/* 16 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -28573,22 +28581,22 @@ Promise.prototype['finally'] = function (f) {
 
 
 /***/ }),
-/* 19 */
+/* 17 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 
 module.exports = __webpack_require__(0);
+__webpack_require__(14);
 __webpack_require__(16);
+__webpack_require__(15);
 __webpack_require__(18);
-__webpack_require__(17);
-__webpack_require__(20);
-__webpack_require__(21);
+__webpack_require__(19);
 
 
 /***/ }),
-/* 20 */
+/* 18 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -28725,7 +28733,7 @@ Promise.prototype.nodeify = function (callback, ctx) {
 
 
 /***/ }),
-/* 21 */
+/* 19 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -28794,7 +28802,7 @@ Promise.disableSynchronous = function() {
 
 
 /***/ }),
-/* 22 */
+/* 20 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /* WEBPACK VAR INJECTION */(function(global, process) {(function (global, undefined) {
@@ -28984,10 +28992,10 @@ Promise.disableSynchronous = function() {
     attachTo.clearImmediate = clearImmediate;
 }(typeof self === "undefined" ? typeof global === "undefined" ? this : global : self));
 
-/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(1), __webpack_require__(14)))
+/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(1), __webpack_require__(12)))
 
 /***/ }),
-/* 23 */
+/* 21 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /* WEBPACK VAR INJECTION */(function(global) {var scope = (typeof global !== "undefined" && global) ||
@@ -29043,7 +29051,7 @@ exports._unrefActive = exports.active = function(item) {
 };
 
 // setimmediate attaches itself to the global object
-__webpack_require__(22);
+__webpack_require__(20);
 // On some exotic environments, it's not clear which object `setimmediate` was
 // able to install onto.  Search each possibility in the same order as the
 // `setimmediate` library.
@@ -29057,14 +29065,14 @@ exports.clearImmediate = (typeof self !== "undefined" && self.clearImmediate) ||
 /* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(1)))
 
 /***/ }),
-/* 24 */
+/* 22 */
 /***/ (function(module, exports, __webpack_require__) {
 
-var Component = __webpack_require__(25)(
+var Component = __webpack_require__(23)(
   /* script */
   __webpack_require__(6),
   /* template */
-  __webpack_require__(26),
+  __webpack_require__(24),
   /* scopeId */
   null,
   /* cssModules */
@@ -29091,7 +29099,7 @@ module.exports = Component.exports
 
 
 /***/ }),
-/* 25 */
+/* 23 */
 /***/ (function(module, exports) {
 
 // this module is a runtime utility for cleaner component module output and will
@@ -29148,17 +29156,25 @@ module.exports = function normalizeComponent (
 
 
 /***/ }),
-/* 26 */
+/* 24 */
 /***/ (function(module, exports, __webpack_require__) {
 
 module.exports={render:function (){var _vm=this;var _h=_vm.$createElement;var _c=_vm._self._c||_h;
   return _c('div', [_c('div', {
     staticClass: "board"
-  }, _vm._l((40), function(i) {
-    return _c('div', {
-      staticClass: "circle"
+  }, [_vm._l((40), function(i) {
+    return _c('a', {
+      staticClass: "circle",
+      attrs: {
+        "href": "javascript:void(0);"
+      },
+      on: {
+        "click": function($event) {
+          _vm.scream(i)
+        }
+      }
     }, [_vm._v("\n            " + _vm._s(i) + "\n        ")])
-  }))])
+  }), _vm._v(" "), _c('the-dice')], 2)])
 },staticRenderFns: []}
 module.exports.render._withStripped = true
 if (false) {
@@ -29169,10 +29185,7 @@ if (false) {
 }
 
 /***/ }),
-/* 27 */,
-/* 28 */,
-/* 29 */,
-/* 30 */
+/* 25 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -40135,10 +40148,10 @@ Vue.compile = compileToFunctions;
 
 module.exports = Vue;
 
-/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(1), __webpack_require__(23).setImmediate))
+/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(1), __webpack_require__(21).setImmediate))
 
 /***/ }),
-/* 31 */
+/* 26 */
 /***/ (function(module, exports) {
 
 module.exports = function(module) {
@@ -40166,12 +40179,113 @@ module.exports = function(module) {
 
 
 /***/ }),
-/* 32 */
+/* 27 */
 /***/ (function(module, exports, __webpack_require__) {
 
 __webpack_require__(3);
 module.exports = __webpack_require__(4);
 
+
+/***/ }),
+/* 28 */,
+/* 29 */,
+/* 30 */,
+/* 31 */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+
+/* harmony default export */ __webpack_exports__["default"] = ({
+    components: {},
+    mounted: function mounted() {
+        this.$nextTick(function () {}.bind(this));
+    },
+    data: function data() {
+        return {
+            store: window.ApplicationStore,
+            diceStatus: ''
+        };
+    },
+
+    events: {},
+    methods: {
+        diceRoll: function diceRoll() {
+            this.diceStatus = 1 + Math.floor(Math.random() * 6);
+        }
+    }
+});
+
+/***/ }),
+/* 32 */
+/***/ (function(module, exports, __webpack_require__) {
+
+var Component = __webpack_require__(23)(
+  /* script */
+  __webpack_require__(31),
+  /* template */
+  __webpack_require__(33),
+  /* scopeId */
+  null,
+  /* cssModules */
+  null
+)
+Component.options.__file = "/Users/user/Projects/Freelance/burrec/resources/assets/js/components/TheDice.vue"
+if (Component.esModule && Object.keys(Component.esModule).some(function (key) {return key !== "default" && key !== "__esModule"})) {console.error("named exports are not supported in *.vue files.")}
+if (Component.options.functional) {console.error("[vue-loader] TheDice.vue: functional components are not supported with templates, they should use render functions.")}
+
+/* hot reload */
+if (false) {(function () {
+  var hotAPI = require("vue-hot-reload-api")
+  hotAPI.install(require("vue"), false)
+  if (!hotAPI.compatible) return
+  module.hot.accept()
+  if (!module.hot.data) {
+    hotAPI.createRecord("data-v-1f933943", Component.options)
+  } else {
+    hotAPI.reload("data-v-1f933943", Component.options)
+  }
+})()}
+
+module.exports = Component.exports
+
+
+/***/ }),
+/* 33 */
+/***/ (function(module, exports, __webpack_require__) {
+
+module.exports={render:function (){var _vm=this;var _h=_vm.$createElement;var _c=_vm._self._c||_h;
+  return _c('div', [_c('div', {
+    staticClass: "dice text-right"
+  }, [_c('a', {
+    attrs: {
+      "href": "javascript:void(0);"
+    },
+    on: {
+      "click": _vm.diceRoll
+    }
+  }, [_vm._v("Roll the dice")]), _vm._v(" "), _c('br'), _vm._v("\n        Rolled: " + _vm._s(_vm.diceStatus) + "\n    ")])])
+},staticRenderFns: []}
+module.exports.render._withStripped = true
+if (false) {
+  module.hot.accept()
+  if (module.hot.data) {
+     require("vue-hot-reload-api").rerender("data-v-1f933943", module.exports)
+  }
+}
 
 /***/ })
 /******/ ]);
