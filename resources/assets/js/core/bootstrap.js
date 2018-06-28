@@ -3,3 +3,6 @@ window.$ = window.jQuery = require('jquery');
 window.Promise = require('promise');
 window.Vue = require('vue');
 window.EventKeys = require('../EventKeys');
+
+window.Pawn = require("../Pawn");
+window.Player = require("../Player");

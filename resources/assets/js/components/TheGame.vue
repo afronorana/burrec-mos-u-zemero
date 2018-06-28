@@ -2,15 +2,19 @@
     <div>
 
         <div class="board">
-            <a href="javascript:void(0);" @click="scream(i)" class="circle" v-for="i in 40">
-                {{i}}
+
+
+            <a href="javascript:void(0);" class="circle" v-for="(steppingField, index) in store.steppingFields">
+                {{steppingField.hasPawn}}
+                {{index}}
             </a>
 
 
-            <the-dice></the-dice>
+            <div class="player-home" v-for="player in store.players">
+                {{player.name}}
+            </div>
+
         </div>
-
-
 
     </div>
 </template>
@@ -19,7 +23,7 @@
         components: {},
         mounted() {
             this.$nextTick(function () {
-
+                this.createPlayers();
             }.bind(this));
         },
         data() {
@@ -29,9 +33,14 @@
         },
         events: {},
         methods: {
-            scream(nr) {
-                console.log ( nr );
-            }
+            createPlayers() {
+                this.store.players.push(new Player('Jon Doe', 'red', 1));
+                this.store.players.push(new Player('Jane Doe', 'yellow', 2));
+                this.store.players.push(new Player('Filan Fisteku', 'blue', 3));
+                this.store.players.push(new Player('Filane Fisteku', 'green', 4));
+            },
+
+
         }
     }
 </script>

@@ -37,71 +37,70 @@
     font-size: 9px;
     transform: translateX(-11px) translateY(-11px);
 
-
     @for $i from 1 through 5 {
         &:nth-child(#{$i}),
-        &:nth-child(#{$i+14}){
+        &:nth-child(#{$i+14}) {
             left: 300px;
         }
     }
     @for $i from 21 through 25 {
         &:nth-child(#{$i}),
-        &:nth-child(#{$i+14}){
+        &:nth-child(#{$i+14}) {
             left: 200px;
         }
     }
     @for $i from 5 through 9 {
         &:nth-child(#{$i}),
-        &:nth-child(#{$i+26}){
+        &:nth-child(#{$i+26}) {
             top: 200px;
         }
     }
     @for $i from 11 through 14 {
         &:nth-child(#{$i}),
-        &:nth-child(#{$i+15}){
+        &:nth-child(#{$i+15}) {
             top: 300px;
         }
     }
     @for $i from 2 through 5 {
         &:nth-child(#{$i}),
-        &:nth-child(#{40 - $i}){
+        &:nth-child(#{40 - $i}) {
             top: 50px* ($i - 1);
         }
     }
     @for $i from 6 through 9 {
         &:nth-child(#{$i}),
-        &:nth-child(#{20 - $i}){
+        &:nth-child(#{20 - $i}) {
             left: 50px* ($i + 1);
         }
     }
     @for $i from 15 through 19 {
         &:nth-child(#{$i}),
-        &:nth-child(#{40 - $i}){
+        &:nth-child(#{40 - $i}) {
             top: 50px* ($i - 9);
         }
     }
     @for $i from 32 through 34 {
         &:nth-child(#{$i}),
-        &:nth-child(#{60 - $i}){
+        &:nth-child(#{60 - $i}) {
             left: 50px * ($i - 31);
         }
     }
     &:nth-child(10) {
         top: 250px;
-        left:500px;
+        left: 500px;
     }
 
     &:nth-child(20) {
         left: 250px;
-        top:500px;
+        top: 500px;
     }
     &:nth-child(30) {
         top: 250px;
-        left:0;
+        left: 0;
     }
     &:nth-child(40) {
         left: 250px;
-        top:0;
+        top: 0;
     }
 }
 
@@ -109,4 +108,27 @@
     position: absolute;
     right: 0;
     top: 0;
+}
+
+
+.player-home {
+    position: absolute;
+    opacity: .2;
+    &:nth-of-type(1) {
+        left: 10px;
+        top: 10px;
+    }
+    &:nth-of-type(2) {
+        right: 10px;
+        top: 10px;
+    }
+    &:nth-of-type(3) {
+        left: 10px;
+        bottom: 10px;
+    }
+    &:nth-of-type(4) {
+        right: 10px;
+        bottom: 10px;
+    }
+
 }
