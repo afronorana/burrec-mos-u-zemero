@@ -16,11 +16,12 @@
 @import "responsive";
 
 .board {
-    margin-top: 20px;
+    padding: 20px;
     position: relative;
     width: 500px;
     height: 500px;
     background-color: lightblue;
+    transform: perspective(800px) rotatex(50deg) rotateY(0deg) rotatez(20deg);
 }
 
 .circle {
@@ -36,6 +37,10 @@
     align-items: center;
     font-size: 9px;
     transform: translateX(-11px) translateY(-11px);
+
+    &.taken {
+        background: darkslateblue;
+    }
 
     @for $i from 1 through 5 {
         &:nth-child(#{$i}),
@@ -113,22 +118,39 @@
 
 .player-home {
     position: absolute;
-    opacity: .2;
-    &:nth-of-type(1) {
+    &:nth-of-type(4) {
         left: 10px;
         top: 10px;
     }
-    &:nth-of-type(2) {
+    &:nth-of-type(1) {
         right: 10px;
         top: 10px;
     }
     &:nth-of-type(3) {
         left: 10px;
-        bottom: 10px;
+        bottom: 70px;
     }
-    &:nth-of-type(4) {
+    &:nth-of-type(2) {
         right: 10px;
-        bottom: 10px;
+        bottom: 70px;
     }
-
+.circles {
+    position: relative;
+    .circle:nth-child(1) {
+        top: 0;
+        left: 0;
+    }
+    .circle:nth-child(2) {
+        top: 0;
+        left: 50px;
+    }
+    .circle:nth-child(3) {
+        top: 50px;
+        left: 0;
+    }
+    .circle:nth-child(4) {
+        top: 50px;
+        left: 50px;
+    }
+}
 }

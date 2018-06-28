@@ -63,7 +63,7 @@
 /******/ 	__webpack_require__.p = "";
 /******/
 /******/ 	// Load entry module and return exports
-/******/ 	return __webpack_require__(__webpack_require__.s = 31);
+/******/ 	return __webpack_require__(__webpack_require__.s = 30);
 /******/ })
 /************************************************************************/
 /******/ ([
@@ -546,63 +546,6 @@ rawAsap.makeRequestCallFromTimer = makeRequestCallFromTimer;
 
 /***/ }),
 /* 3 */
-/***/ (function(module, exports) {
-
-// this module is a runtime utility for cleaner component module output and will
-// be included in the final webpack user bundle
-
-module.exports = function normalizeComponent (
-  rawScriptExports,
-  compiledTemplate,
-  scopeId,
-  cssModules
-) {
-  var esModule
-  var scriptExports = rawScriptExports = rawScriptExports || {}
-
-  // ES6 modules interop
-  var type = typeof rawScriptExports.default
-  if (type === 'object' || type === 'function') {
-    esModule = rawScriptExports
-    scriptExports = rawScriptExports.default
-  }
-
-  // Vue.extend constructor export interop
-  var options = typeof scriptExports === 'function'
-    ? scriptExports.options
-    : scriptExports
-
-  // render functions
-  if (compiledTemplate) {
-    options.render = compiledTemplate.render
-    options.staticRenderFns = compiledTemplate.staticRenderFns
-  }
-
-  // scopedId
-  if (scopeId) {
-    options._scopeId = scopeId
-  }
-
-  // inject cssModules
-  if (cssModules) {
-    var computed = Object.create(options.computed || null)
-    Object.keys(cssModules).forEach(function (key) {
-      var module = cssModules[key]
-      computed[key] = function () { return module }
-    })
-    options.computed = computed
-  }
-
-  return {
-    esModule: esModule,
-    exports: scriptExports,
-    options: options
-  }
-}
-
-
-/***/ }),
-/* 4 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -646,7 +589,7 @@ window.ApplicationStore = {
 };
 
 // Components
-Vue.component('the-game', __webpack_require__(26));
+Vue.component('the-game', __webpack_require__(25));
 
 var Burrec = new Vue({
     el: '#app',
@@ -671,13 +614,13 @@ var Burrec = new Vue({
 });
 
 /***/ }),
-/* 5 */
+/* 4 */
 /***/ (function(module, exports) {
 
 // removed by extract-text-webpack-plugin
 
 /***/ }),
-/* 6 */
+/* 5 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -750,12 +693,18 @@ RawTask.prototype.call = function () {
 
 
 /***/ }),
-/* 7 */,
-/* 8 */
+/* 6 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
+//
+//
+//
+//
+//
+//
+//
 //
 //
 //
@@ -797,15 +746,95 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
             this.store.players.push(new Player('Jane Doe', 'yellow', 2));
             this.store.players.push(new Player('Filan Fisteku', 'blue', 3));
             this.store.players.push(new Player('Filane Fisteku', 'green', 4));
+        },
+        pawni: function pawni(pawn) {
+            console.log(pawn);
+            pawn.position = 8;
         }
     }
 });
 
 /***/ }),
-/* 9 */
+/* 7 */
 /***/ (function(module, exports) {
 
 module.exports = {};
+
+/***/ }),
+/* 8 */
+/***/ (function(module, exports) {
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+var Pawn = function () {
+    function Pawn(_startingPlace) {
+        _classCallCheck(this, Pawn);
+
+        this.position = 0;
+        this.globalPosition = 4;
+        this.isFinished = false;
+        this.startingPlace = _startingPlace;
+        this.animations = {
+            isSkipping: false,
+            isKnocked: false
+        };
+    }
+
+    _createClass(Pawn, [{
+        key: "isHome",
+        value: function isHome() {
+            return this.position == 0;
+        }
+    }, {
+        key: "isAvaliable",
+        value: function isAvaliable(steps) {
+            return this.selfPosition + steps <= 40 && this.selfPosition + steps;
+        }
+    }]);
+
+    return Pawn;
+}();
+
+module.exports = Pawn;
+
+/***/ }),
+/* 9 */
+/***/ (function(module, exports) {
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+var Player = function () {
+    function Player(_name, _color, _turn) {
+        _classCallCheck(this, Player);
+
+        this.turn = _turn;
+        this.name = _name;
+        this.color = _color;
+        this.pawns = [new Pawn(1), new Pawn(2), new Pawn(3), new Pawn(4)];
+    }
+
+    _createClass(Player, [{
+        key: "getAvaliablePawns",
+        value: function getAvaliablePawns(steps) {
+            var avaliablePawns = [];
+            this.pawns.forEach(function (pawn) {
+                if (pawn.isAvaliable(steps)) {
+                    avaliablePawns.push(pawn);
+                }
+            });
+
+            return avaliablePawns;
+        }
+    }]);
+
+    return Player;
+}();
+
+module.exports = Player;
 
 /***/ }),
 /* 10 */
@@ -814,11 +843,11 @@ module.exports = {};
 window._ = __webpack_require__(14);
 window.$ = window.jQuery = __webpack_require__(13);
 window.Promise = __webpack_require__(16);
-window.Vue = __webpack_require__(29);
-window.EventKeys = __webpack_require__(9);
+window.Vue = __webpack_require__(28);
+window.EventKeys = __webpack_require__(7);
 
-window.Pawn = __webpack_require__(35);
-window.Player = __webpack_require__(36);
+window.Pawn = __webpack_require__(8);
+window.Player = __webpack_require__(9);
 
 /***/ }),
 /* 11 */
@@ -28325,7 +28354,7 @@ return jQuery;
   }
 }.call(this));
 
-/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(1), __webpack_require__(30)(module)))
+/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(1), __webpack_require__(29)(module)))
 
 /***/ }),
 /* 15 */
@@ -28710,7 +28739,7 @@ __webpack_require__(22);
 // for node.js interop
 
 var Promise = __webpack_require__(0);
-var asap = __webpack_require__(6);
+var asap = __webpack_require__(5);
 
 module.exports = Promise;
 
@@ -29169,15 +29198,14 @@ exports.clearImmediate = (typeof self !== "undefined" && self.clearImmediate) ||
 /* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(1)))
 
 /***/ }),
-/* 25 */,
-/* 26 */
+/* 25 */
 /***/ (function(module, exports, __webpack_require__) {
 
-var Component = __webpack_require__(3)(
+var Component = __webpack_require__(26)(
   /* script */
-  __webpack_require__(8),
+  __webpack_require__(6),
   /* template */
-  __webpack_require__(28),
+  __webpack_require__(27),
   /* scopeId */
   null,
   /* cssModules */
@@ -29204,8 +29232,64 @@ module.exports = Component.exports
 
 
 /***/ }),
-/* 27 */,
-/* 28 */
+/* 26 */
+/***/ (function(module, exports) {
+
+// this module is a runtime utility for cleaner component module output and will
+// be included in the final webpack user bundle
+
+module.exports = function normalizeComponent (
+  rawScriptExports,
+  compiledTemplate,
+  scopeId,
+  cssModules
+) {
+  var esModule
+  var scriptExports = rawScriptExports = rawScriptExports || {}
+
+  // ES6 modules interop
+  var type = typeof rawScriptExports.default
+  if (type === 'object' || type === 'function') {
+    esModule = rawScriptExports
+    scriptExports = rawScriptExports.default
+  }
+
+  // Vue.extend constructor export interop
+  var options = typeof scriptExports === 'function'
+    ? scriptExports.options
+    : scriptExports
+
+  // render functions
+  if (compiledTemplate) {
+    options.render = compiledTemplate.render
+    options.staticRenderFns = compiledTemplate.staticRenderFns
+  }
+
+  // scopedId
+  if (scopeId) {
+    options._scopeId = scopeId
+  }
+
+  // inject cssModules
+  if (cssModules) {
+    var computed = Object.create(options.computed || null)
+    Object.keys(cssModules).forEach(function (key) {
+      var module = cssModules[key]
+      computed[key] = function () { return module }
+    })
+    options.computed = computed
+  }
+
+  return {
+    esModule: esModule,
+    exports: scriptExports,
+    options: options
+  }
+}
+
+
+/***/ }),
+/* 27 */
 /***/ (function(module, exports, __webpack_require__) {
 
 module.exports={render:function (){var _vm=this;var _h=_vm.$createElement;var _c=_vm._self._c||_h;
@@ -29220,8 +29304,28 @@ module.exports={render:function (){var _vm=this;var _h=_vm.$createElement;var _c
     }, [_vm._v("\n            " + _vm._s(steppingField.hasPawn) + "\n            " + _vm._s(index) + "\n        ")])
   }), _vm._v(" "), _vm._l((_vm.store.players), function(player) {
     return _c('div', {
-      staticClass: "player-home"
-    }, [_vm._v("\n            " + _vm._s(player.name) + "\n        ")])
+      staticClass: "player-home",
+      style: ({
+        borderColor: player.color
+      })
+    }, [_vm._v("\n            " + _vm._s(player.name) + "\n            "), _c('div', {
+      staticClass: "circles"
+    }, _vm._l((player.pawns), function(pawn) {
+      return _c('div', {
+        staticClass: "circle",
+        class: {
+          taken: pawn.isHome()
+        },
+        style: ({
+          borderColor: player.color
+        }),
+        on: {
+          "click": function($event) {
+            _vm.pawni(pawn)
+          }
+        }
+      })
+    }))])
   })], 2)])
 },staticRenderFns: []}
 module.exports.render._withStripped = true
@@ -29233,7 +29337,7 @@ if (false) {
 }
 
 /***/ }),
-/* 29 */
+/* 28 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -40199,7 +40303,7 @@ module.exports = Vue;
 /* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(1), __webpack_require__(24).setImmediate))
 
 /***/ }),
-/* 30 */
+/* 29 */
 /***/ (function(module, exports) {
 
 module.exports = function(module) {
@@ -40227,86 +40331,12 @@ module.exports = function(module) {
 
 
 /***/ }),
-/* 31 */
+/* 30 */
 /***/ (function(module, exports, __webpack_require__) {
 
-__webpack_require__(4);
-module.exports = __webpack_require__(5);
+__webpack_require__(3);
+module.exports = __webpack_require__(4);
 
-
-/***/ }),
-/* 32 */,
-/* 33 */,
-/* 34 */,
-/* 35 */
-/***/ (function(module, exports) {
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-var Pawn = function () {
-    function Pawn(_startingPlace) {
-        _classCallCheck(this, Pawn);
-
-        this.selfPosition = 0;
-        this.globalPosition = 0;
-        this.isFinished = false;
-        this.startingPlace = _startingPlace;
-        this.animations = {
-            isSkipping: false,
-            isKnocked: false
-        };
-    }
-
-    _createClass(Pawn, [{
-        key: "isAvaliable",
-        value: function isAvaliable(steps) {
-            return this.selfPosition + steps <= 40 && this.selfPosition + steps;
-        }
-    }]);
-
-    return Pawn;
-}();
-
-module.exports = Pawn;
-
-/***/ }),
-/* 36 */
-/***/ (function(module, exports) {
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-var Player = function () {
-    function Player(_name, _color, _turn) {
-        _classCallCheck(this, Player);
-
-        this.turn = _turn;
-        this.name = _name;
-        this.color = _color;
-        this.pawns = [new Pawn(1), new Pawn(2), new Pawn(3), new Pawn(4)];
-    }
-
-    _createClass(Player, [{
-        key: "getAvaliablePawns",
-        value: function getAvaliablePawns(steps) {
-            var avaliablePawns = [];
-            this.pawns.forEach(function (pawn) {
-                if (pawn.isAvaliable(steps)) {
-                    avaliablePawns.push(pawn);
-                }
-            });
-
-            return avaliablePawns;
-        }
-    }]);
-
-    return Player;
-}();
-
-module.exports = Player;
 
 /***/ })
 /******/ ]);

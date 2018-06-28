@@ -10,8 +10,15 @@
             </a>
 
 
-            <div class="player-home" v-for="player in store.players">
+            <div class="player-home" :style="{borderColor: player.color}" v-for="player in store.players">
                 {{player.name}}
+                <div class="circles">
+                    <div class="circle"
+                         :style="{borderColor: player.color}"
+                         v-for="pawn in player.pawns"
+                         :class="{taken:pawn.isHome()}"
+                         @click="pawni(pawn)"></div>
+                </div>
             </div>
 
         </div>
@@ -39,7 +46,10 @@
                 this.store.players.push(new Player('Filan Fisteku', 'blue', 3));
                 this.store.players.push(new Player('Filane Fisteku', 'green', 4));
             },
-
+            pawni(pawn){
+                console.log ( pawn );
+                pawn.position = 8;
+            }
 
         }
     }

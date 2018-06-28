@@ -1,13 +1,17 @@
 class Pawn {
     constructor(_startingPlace) {
-        this.selfPosition = 0;
-        this.globalPosition = 0;
+        this.position = 0;
+        this.globalPosition = 4;
         this.isFinished = false;
         this.startingPlace = _startingPlace;
         this.animations = {
             isSkipping: false,
             isKnocked: false
         }
+    }
+
+    isHome() {
+        return this.position == 0;
     }
 
     isAvaliable(steps) {
