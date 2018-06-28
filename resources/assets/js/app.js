@@ -22,13 +22,11 @@ window.ApplicationStore = {
 
 };
 
-
-
 // Components
-Vue.component('component', require('./components/Component'));
+Vue.component('the-game', require('./components/TheGame'));
 
-const ProjectName = new Vue({
-    el: 'main',
+const Burrec = new Vue({
+    el: '#app',
     mounted() {
         this.$nextTick(function () {
 

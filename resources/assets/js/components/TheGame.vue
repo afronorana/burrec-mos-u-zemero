@@ -1,5 +1,11 @@
 <template>
     <div>
+        <div class="board">
+            <div class="circle" v-for="i in 40">
+                {{i}}
+            </div>
+        </div>
+
 
     </div>
 </template>
@@ -17,8 +23,6 @@
             }
         },
         events: {},
-        methods: {
-
-        }
+        methods: {}
     }
 </script>

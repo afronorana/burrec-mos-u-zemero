@@ -3,18 +3,122 @@
 @import "colors";
 @import "variables";
 @import "utilities";
-
 /* Vendor
 ========================================================================== */
-
 // Bootsrap
 @import "node_modules/bootstrap-sass/assets/stylesheets/bootstrap/variables";
 @import "node_modules/bootstrap-sass/assets/stylesheets/bootstrap/mixins";
 @import "node_modules/bootstrap-sass/assets/stylesheets/bootstrap/grid";
-
 @import "node_modules/normalize.css/normalize";
 @import "node_modules/family.scss/source/src/family";
-
 // Responsive file handler
 // Notes: Requires BootsrapGrid
 @import "responsive";
+
+.board {
+    margin-top: 20px;
+    position: relative;
+    width: 500px;
+    height: 500px;
+    background-color: lightblue;
+}
+
+.circle {
+    width: 20px;
+    height: 20px;
+    border: 1px solid black;
+    border-radius: 50%;
+    display: block;
+    margin: 5px;
+    position: absolute;
+    transform: translateX(-11px) translateY(-11px);
+
+    // Vertical 1-5 & 15-19
+    @for $i from 1 through 5 {
+        &:nth-child(#{$i}),
+        &:nth-child(#{$i+14}){
+            left: 300px;
+        }
+    }
+    // Vertical 21-25 & 35-39
+    @for $i from 21 through 25 {
+        &:nth-child(#{$i}),
+        &:nth-child(#{$i+14}){
+            left: 200px;
+        }
+    }
+
+    // Horizontal 5-9 & 31-35
+    @for $i from 5 through 9 {
+        &:nth-child(#{$i}),
+        &:nth-child(#{$i+26}){
+            top: 200px;
+        }
+    }
+    // ||||||| vertical ||||||
+    // Horizontal 11-15 & 25-29
+    @for $i from 11 through 14 {
+        &:nth-child(#{$i}),
+        &:nth-child(#{$i+15}){
+            top: 300px;
+        }
+    }
+    // ||||||| vertical ||||||
+    @for $i from 2 through 5 {
+        &:nth-child(#{$i}),
+        &:nth-child(#{40 - $i}){
+            top: 50px* ($i - 1);
+        }
+    }
+    @for $i from 6 through 9 {
+        &:nth-child(#{$i}),
+        &:nth-child(#{20 - $i}){
+            left: 50px* ($i + 1);
+        }
+    }
+
+    // ||||||| vertical ||||||
+    @for $i from 15 through 19 {
+        &:nth-child(#{$i}),
+        &:nth-child(#{40 - $i}){
+            top: 50px* ($i - 9);
+        }
+    }
+
+
+    @for $i from 32 through 34 {
+        &:nth-child(#{$i}),
+        &:nth-child(#{60 - $i}){
+            left: 50px * ($i - 31);
+        }
+    }
+    //@for $i from 6 through 9 {
+    //    &:nth-child(#{$i}),
+    //    &:nth-child(#{40 - $i}){
+    //        left: 50px* ($i - 9);
+    //    }
+    //}
+
+
+
+
+
+    &:nth-child(40) {
+        left: 250px;
+        top:0;
+    }
+    &:nth-child(10) {
+        top: 250px;
+        left:500px;
+    }
+
+    &:nth-child(20) {
+        left: 250px;
+        top:500px;
+    }
+    &:nth-child(30) {
+        top: 250px;
+        left:0;
+    }
+
+}

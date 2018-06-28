@@ -1,6 +1,6 @@
-## Introduction
+## Burrec mos u zemero
 
-Ninxha Boilerplate is a base front-end template.
+Created for fun
 
 
 ### RTFM
