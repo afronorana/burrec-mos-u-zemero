@@ -24,7 +24,9 @@ Vue.use(GlobalMixin);
 
 window.ApplicationStore = {
     steppingFields: [],
-    players: []
+    players: [],
+    currentPlayer: new Player(),
+    lastRolledDice: 0
 };
 
 // Components
@@ -34,19 +36,9 @@ const Burrec = new Vue({
     el: '#app',
     mounted() {
         this.$nextTick(function () {
-            this.fillSteppingFields();
         }.bind(this));
     },
     data: {},
     events: {},
-    methods: {
-        fillSteppingFields() {
-            console.log ( 'asd' );
-            for (let field = 1; field <= 40; field++) {
-                ApplicationStore.steppingFields.push({
-                    hasPawn: false,
-                })
-            }
-        }
-    }
+    methods: {}
 });

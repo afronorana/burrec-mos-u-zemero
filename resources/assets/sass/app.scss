@@ -21,7 +21,8 @@
     width: 500px;
     height: 500px;
     background-color: lightblue;
-    transform: perspective(800px) rotatex(50deg) rotateY(0deg) rotatez(20deg);
+    //transform: perspective(800px) rotatex(50deg) rotateY(0deg) rotatez(20deg);
+    transform: perspective(1000px) rotatex(31deg) rotateY(-10deg) rotatez(10deg);
 }
 
 .circle {

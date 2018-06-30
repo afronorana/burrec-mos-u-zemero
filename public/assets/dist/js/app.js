@@ -585,7 +585,9 @@ Vue.use(GlobalMixin);
 
 window.ApplicationStore = {
     steppingFields: [],
-    players: []
+    players: [],
+    currentPlayer: new Player(),
+    lastRolledDice: 0
 };
 
 // Components
@@ -594,23 +596,12 @@ Vue.component('the-game', __webpack_require__(25));
 var Burrec = new Vue({
     el: '#app',
     mounted: function mounted() {
-        this.$nextTick(function () {
-            this.fillSteppingFields();
-        }.bind(this));
+        this.$nextTick(function () {}.bind(this));
     },
 
     data: {},
     events: {},
-    methods: {
-        fillSteppingFields: function fillSteppingFields() {
-            console.log('asd');
-            for (var field = 1; field <= 40; field++) {
-                ApplicationStore.steppingFields.push({
-                    hasPawn: false
-                });
-            }
-        }
-    }
+    methods: {}
 });
 
 /***/ }),
@@ -725,12 +716,20 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
 //
 //
 //
+//
+//
+//
+//
+//
+//
 
 /* harmony default export */ __webpack_exports__["default"] = ({
     components: {},
     mounted: function mounted() {
         this.$nextTick(function () {
             this.createPlayers();
+            this.fillSteppingFields();
+            this.startGame();
         }.bind(this));
     },
     data: function data() {
@@ -747,9 +746,22 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
             this.store.players.push(new Player('Filan Fisteku', 'blue', 3));
             this.store.players.push(new Player('Filane Fisteku', 'green', 4));
         },
-        pawni: function pawni(pawn) {
-            console.log(pawn);
-            pawn.position = 8;
+        fillSteppingFields: function fillSteppingFields() {
+            for (var field = 1; field <= 40; field++) {
+                this.store.steppingFields.push({
+                    hasPawn: false
+                });
+            }
+        },
+        startGame: function startGame() {
+            this.store.currentPlayer = this.store.players[0];
+
+            this.store.steppingFields[5].hasPawn = this.store.players[1].pawns[2];
+
+            this.store.currentPlayer.getAvaliablePawns(2);
+        },
+        rollDice: function rollDice() {
+            this.store.lastRolledDice = this.rollTheDice();
         }
     }
 });
@@ -769,11 +781,14 @@ var _createClass = function () { function defineProperties(target, props) { for 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
 var Pawn = function () {
-    function Pawn(_startingPlace) {
+    function Pawn(_startingPlace, _color) {
+        var _globalPosition = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 0;
+
         _classCallCheck(this, Pawn);
 
+        this.color = _color;
         this.position = 0;
-        this.globalPosition = 4;
+        this.globalPosition = _globalPosition;
         this.isFinished = false;
         this.startingPlace = _startingPlace;
         this.animations = {
@@ -790,7 +805,27 @@ var Pawn = function () {
     }, {
         key: "isAvaliable",
         value: function isAvaliable(steps) {
-            return this.selfPosition + steps <= 40 && this.selfPosition + steps;
+            var self = this;
+
+            /*** Check if pawn is home and dice rolled to 6 ***/
+            var pawnIsHome = function pawnIsHome() {
+                if (this.position == 0 && steps == 6) return true;
+            };
+
+            /*** Check if target field has pawn of the same color ***/
+            var targetFieldTaken = function targetFieldTaken() {
+                var targetFieldId = self.globalPosition + steps;
+                var targetField = ApplicationStore.steppingFields[targetFieldId];
+
+                if (targetField.hasPawn != false) {
+                    return targetField.hasPawn.color == self.color;
+                }
+                return false;
+            };
+
+            // Pawn doesn't skip another pawn inside ending arena.
+
+            return pawnIsHome && !targetFieldTaken;
         }
     }]);
 
@@ -814,13 +849,17 @@ var Player = function () {
         this.turn = _turn;
         this.name = _name;
         this.color = _color;
-        this.pawns = [new Pawn(1), new Pawn(2), new Pawn(3), new Pawn(4)];
+        this.pawns = [new Pawn(1, _color), new Pawn(2, _color, 3), new Pawn(3, _color), new Pawn(4, _color)];
     }
+
+    /** Returns array of all avaliable pawns. */
+
 
     _createClass(Player, [{
         key: "getAvaliablePawns",
         value: function getAvaliablePawns(steps) {
             var avaliablePawns = [];
+
             this.pawns.forEach(function (pawn) {
                 if (pawn.isAvaliable(steps)) {
                     avaliablePawns.push(pawn);
@@ -29301,17 +29340,17 @@ module.exports={render:function (){var _vm=this;var _h=_vm.$createElement;var _c
       attrs: {
         "href": "javascript:void(0);"
       }
-    }, [_vm._v("\n            " + _vm._s(steppingField.hasPawn) + "\n            " + _vm._s(index) + "\n        ")])
+    }, [_vm._v("\n            " + _vm._s(index + 1) + "\n        ")])
   }), _vm._v(" "), _vm._l((_vm.store.players), function(player) {
     return _c('div', {
       staticClass: "player-home",
       style: ({
         borderColor: player.color
       })
-    }, [_vm._v("\n            " + _vm._s(player.name) + "\n            "), _c('div', {
+    }, [_vm._v("\n            " + _vm._s(player.name) + " " + _vm._s(player.turn) + "\n            "), _c('div', {
       staticClass: "circles"
     }, _vm._l((player.pawns), function(pawn) {
-      return _c('div', {
+      return _c('a', {
         staticClass: "circle",
         class: {
           taken: pawn.isHome()
@@ -29319,14 +29358,19 @@ module.exports={render:function (){var _vm=this;var _h=_vm.$createElement;var _c
         style: ({
           borderColor: player.color
         }),
-        on: {
-          "click": function($event) {
-            _vm.pawni(pawn)
-          }
+        attrs: {
+          "href": "javascript:void(0);"
         }
       })
     }))])
-  })], 2)])
+  })], 2), _vm._v(" "), _c('h3', [_vm._v("Current turn: " + _vm._s(_vm.store.currentPlayer.name))]), _vm._v(" "), _c('h3', [_vm._v("Dice: " + _vm._s(_vm.store.lastRolledDice))]), _vm._v(" "), _c('h3', [_c('a', {
+    attrs: {
+      "href": "javascript:void(0);"
+    },
+    on: {
+      "click": _vm.rollDice
+    }
+  }, [_vm._v("Roll the dice")])])])
 },staticRenderFns: []}
 module.exports.render._withStripped = true
 if (false) {
