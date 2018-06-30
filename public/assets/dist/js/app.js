@@ -586,8 +586,11 @@ Vue.use(GlobalMixin);
 window.ApplicationStore = {
     steppingFields: [],
     players: [],
-    currentPlayer: new Player(),
-    lastRolledDice: 0
+    currentPlayerId: -1,
+    lastRolledDice: 0,
+    currentRound: 0,
+
+    currentPlayer: new Player()
 };
 
 // Components
@@ -722,6 +725,10 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
 //
 //
 //
+//
+//
+//
+//
 
 /* harmony default export */ __webpack_exports__["default"] = ({
     components: {},
@@ -729,7 +736,12 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
         this.$nextTick(function () {
             this.createPlayers();
             this.fillSteppingFields();
+
             this.startGame();
+
+            EventBus.listen(EventKeys.turns.endTurn, function () {
+                this.changePlayersTurn();
+            }.bind(this));
         }.bind(this));
     },
     data: function data() {
@@ -754,14 +766,29 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
             }
         },
         startGame: function startGame() {
-            this.store.currentPlayer = this.store.players[0];
+            this.store.curentRound = 1;
+            this.changePlayersTurn();
+        },
+        changePlayersTurn: function changePlayersTurn() {
+            /** Check if its first round **/
+            var currentPlayer = this.store.players[this.store.currentPlayerId];
+            if (currentPlayer) currentPlayer.endTurn();
 
-            this.store.steppingFields[5].hasPawn = this.store.players[1].pawns[2];
+            /** Set next player **/
+            if (this.store.currentPlayerId == this.store.players.length - 1) {
+                this.store.currentPlayerId = 0;
+                this.store.curentRound++;
+            } else {
+                this.store.currentPlayerId++;
+            }
 
-            this.store.currentPlayer.getAvaliablePawns(2);
+            this.store.players[this.store.currentPlayerId].startTurn();
         },
         rollDice: function rollDice() {
-            this.store.lastRolledDice = this.rollTheDice();
+            var diceResult = 1 + Math.floor(Math.random() * 6);
+            //                let diceResult = 6;
+            this.store.lastRolledDice = diceResult;
+            this.store.players[this.store.currentPlayerId].setAvaliablePawns(diceResult);
         }
     }
 });
@@ -770,7 +797,11 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
 /* 7 */
 /***/ (function(module, exports) {
 
-module.exports = {};
+module.exports = {
+    turns: {
+        endTurn: 'turns.endTurn'
+    }
+};
 
 /***/ }),
 /* 8 */
@@ -790,6 +821,7 @@ var Pawn = function () {
         this.position = 0;
         this.globalPosition = _globalPosition;
         this.isFinished = false;
+        this.isActive = false;
         this.startingPlace = _startingPlace;
         this.animations = {
             isSkipping: false,
@@ -798,18 +830,13 @@ var Pawn = function () {
     }
 
     _createClass(Pawn, [{
-        key: "isHome",
-        value: function isHome() {
-            return this.position == 0;
-        }
-    }, {
         key: "isAvaliable",
         value: function isAvaliable(steps) {
             var self = this;
 
             /*** Check if pawn is home and dice rolled to 6 ***/
             var pawnIsHome = function pawnIsHome() {
-                if (this.position == 0 && steps == 6) return true;
+                return self.position == 0 && steps == 6;
             };
 
             /*** Check if target field has pawn of the same color ***/
@@ -825,7 +852,19 @@ var Pawn = function () {
 
             // Pawn doesn't skip another pawn inside ending arena.
 
-            return pawnIsHome && !targetFieldTaken;
+            return pawnIsHome() && !targetFieldTaken();
+        }
+    }, {
+        key: "move",
+        value: function move() {
+            if (!this.isActive) return;
+
+            this.globalPosition += ApplicationStore.lastRolledDice;
+            this.position += ApplicationStore.lastRolledDice;
+
+            ApplicationStore.steppingFields[this.globalPosition].hasPawn = this;
+
+            EventBus.fire(EventKeys.turns.endTurn);
         }
     }]);
 
@@ -849,24 +888,37 @@ var Player = function () {
         this.turn = _turn;
         this.name = _name;
         this.color = _color;
+        this.isPlaying = false;
+
         this.pawns = [new Pawn(1, _color), new Pawn(2, _color, 3), new Pawn(3, _color), new Pawn(4, _color)];
     }
 
-    /** Returns array of all avaliable pawns. */
-
-
     _createClass(Player, [{
-        key: "getAvaliablePawns",
-        value: function getAvaliablePawns(steps) {
-            var avaliablePawns = [];
+        key: "startTurn",
+        value: function startTurn() {
+            ApplicationStore.currentPlayer = this;
+            this.isPlaying = true;
+        }
+    }, {
+        key: "endTurn",
+        value: function endTurn() {
+            this.isPlaying = false;
 
             this.pawns.forEach(function (pawn) {
+                pawn.isActive = false;
+            });
+        }
+
+        /** Returns array of all avaliable pawns. */
+
+    }, {
+        key: "setAvaliablePawns",
+        value: function setAvaliablePawns(steps) {
+            this.pawns.forEach(function (pawn) {
                 if (pawn.isAvaliable(steps)) {
-                    avaliablePawns.push(pawn);
+                    pawn.isActive = true;
                 }
             });
-
-            return avaliablePawns;
         }
     }]);
 
@@ -29337,6 +29389,7 @@ module.exports={render:function (){var _vm=this;var _h=_vm.$createElement;var _c
   }, [_vm._l((_vm.store.steppingFields), function(steppingField, index) {
     return _c('a', {
       staticClass: "circle",
+      class: [steppingField.hasPawn.color],
       attrs: {
         "href": "javascript:void(0);"
       }
@@ -29352,14 +29405,14 @@ module.exports={render:function (){var _vm=this;var _h=_vm.$createElement;var _c
     }, _vm._l((player.pawns), function(pawn) {
       return _c('a', {
         staticClass: "circle",
-        class: {
-          taken: pawn.isHome()
-        },
-        style: ({
-          borderColor: player.color
-        }),
+        class: [player.isPlaying && pawn.isActive ? 'is-avaliable' : '', pawn.color],
         attrs: {
           "href": "javascript:void(0);"
+        },
+        on: {
+          "click": function($event) {
+            pawn.move()
+          }
         }
       })
     }))])

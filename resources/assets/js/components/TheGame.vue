@@ -4,18 +4,22 @@
         <div class="board">
 
 
-            <a href="javascript:void(0);" class="circle" v-for="(steppingField, index) in store.steppingFields">
+            <a href="javascript:void(0);"
+               class="circle" v-for="(steppingField, index) in store.steppingFields"
+               :class="[steppingField.hasPawn.color]"
+            >
                 {{index + 1}}
             </a>
-
 
             <div class="player-home" :style="{borderColor: player.color}" v-for="player in store.players">
                 {{player.name}} {{player.turn}}
                 <div class="circles">
                     <a href="javascript:void(0);" class="circle"
-                       :style="{borderColor: player.color}"
                        v-for="pawn in player.pawns"
-                       :class="{taken:pawn.isHome()}"></a>
+                       :class="[player.isPlaying && pawn.isActive ? 'is-avaliable': '', pawn.color]"
+                       @click="pawn.move()"
+                    >
+                    </a>
                 </div>
             </div>
 
@@ -38,7 +42,15 @@
             this.$nextTick(function () {
                 this.createPlayers();
                 this.fillSteppingFields();
+
                 this.startGame();
+
+
+
+                EventBus.listen(EventKeys.turns.endTurn, function () {
+                    this.changePlayersTurn();
+                }.bind(this));
+
             }.bind(this));
         },
         data() {
@@ -63,18 +75,36 @@
                 }
             },
 
+
             startGame() {
-                this.store.currentPlayer = this.store.players[0];
+                this.store.curentRound = 1;
+                this.changePlayersTurn();
+            },
 
-                this.store.steppingFields[5].hasPawn = this.store.players[1].pawns[2];
+            changePlayersTurn() {
+                /** Check if its first round **/
+                let currentPlayer = this.store.players[this.store.currentPlayerId];
+                if (currentPlayer)
+                    currentPlayer.endTurn();
 
-                this.store.currentPlayer.getAvaliablePawns(2);
+                /** Set next player **/
+                if (this.store.currentPlayerId == this.store.players.length - 1) {
+                    this.store.currentPlayerId = 0;
+                    this.store.curentRound++;
+                } else {
+                    this.store.currentPlayerId++;
+                }
+
+                this.store.players[this.store.currentPlayerId].startTurn();
             },
 
             rollDice() {
-                this.store.lastRolledDice = this.rollTheDice()
+                let diceResult = 1 + Math.floor(Math.random() * 6);
+//                let diceResult = 6;
+                this.store.lastRolledDice = diceResult;
+                this.store.players[this.store.currentPlayerId].setAvaliablePawns(diceResult);
+            },
 
-            }
         }
     }
 </script>

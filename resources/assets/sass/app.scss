@@ -39,8 +39,23 @@
     font-size: 9px;
     transform: translateX(-11px) translateY(-11px);
 
-    &.taken {
-        background: darkslateblue;
+    &.is-avaliable {
+        -webkit-box-shadow: 0px 5px 5px 5px greenyellow;
+        -moz-box-shadow: 0px 5px 5px 5px greenyellow;
+        box-shadow: 0px 5px 5px 5px greenyellow;
+    }
+
+    &.red {
+        background: red;
+    }
+    &.yellow {
+        background: yellow;
+    }
+    &.green {
+        background: green;
+    }
+    &.blue {
+        background: dodgerblue;
     }
 
     @for $i from 1 through 5 {
@@ -116,7 +131,6 @@
     top: 0;
 }
 
-
 .player-home {
     position: absolute;
     &:nth-of-type(4) {
@@ -135,23 +149,23 @@
         right: 10px;
         bottom: 70px;
     }
-.circles {
-    position: relative;
-    .circle:nth-child(1) {
-        top: 0;
-        left: 0;
+    .circles {
+        position: relative;
+        .circle:nth-child(1) {
+            top: 0;
+            left: 0;
+        }
+        .circle:nth-child(2) {
+            top: 0;
+            left: 50px;
+        }
+        .circle:nth-child(3) {
+            top: 50px;
+            left: 0;
+        }
+        .circle:nth-child(4) {
+            top: 50px;
+            left: 50px;
+        }
     }
-    .circle:nth-child(2) {
-        top: 0;
-        left: 50px;
-    }
-    .circle:nth-child(3) {
-        top: 50px;
-        left: 0;
-    }
-    .circle:nth-child(4) {
-        top: 50px;
-        left: 50px;
-    }
-}
 }
