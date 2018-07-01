@@ -12,7 +12,6 @@ class Player {
     }
 
     startTurn() {
-        console.log('startTurn');
         ApplicationStore.currentPlayer = this;
         ApplicationStore.gamePlayStatus.isRolling = true;
 
@@ -22,20 +21,21 @@ class Player {
     rollDice() {
 
         let diceResult = 1 + Math.floor(Math.random() * 6);
-        console.log(diceResult);
         ApplicationStore.lastRolledDice = diceResult;
 
         this.setAvaliablePawns(diceResult);
 
+        console.log ( this.name, 'avaliable pawns: ', ...this.avaliablePawnsIndexes );
+
         /** Check if player has available pawns **/
         if (!this.avaliablePawnsIndexes.length) {
-            console.log(ApplicationStore.currentRound, 'ApplicationStore.currentRound ');
 
             if (this.stillHome && diceResult != 6) {
                 this.stillHomeCounter++;
-                console.log('this.stillHomeCounter', this.stillHomeCounter);
                 if (this.stillHomeCounter < 3) {
+                    console.log ( this.name, 'got: ', diceResult, 'play again.' );
                 } else {
+                    console.log ( this.name, 'got: ', diceResult, 'End of turn.' );
                     EventBus.fire(EventKeys.turns.endTurn);
                     this.stillHomeCounter = 0;
                 }
@@ -44,7 +44,7 @@ class Player {
                 EventBus.fire(EventKeys.turns.endTurn);
             }
         } else {
-
+            console.log ( this.name, 'got: ', diceResult, 'Choose pawn to move.' );
             ApplicationStore.gamePlayStatus.isRolling = false;
             ApplicationStore.gamePlayStatus.isMoving = true;
 
@@ -52,14 +52,12 @@ class Player {
     }
 
     hasAllPawnsHome() {
-        console.log('hasAllPawnsHome');
         this.pawns.every(function (pawn) {
             pawn.position = 0;
         })
     }
 
     endTurn() {
-        console.log('endTurn');
         this.isPlaying = false;
 
         this.pawns.forEach(function (pawn) {
@@ -70,12 +68,13 @@ class Player {
 
     /** Returns array of all avaliable pawns. */
     setAvaliablePawns(steps) {
-        console.log('setAvaliablePawns');
         this.avaliablePawnsIndexes = [];
         this.pawns.forEach(function (pawn, index) {
             if (pawn.isAvaliable(steps)) {
+                console.log ( this.is );
                 this.avaliablePawnsIndexes.push(index)
                 pawn.isActive = true;
+                console.log ( this.avaliablePawnsIndexes );
             }
         }.bind(this));
     }

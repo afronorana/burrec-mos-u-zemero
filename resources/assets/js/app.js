@@ -26,7 +26,7 @@ window.ApplicationStore = {
     steppingFields: [],
     players: [],
     currentPlayerId: -1,
-    lastRolledDice: 0,
+    lastRolledDice: 'Start',
     currentRound: 0,
 
     gamePlayStatus: {
