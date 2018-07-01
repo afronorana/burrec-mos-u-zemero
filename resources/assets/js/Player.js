@@ -27,9 +27,9 @@ class Player {
         return this.avaliablePawnsIndexes.length;
     }
 
-    rollDice() {
+    rollDice(diceResult) {
 
-        let diceResult = 1 + Math.floor(Math.random() * 6);
+
         ApplicationStore.lastRolledDice = diceResult;
 
         this.setAvaliablePawns(diceResult);

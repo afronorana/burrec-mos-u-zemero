@@ -27,7 +27,6 @@
                 </div>
             </div>
 
-<!--<div class="afroni"></div>-->
 
             <div class="player-pawns" style="color: #fff" v-for="player in store.players">
                 <a href="javascript:void(0);" class="pawn-figure"
@@ -41,16 +40,11 @@
             </div>
 
 
-            <a href="javascript:void(0);" class="the-dice"
-               @click="rollDice"
-               :class="{'is-playing' : store.gamePlayStatus.isRolling}"
-            >{{store.lastRolledDice}}</a>
-
 
         </div>
 
 
-
+        <the-dice></the-dice>
 
 
     </div>

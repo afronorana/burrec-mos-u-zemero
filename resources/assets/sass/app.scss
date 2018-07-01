@@ -231,8 +231,8 @@ body {
     height: 20px;
     transition: all .2s ease-in-out;
 
+    box-shadow: 7px 6px 11px 0px rgba(0,0,0,1.1);
     //transform: translateX(-10px) translateY(-10px);
-
 
     border: 1px solid black;
     border-radius: 50%;
@@ -259,11 +259,8 @@ body {
         background: dodgerblue;
     }
 
-
     &.is-avaliable {
-        -webkit-box-shadow: 0px 5px 5px 5px greenyellow;
-        -moz-box-shadow: 0px 5px 5px 5px greenyellow;
-        box-shadow: 0px 5px 5px 5px greenyellow;
+        box-shadow: 7px 6px 11px 0px greenyellow;
     }
 
 }
@@ -273,5 +270,209 @@ $class-slug: field !default;
 @for $i from 1 through 40 {
     .#{$class-slug}-#{$i - 1} {
         @extend .circle:nth-child(#{$i});
+    }
+}
+
+// The DICE
+
+.scene.animate {
+
+    animation: shake 1s cubic-bezier(.36,.07,.19,.97) both;
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+    perspective: 1000px;
+
+}
+
+@keyframes shake {
+    0%, 100% {
+        transform: translateZ(0);
+    }
+
+    10%, 30%, 50%, 70%, 90% {
+        transform: translate3d(-10px,0,0);
+    }
+    20%, 40%, 60%, 80% {
+        transform: translate3d(10px,0,0);
+    }
+
+}
+
+.scene {
+    //width: 100px;
+    //height: 100px;
+    //border: 1px solid #CCC;
+    //margin: 80px;
+    //perspective: 400px;
+
+
+    width: 1000px;
+    position: absolute;
+    height: 1200px;
+    left: -130px;
+    top: -300px;
+    border: 1px solid #CCC;
+    perspective: 1010px;
+    transform: perspective(1000px) rotatex(31deg) rotateY(-10deg) rotatez(10deg) translateZ(-760px);
+
+    .cube {
+        width: 100px;
+        height: 100px;
+        position: relative;
+        transform-style: preserve-3d;
+        transform: translateZ(-50px);
+        transition: transform 1s;
+        cursor: pointer;
+
+        &.show-one {
+            transform: translateZ(-50px) rotateY(0deg);
+        }
+        &.show-two {
+            transform: translateZ(-50px) rotateY(-90deg);
+        }
+        &.show-three {
+            transform: translateZ(-50px) rotateY(-180deg);
+        }
+        &.show-four {
+            transform: translateZ(-50px) rotateY(90deg);
+        }
+        &.show-five {
+            transform: translateZ(-50px) rotateX(-90deg);
+        }
+        &.show-six {
+            transform: translateZ(-50px) rotateX(90deg);
+        }
+    }
+    .cube__face {
+        position: absolute;
+        width: 100px;
+        height: 100px;
+        border: 2px solid black;
+        border-radius: 12px;
+        background-color: #fff;
+
+        &--one {
+            transform: rotateY(0deg) translateZ(50px);
+            .dot {
+                left: calc(50% - 5px);
+                top: calc(50% - 5px);
+            }
+        }
+        &--two {
+            transform: rotateY(90deg) translateZ(50px);
+            .dot {
+                &:nth-child(1) {
+                    left: calc(33% - 5px);
+                    top: calc(33% - 5px);
+                }
+                &:nth-child(2) {
+                    left: calc(66% - 5px);
+                    top: calc(66% - 5px);
+                }
+
+            }
+        }
+        &--three {
+            transform: rotateY(180deg) translateZ(50px);
+            .dot {
+                &:nth-child(1) {
+                    left: calc(33% - 5px);
+                    top: calc(33% - 5px);
+                }
+                &:nth-child(2) {
+                    left: calc(66% - 5px);
+                    top: calc(66% - 5px);
+                }
+                &:nth-child(3) {
+                    left: calc(50% - 5px);
+                    top: calc(50% - 5px);
+                }
+            }
+        }
+        &--four {
+            transform: rotateY(-90deg) translateZ(50px);
+            .dot {
+                &:nth-child(1) {
+                    left: calc(33% - 5px);
+                    top: calc(33% - 5px);
+                }
+                &:nth-child(2) {
+                    left: calc(66% - 5px);
+                    top: calc(33% - 5px);
+                }
+                &:nth-child(3) {
+                    left: calc(33% - 5px);
+                    top: calc(66% - 5px);
+                }
+                &:nth-child(4) {
+                    left: calc(66% - 5px);
+                    top: calc(66% - 5px);
+                }
+            }
+        }
+        &--five {
+            transform: rotateX(90deg) translateZ(50px);
+            .dot {
+                &:nth-child(1) {
+                    left: calc(33% - 5px);
+                    top: calc(33% - 5px);
+                }
+                &:nth-child(2) {
+                    left: calc(66% - 5px);
+                    top: calc(33% - 5px);
+                }
+                &:nth-child(3) {
+                    left: calc(33% - 5px);
+                    top: calc(66% - 5px);
+                }
+                &:nth-child(4) {
+                    left: calc(66% - 5px);
+                    top: calc(66% - 5px);
+                }
+                &:nth-child(5) {
+                    left: calc(50% - 5px);
+                    top: calc(50% - 5px);
+                }
+            }
+        }
+        &--six {
+            transform: rotateX(-90deg) translateZ(50px);
+
+            .dot {
+                &:nth-child(1) {
+                    left: calc(33% - 5px);
+                    top: calc(33% - 5px);
+                }
+                &:nth-child(2) {
+                    left: calc(66% - 5px);
+                    top: calc(33% - 5px);
+                }
+                &:nth-child(3) {
+                    left: calc(33% - 5px);
+                    top: calc(50% - 5px);
+                }
+                &:nth-child(4) {
+                    left: calc(66% - 5px);
+                    top: calc(50% - 5px);
+                }
+                &:nth-child(5) {
+                    left: calc(33% - 5px);
+                    top: calc(66% - 5px);
+                }
+                &:nth-child(6) {
+                    left: calc(66% - 5px);
+                    top: calc(66% - 5px);
+                }
+            }
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: #000;
+            position: absolute;
+        }
+
     }
 }

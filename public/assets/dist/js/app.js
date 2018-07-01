@@ -599,6 +599,7 @@ window.ApplicationStore = {
 
 // Components
 Vue.component('the-game', __webpack_require__(25));
+Vue.component('the-dice', __webpack_require__(35));
 
 var Burrec = new Vue({
     el: '#app',
@@ -697,12 +698,6 @@ RawTask.prototype.call = function () {
 
 "use strict";
 Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
-//
-//
-//
-//
-//
-//
 //
 //
 //
@@ -966,9 +961,8 @@ var Player = function () {
         }
     }, {
         key: 'rollDice',
-        value: function rollDice() {
+        value: function rollDice(diceResult) {
 
-            var diceResult = 1 + Math.floor(Math.random() * 6);
             ApplicationStore.lastRolledDice = diceResult;
 
             this.setAvaliablePawns(diceResult);
@@ -29558,18 +29552,7 @@ module.exports={render:function (){var _vm=this;var _h=_vm.$createElement;var _c
         }
       }, [_vm._v("\n                    " + _vm._s(pawn.startingPlace) + "\n                ")])
     }))
-  }), _vm._v(" "), _c('a', {
-    staticClass: "the-dice",
-    class: {
-      'is-playing': _vm.store.gamePlayStatus.isRolling
-    },
-    attrs: {
-      "href": "javascript:void(0);"
-    },
-    on: {
-      "click": _vm.rollDice
-    }
-  }, [_vm._v(_vm._s(_vm.store.lastRolledDice))])], 2)])
+  })], 2), _vm._v(" "), _c('the-dice')], 1)
 },staticRenderFns: []}
 module.exports.render._withStripped = true
 if (false) {
@@ -40580,6 +40563,127 @@ module.exports = function(module) {
 __webpack_require__(3);
 module.exports = __webpack_require__(4);
 
+
+/***/ }),
+/* 31 */,
+/* 32 */,
+/* 33 */,
+/* 34 */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+
+/* harmony default export */ __webpack_exports__["default"] = ({
+    components: {},
+    mounted: function mounted() {
+        this.$nextTick(function () {}.bind(this));
+    },
+    data: function data() {
+        return {
+            store: window.ApplicationStore,
+            currentFace: 'one',
+            cubeFaces: [{ face: 'one', number: 1 }, { face: 'two', number: 2 }, { face: 'three', number: 3 }, { face: 'four', number: 4 }, { face: 'five', number: 5 }, { face: 'six', number: 6 }]
+        };
+    },
+
+    events: {},
+    methods: {
+        showFace: function showFace(face) {
+            this.currentFace = face;
+        },
+        rollDice: function rollDice() {
+            if (!this.store.gamePlayStatus.isRolling) return;
+            var diceResult = 1 + Math.floor(Math.random() * 6);
+
+            this.cubeFaces.forEach(function (cubeFace) {
+                if (cubeFace.number == diceResult) {
+                    this.showFace(cubeFace.face);
+                }
+            }.bind(this));
+
+            this.store.players[this.store.currentPlayerId].rollDice(diceResult);
+        }
+    }
+});
+
+/***/ }),
+/* 35 */
+/***/ (function(module, exports, __webpack_require__) {
+
+var Component = __webpack_require__(26)(
+  /* script */
+  __webpack_require__(34),
+  /* template */
+  __webpack_require__(36),
+  /* scopeId */
+  null,
+  /* cssModules */
+  null
+)
+Component.options.__file = "/Users/user/Projects/Freelance/burrec/resources/assets/js/components/TheDice.vue"
+if (Component.esModule && Object.keys(Component.esModule).some(function (key) {return key !== "default" && key !== "__esModule"})) {console.error("named exports are not supported in *.vue files.")}
+if (Component.options.functional) {console.error("[vue-loader] TheDice.vue: functional components are not supported with templates, they should use render functions.")}
+
+/* hot reload */
+if (false) {(function () {
+  var hotAPI = require("vue-hot-reload-api")
+  hotAPI.install(require("vue"), false)
+  if (!hotAPI.compatible) return
+  module.hot.accept()
+  if (!module.hot.data) {
+    hotAPI.createRecord("data-v-1f933943", Component.options)
+  } else {
+    hotAPI.reload("data-v-1f933943", Component.options)
+  }
+})()}
+
+module.exports = Component.exports
+
+
+/***/ }),
+/* 36 */
+/***/ (function(module, exports, __webpack_require__) {
+
+module.exports={render:function (){var _vm=this;var _h=_vm.$createElement;var _c=_vm._self._c||_h;
+  return _c('div', [_c('div', {
+    staticClass: "scene"
+  }, [_c('div', {
+    staticClass: "cube",
+    class: ['show-' + _vm.currentFace, _vm.store.gamePlayStatus.isRolling ? 'is-active' : ''],
+    on: {
+      "click": _vm.rollDice
+    }
+  }, _vm._l((_vm.cubeFaces), function(cubeFace) {
+    return _c('div', {
+      staticClass: "cube__face",
+      class: ['cube__face--' + cubeFace.face]
+    }, _vm._l((cubeFace.number), function(dot) {
+      return _c('div', {
+        staticClass: "dot"
+      })
+    }))
+  }))])])
+},staticRenderFns: []}
+module.exports.render._withStripped = true
+if (false) {
+  module.hot.accept()
+  if (module.hot.data) {
+     require("vue-hot-reload-api").rerender("data-v-1f933943", module.exports)
+  }
+}
 
 /***/ })
 /******/ ]);
