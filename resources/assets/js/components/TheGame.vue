@@ -3,28 +3,45 @@
 <!--Board containing -->
         <div class="board">
 
-            <a href="javascript:void(0);"
+            <span href="javascript:void(0);"
                class="circle" v-for="(steppingField, index) in store.steppingFields"
-               :class="[steppingField.hasPawn.color]"
-               @click="clickedField(index)"
-            >
-                {{index}}
-            </a>
 
-            <div class="player-home" :style="{borderColor: player.color}" :class="{'is-playing' : player.isPlaying}" v-for="player in store.players">
+            >
+                <!--:class="[steppingField.hasPawn.color]"-->
+                {{index}}
+            </span>
+
+
+
+
+
+            <div class="player-home"  :class="{'is-playing' : player.isPlaying}" v-for="player in store.players">
                 {{player.name}} {{player.turn}}
                 <div class="circles">
                     <a href="javascript:void(0);" class="circle"
                        v-for="pawn in player.pawns"
-                       :class="[player.isPlaying && pawn.isActive ? 'is-avaliable': '', pawn.color]"
+                       :class="[player.isPlaying && pawn.isActive && pawn.position ==0 ? 'is-avaliable': '', pawn.color]"
                        @click="pawn.move()"
                     >
                     </a>
                 </div>
             </div>
 
-            <a href="javascript:void(0);" class="the-dice"
+<!--<div class="afroni"></div>-->
 
+            <div class="player-pawns" style="color: #fff" v-for="player in store.players">
+                <a href="javascript:void(0);" class="pawn-figure"
+                   v-for="pawn in player.pawns"
+                   v-show="pawn.position != 0"
+                     :class="['field-' + pawn.globalPosition, player.isPlaying && pawn.isActive? 'is-avaliable': '', pawn.color]"
+                     @click="pawn.move()"
+                >
+                    {{pawn.startingPlace}}
+                </a>
+            </div>
+
+
+            <a href="javascript:void(0);" class="the-dice"
                @click="rollDice"
                :class="{'is-playing' : store.gamePlayStatus.isRolling}"
             >{{store.lastRolledDice}}</a>
@@ -60,6 +77,12 @@
             }
         },
         events: {},
+
+        computed: {
+            fieldHasPawn() {
+                return false;
+            }
+        },
         methods: {
 
             rollDice() {
@@ -77,7 +100,8 @@
             fillSteppingFields() {
                 for (let field = 1; field <= 40; field++) {
                     this.store.steppingFields.push({
-                        hasPawn: false,
+//                        hasPawn: false,
+                        hasPawn: this.fieldHasPawn
                     })
                 }
             },
@@ -105,8 +129,11 @@
 
                 this.store.players[this.store.currentPlayerId].startTurn();
             },
-            clickedField(index){
-                console.log ( index );
+            clickedField(steppingField){
+                if (steppingField.hasPawn) {
+                    steppingField.hasPawn.position = 12;
+                    steppingField.hasPawn.globalPosition = 12;
+                }
             }
 
         }

@@ -1,7 +1,9 @@
 class Pawn {
-    constructor(_startingPlace, _color, _globalPosition = 0) {
+    constructor(_id, _startingPlace, _color, _globalPosition = 0) {
+        this.id = _id;
         this.color = _color;
         this.position = 0;
+        this.startingGlobalPosition = _globalPosition;
         this.globalPosition = _globalPosition;
         this.isFinished = false;
         this.isActive = false;
@@ -13,36 +15,52 @@ class Pawn {
 
     }
 
-
     isAvaliable(steps) {
         let self = this;
 
         /*** Check if pawn is home and dice rolled to 6 ***/
-        let pawnIsHome = function () {
-            return self.position == 0 && steps == 6;
+        let pawnCanLeaveHome = function () {
+            return self.position == 0 && steps == 6
         };
 
+        console.log ( self.id, 'pawnCanLeaveHome', pawnCanLeaveHome() );
+
         /*** Check if target field has pawn of the same color ***/
-        let targetFieldTaken = function () {
+        let targetFieldIsEmpty = function () {
+            if (self.position == 0) return false;
+
             let targetFieldId = self.globalPosition + steps;
             let targetField = ApplicationStore.steppingFields[targetFieldId];
 
             if (targetField.hasPawn != false) {
-                return targetField.hasPawn.color == self.color;
+                return targetField.hasPawn.color != self.color;
             }
-            return false
+            return true;
         };
+
+        console.log ( 'pawnCanLeaveHome', pawnCanLeaveHome() );
+        console.log ( 'targetFieldIsEmpty', targetFieldIsEmpty() );
 
         // Pawn doesn't skip another pawn inside ending arena.
 
-        return pawnIsHome() && !targetFieldTaken();
+        return pawnCanLeaveHome() || targetFieldIsEmpty();
     }
 
     move() {
         if (!this.isActive) return;
-        this.globalPosition += ApplicationStore.lastRolledDice;
 
-        this.position += this.position + ApplicationStore.lastRolledDice;
+        ApplicationStore.steppingFields[this.globalPosition].hasPawn = false;
+
+        if (this.position == 0) {
+            this.globalPosition = this.startingGlobalPosition + 1;
+            this.position = 1;
+        } else {
+
+            this.globalPosition += ApplicationStore.lastRolledDice;
+            this.position += this.position + ApplicationStore.lastRolledDice;
+        }
+
+
         ApplicationStore.steppingFields[this.globalPosition].hasPawn = this;
 
         EventBus.fire(EventKeys.turns.endTurn);

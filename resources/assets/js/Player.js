@@ -5,7 +5,12 @@ class Player {
         this.color = _color;
         this.isPlaying = false;
         this.avaliablePawnsIndexes = [];
-        this.pawns = [new Pawn(1, _color, (_turn - 1) * 10), new Pawn(2, _color, (_turn - 1) * 10), new Pawn(3, _color, (_turn - 1) * 10), new Pawn(4, _color, (_turn - 1) * 10)];
+        this.pawns = [
+            new Pawn('pawnId.' + _turn + '.1', 1, _color, (_turn - 1) * 10),
+            new Pawn('pawnId.' + _turn + '.2', 2, _color, (_turn - 1) * 10),
+            new Pawn('pawnId.' + _turn + '.3', 3, _color, (_turn - 1) * 10),
+            new Pawn('pawnId.' + _turn + '.4', 4, _color, (_turn - 1) * 10)
+        ];
 
         this.stillHome = true;
         this.stillHomeCounter = 0;
@@ -18,6 +23,10 @@ class Player {
         this.isPlaying = true;
     }
 
+    pawnsAvailable() {
+        return this.avaliablePawnsIndexes.length;
+    }
+
     rollDice() {
 
         let diceResult = 1 + Math.floor(Math.random() * 6);
@@ -25,25 +34,34 @@ class Player {
 
         this.setAvaliablePawns(diceResult);
 
-        console.log ( this.name, 'avaliable pawns: ', ...this.avaliablePawnsIndexes );
+        console.log ( this.name, 'pawns pvailable: ', this.pawnsAvailable());
+
 
         /** Check if player has available pawns **/
-        if (!this.avaliablePawnsIndexes.length) {
+        if (!this.pawnsAvailable()) {
 
             if (this.stillHome && diceResult != 6) {
                 this.stillHomeCounter++;
+
                 if (this.stillHomeCounter < 3) {
                     console.log ( this.name, 'got: ', diceResult, 'play again.' );
+
                 } else {
                     console.log ( this.name, 'got: ', diceResult, 'End of turn.' );
                     EventBus.fire(EventKeys.turns.endTurn);
                     this.stillHomeCounter = 0;
                 }
             } else {
+
+                console.log ( this.name, 'got: ', diceResult, 'Choose pawn to move.' );
+                ApplicationStore.gamePlayStatus.isRolling = false;
+                ApplicationStore.gamePlayStatus.isMoving = true;
                 this.stillHome = false;
-                EventBus.fire(EventKeys.turns.endTurn);
+                console.log ( 'home nomore' );
+                // EventBus.fire(EventKeys.turns.endTurn);
             }
         } else {
+
             console.log ( this.name, 'got: ', diceResult, 'Choose pawn to move.' );
             ApplicationStore.gamePlayStatus.isRolling = false;
             ApplicationStore.gamePlayStatus.isMoving = true;
@@ -71,12 +89,14 @@ class Player {
         this.avaliablePawnsIndexes = [];
         this.pawns.forEach(function (pawn, index) {
             if (pawn.isAvaliable(steps)) {
-                console.log ( this.is );
-                this.avaliablePawnsIndexes.push(index)
+
+                this.avaliablePawnsIndexes.push(index);
                 pawn.isActive = true;
-                console.log ( this.avaliablePawnsIndexes );
             }
         }.bind(this));
+
+
+        console.log ( this.avaliablePawnsIndexes );
     }
 
 

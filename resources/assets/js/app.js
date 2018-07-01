@@ -46,6 +46,8 @@ const Burrec = new Vue({
 
         }.bind(this));
     },
+
+
     data: {},
     events: {},
     methods: {}

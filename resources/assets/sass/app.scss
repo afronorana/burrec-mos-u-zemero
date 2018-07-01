@@ -19,7 +19,6 @@
     opacity: .3;
 }
 
-
 .board {
     padding: 20px;
     position: relative;
@@ -140,7 +139,6 @@
     background: #fff;
     text-align: center;
 
-
     display: flex;
     justify-content: center;
     align-items: center;
@@ -200,4 +198,80 @@
     }
 }
 
+.player-pawns {
+    position: absolute;
+    left: 0;
+    top: 0;
 
+    &.red {
+        color: red;
+    }
+    &.yellow {
+        color: yellow;
+    }
+    &.green {
+        color: green;
+    }
+    &.blue {
+        color: dodgerblue;
+    }
+
+    .pawn {
+        white-space: nowrap;
+    }
+}
+
+body {
+    background: #ccc;
+}
+
+.pawn-figure {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    transition: all .2s ease-in-out;
+
+    //transform: translateX(-10px) translateY(-10px);
+
+
+    border: 1px solid black;
+    border-radius: 50%;
+    margin: 5px;
+    display: -ms-flexbox;
+    display: flex;
+    -ms-flex-pack: center;
+    justify-content: center;
+    -ms-flex-align: center;
+    align-items: center;
+    font-size: 9px;
+    transform: translateX(-11px) translateY(-11px);
+
+    &.red {
+        background: red;
+    }
+    &.yellow {
+        background: yellow;
+    }
+    &.green {
+        background: green;
+    }
+    &.blue {
+        background: dodgerblue;
+    }
+
+
+    &.is-avaliable {
+        -webkit-box-shadow: 0px 5px 5px 5px greenyellow;
+        -moz-box-shadow: 0px 5px 5px 5px greenyellow;
+        box-shadow: 0px 5px 5px 5px greenyellow;
+    }
+
+}
+
+$class-slug: field !default;
+
+@for $i from 1 through 40 {
+    .#{$class-slug}-#{$i - 1} {
+        @extend .circle:nth-child(#{$i});
+    }
+}
