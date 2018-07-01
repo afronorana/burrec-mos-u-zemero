@@ -29,7 +29,10 @@ window.ApplicationStore = {
     lastRolledDice: 0,
     currentRound: 0,
 
-
+    gamePlayStatus: {
+        isRolling: false,
+        isMoving: false,
+    },
     currentPlayer: new Player(),
 };
 

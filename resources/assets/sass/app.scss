@@ -15,6 +15,11 @@
 // Notes: Requires BootsrapGrid
 @import "responsive";
 
+.disabled {
+    opacity: .3;
+}
+
+
 .board {
     padding: 20px;
     position: relative;
@@ -132,6 +137,12 @@
 }
 
 .player-home {
+    &.is-playing {
+        -webkit-box-shadow: 0px 5px 5px 5px greenyellow;
+        -moz-box-shadow: 0px 5px 5px 5px greenyellow;
+        box-shadow: 0px 5px 5px 5px greenyellow;
+    }
+
     position: absolute;
     &:nth-of-type(4) {
         left: 10px;

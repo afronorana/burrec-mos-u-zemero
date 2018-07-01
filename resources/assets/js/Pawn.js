@@ -41,8 +41,18 @@ class Pawn {
     move() {
         if (!this.isActive) return;
 
+        console.log('%c Moving pawn: ', 'color: green');
+        console.log('pawn globalPosition before movement: ', this.globalPosition);
+        console.log('pawn position before movement: ', this.position);
+
+
         this.globalPosition += ApplicationStore.lastRolledDice;
-        this.position += ApplicationStore.lastRolledDice;
+
+        this.position += this.position + ApplicationStore.lastRolledDice;
+
+
+        console.log('pawn globalPosition after movement: ', this.globalPosition);
+        console.log('pawn position after movement: ', this.position);
 
         ApplicationStore.steppingFields[this.globalPosition].hasPawn = this;
 

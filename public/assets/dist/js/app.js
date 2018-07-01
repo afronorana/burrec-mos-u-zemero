@@ -590,6 +590,10 @@ window.ApplicationStore = {
     lastRolledDice: 0,
     currentRound: 0,
 
+    gamePlayStatus: {
+        isRolling: false,
+        isMoving: false
+    },
     currentPlayer: new Player()
 };
 
@@ -726,9 +730,6 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
 //
 //
 //
-//
-//
-//
 
 /* harmony default export */ __webpack_exports__["default"] = ({
     components: {},
@@ -752,13 +753,20 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
 
     events: {},
     methods: {
+        rollDice: function rollDice() {
+            console.log('rollDice()');
+            if (!this.store.gamePlayStatus.isRolling) return;
+            this.store.players[this.store.currentPlayerId].rollDice();
+        },
         createPlayers: function createPlayers() {
+            console.log('createPlayers()');
             this.store.players.push(new Player('Jon Doe', 'red', 1));
             this.store.players.push(new Player('Jane Doe', 'yellow', 2));
             this.store.players.push(new Player('Filan Fisteku', 'blue', 3));
             this.store.players.push(new Player('Filane Fisteku', 'green', 4));
         },
         fillSteppingFields: function fillSteppingFields() {
+            console.log('fillSteppingFields');
             for (var field = 1; field <= 40; field++) {
                 this.store.steppingFields.push({
                     hasPawn: false
@@ -766,10 +774,13 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
             }
         },
         startGame: function startGame() {
-            this.store.curentRound = 1;
+            console.log('startGame');
+            this.store.currentRound = 1;
             this.changePlayersTurn();
         },
         changePlayersTurn: function changePlayersTurn() {
+            ApplicationStore.gamePlayStatus.isMoving = false;
+
             /** Check if its first round **/
             var currentPlayer = this.store.players[this.store.currentPlayerId];
             if (currentPlayer) currentPlayer.endTurn();
@@ -777,18 +788,12 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
             /** Set next player **/
             if (this.store.currentPlayerId == this.store.players.length - 1) {
                 this.store.currentPlayerId = 0;
-                this.store.curentRound++;
+                this.store.currentRound++;
             } else {
                 this.store.currentPlayerId++;
             }
 
             this.store.players[this.store.currentPlayerId].startTurn();
-        },
-        rollDice: function rollDice() {
-            var diceResult = 1 + Math.floor(Math.random() * 6);
-            //                let diceResult = 6;
-            this.store.lastRolledDice = diceResult;
-            this.store.players[this.store.currentPlayerId].setAvaliablePawns(diceResult);
         }
     }
 });
@@ -830,7 +835,7 @@ var Pawn = function () {
     }
 
     _createClass(Pawn, [{
-        key: "isAvaliable",
+        key: 'isAvaliable',
         value: function isAvaliable(steps) {
             var self = this;
 
@@ -855,12 +860,20 @@ var Pawn = function () {
             return pawnIsHome() && !targetFieldTaken();
         }
     }, {
-        key: "move",
+        key: 'move',
         value: function move() {
             if (!this.isActive) return;
 
+            console.log('%c Moving pawn: ', 'color: green');
+            console.log('pawn globalPosition before movement: ', this.globalPosition);
+            console.log('pawn position before movement: ', this.position);
+
             this.globalPosition += ApplicationStore.lastRolledDice;
-            this.position += ApplicationStore.lastRolledDice;
+
+            this.position += this.position + ApplicationStore.lastRolledDice;
+
+            console.log('pawn globalPosition after movement: ', this.globalPosition);
+            console.log('pawn position after movement: ', this.position);
 
             ApplicationStore.steppingFields[this.globalPosition].hasPawn = this;
 
@@ -889,19 +902,65 @@ var Player = function () {
         this.name = _name;
         this.color = _color;
         this.isPlaying = false;
+        this.avaliablePawnsIndexes = [];
+        this.pawns = [new Pawn(1, _color, (_turn - 1) * 10), new Pawn(2, _color, (_turn - 1) * 10), new Pawn(3, _color, (_turn - 1) * 10), new Pawn(4, _color, (_turn - 1) * 10)];
 
-        this.pawns = [new Pawn(1, _color), new Pawn(2, _color, 3), new Pawn(3, _color), new Pawn(4, _color)];
+        this.stillHome = true;
+        this.stillHomeCounter = 0;
     }
 
     _createClass(Player, [{
-        key: "startTurn",
+        key: 'startTurn',
         value: function startTurn() {
+            console.log('startTurn');
             ApplicationStore.currentPlayer = this;
+            ApplicationStore.gamePlayStatus.isRolling = true;
+
             this.isPlaying = true;
         }
     }, {
-        key: "endTurn",
+        key: 'rollDice',
+        value: function rollDice() {
+
+            var diceResult = 1 + Math.floor(Math.random() * 6);
+            console.log(diceResult);
+            ApplicationStore.lastRolledDice = diceResult;
+
+            this.setAvaliablePawns(diceResult);
+
+            /** Check if player has available pawns **/
+            if (!this.avaliablePawnsIndexes.length) {
+                console.log(ApplicationStore.currentRound, 'ApplicationStore.currentRound ');
+
+                if (this.stillHome && diceResult != 6) {
+                    this.stillHomeCounter++;
+                    console.log('this.stillHomeCounter', this.stillHomeCounter);
+                    if (this.stillHomeCounter < 3) {} else {
+                        EventBus.fire(EventKeys.turns.endTurn);
+                        this.stillHomeCounter = 0;
+                    }
+                } else {
+                    this.stillHome = false;
+                    EventBus.fire(EventKeys.turns.endTurn);
+                }
+            } else {
+
+                ApplicationStore.gamePlayStatus.isRolling = false;
+                ApplicationStore.gamePlayStatus.isMoving = true;
+            }
+        }
+    }, {
+        key: 'hasAllPawnsHome',
+        value: function hasAllPawnsHome() {
+            console.log('hasAllPawnsHome');
+            this.pawns.every(function (pawn) {
+                pawn.position = 0;
+            });
+        }
+    }, {
+        key: 'endTurn',
         value: function endTurn() {
+            console.log('endTurn');
             this.isPlaying = false;
 
             this.pawns.forEach(function (pawn) {
@@ -912,13 +971,16 @@ var Player = function () {
         /** Returns array of all avaliable pawns. */
 
     }, {
-        key: "setAvaliablePawns",
+        key: 'setAvaliablePawns',
         value: function setAvaliablePawns(steps) {
-            this.pawns.forEach(function (pawn) {
+            console.log('setAvaliablePawns');
+            this.avaliablePawnsIndexes = [];
+            this.pawns.forEach(function (pawn, index) {
                 if (pawn.isAvaliable(steps)) {
+                    this.avaliablePawnsIndexes.push(index);
                     pawn.isActive = true;
                 }
-            });
+            }.bind(this));
         }
     }]);
 
@@ -29393,14 +29455,17 @@ module.exports={render:function (){var _vm=this;var _h=_vm.$createElement;var _c
       attrs: {
         "href": "javascript:void(0);"
       }
-    }, [_vm._v("\n            " + _vm._s(index + 1) + "\n        ")])
+    }, [_vm._v("\n                " + _vm._s(index) + "\n            ")])
   }), _vm._v(" "), _vm._l((_vm.store.players), function(player) {
     return _c('div', {
       staticClass: "player-home",
+      class: {
+        'is-playing': player.isPlaying
+      },
       style: ({
         borderColor: player.color
       })
-    }, [_vm._v("\n            " + _vm._s(player.name) + " " + _vm._s(player.turn) + "\n            "), _c('div', {
+    }, [_vm._v("\n                " + _vm._s(player.name) + " " + _vm._s(player.turn) + "\n                "), _c('div', {
       staticClass: "circles"
     }, _vm._l((player.pawns), function(pawn) {
       return _c('a', {
@@ -29416,14 +29481,17 @@ module.exports={render:function (){var _vm=this;var _h=_vm.$createElement;var _c
         }
       })
     }))])
-  })], 2), _vm._v(" "), _c('h3', [_vm._v("Current turn: " + _vm._s(_vm.store.currentPlayer.name))]), _vm._v(" "), _c('h3', [_vm._v("Dice: " + _vm._s(_vm.store.lastRolledDice))]), _vm._v(" "), _c('h3', [_c('a', {
+  })], 2), _vm._v(" "), _c('h3', [_vm._v(_vm._s(_vm.store.currentPlayer.name) + " -> "), _c('a', {
+    class: {
+      'disabled': _vm.store.gamePlayStatus.isRolling
+    },
     attrs: {
       "href": "javascript:void(0);"
     },
     on: {
       "click": _vm.rollDice
     }
-  }, [_vm._v("Roll the dice")])])])
+  }, [_vm._v("Roll the dice")])]), _vm._v(" "), _c('h3', [_vm._v("Dice: " + _vm._s(_vm.store.lastRolledDice))]), _vm._v(" "), (_vm.store.gamePlayStatus.isRolling) ? _c('h3', [_vm._v("Status: ROLLING")]) : _vm._e(), _vm._v(" "), (_vm.store.gamePlayStatus.isMoving) ? _c('h3', [_vm._v("Status: MOVING")]) : _vm._e()])
 },staticRenderFns: []}
 module.exports.render._withStripped = true
 if (false) {

@@ -1,17 +1,16 @@
 <template>
     <div>
-
+<!--Board containing -->
         <div class="board">
-
 
             <a href="javascript:void(0);"
                class="circle" v-for="(steppingField, index) in store.steppingFields"
                :class="[steppingField.hasPawn.color]"
             >
-                {{index + 1}}
+                {{index}}
             </a>
 
-            <div class="player-home" :style="{borderColor: player.color}" v-for="player in store.players">
+            <div class="player-home" :style="{borderColor: player.color}" :class="{'is-playing' : player.isPlaying}" v-for="player in store.players">
                 {{player.name}} {{player.turn}}
                 <div class="circles">
                     <a href="javascript:void(0);" class="circle"
@@ -22,16 +21,14 @@
                     </a>
                 </div>
             </div>
-
         </div>
 
 
-        <h3>Current turn: {{store.currentPlayer.name}}</h3>
+        <h3>{{store.currentPlayer.name}} -> <a href="javascript:void(0);" @click="rollDice" :class="{'disabled' : store.gamePlayStatus.isRolling}">Roll the dice</a></h3>
         <h3>Dice: {{store.lastRolledDice}}</h3>
+        <h3 v-if="store.gamePlayStatus.isRolling">Status: ROLLING</h3>
+        <h3 v-if="store.gamePlayStatus.isMoving">Status: MOVING</h3>
 
-        <h3>
-            <a href="javascript:void(0);" @click="rollDice">Roll the dice</a>
-        </h3>
 
     </div>
 </template>
@@ -44,8 +41,6 @@
                 this.fillSteppingFields();
 
                 this.startGame();
-
-
 
                 EventBus.listen(EventKeys.turns.endTurn, function () {
                     this.changePlayersTurn();
@@ -60,7 +55,15 @@
         },
         events: {},
         methods: {
+
+            rollDice() {
+                console.log ( 'rollDice()' );
+                if (!this.store.gamePlayStatus.isRolling) return;
+                this.store.players[this.store.currentPlayerId].rollDice();
+            },
+
             createPlayers() {
+                console.log ( 'createPlayers()' );
                 this.store.players.push(new Player('Jon Doe', 'red', 1));
                 this.store.players.push(new Player('Jane Doe', 'yellow', 2));
                 this.store.players.push(new Player('Filan Fisteku', 'blue', 3));
@@ -68,6 +71,7 @@
             },
 
             fillSteppingFields() {
+                console.log ( 'fillSteppingFields' );
                 for (let field = 1; field <= 40; field++) {
                     this.store.steppingFields.push({
                         hasPawn: false,
@@ -75,13 +79,15 @@
                 }
             },
 
-
             startGame() {
-                this.store.curentRound = 1;
+                console.log ( 'startGame' );
+                this.store.currentRound = 1;
                 this.changePlayersTurn();
             },
 
             changePlayersTurn() {
+                ApplicationStore.gamePlayStatus.isMoving = false;
+
                 /** Check if its first round **/
                 let currentPlayer = this.store.players[this.store.currentPlayerId];
                 if (currentPlayer)
@@ -90,7 +96,7 @@
                 /** Set next player **/
                 if (this.store.currentPlayerId == this.store.players.length - 1) {
                     this.store.currentPlayerId = 0;
-                    this.store.curentRound++;
+                    this.store.currentRound++;
                 } else {
                     this.store.currentPlayerId++;
                 }
@@ -98,12 +104,6 @@
                 this.store.players[this.store.currentPlayerId].startTurn();
             },
 
-            rollDice() {
-                let diceResult = 1 + Math.floor(Math.random() * 6);
-//                let diceResult = 6;
-                this.store.lastRolledDice = diceResult;
-                this.store.players[this.store.currentPlayerId].setAvaliablePawns(diceResult);
-            },
 
         }
     }
