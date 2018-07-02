@@ -15,6 +15,11 @@ class Pawn {
 
     }
 
+    returnHome() {
+        this.position = 0;
+        this.globalPosition = this.startingGlobalPosition;
+    }
+
     isAvaliable(steps) {
         let self = this;
 
@@ -23,7 +28,7 @@ class Pawn {
             return self.position == 0 && steps == 6
         };
 
-        console.log ( self.id, 'pawnCanLeaveHome', pawnCanLeaveHome() );
+        console.log(self.id, 'pawnCanLeaveHome', pawnCanLeaveHome());
 
         /*** Check if target field has pawn of the same color ***/
         let targetFieldIsEmpty = function () {
@@ -33,13 +38,18 @@ class Pawn {
             let targetField = ApplicationStore.steppingFields[targetFieldId];
 
             if (targetField.hasPawn != false) {
-                return targetField.hasPawn.color != self.color;
+                if (targetField.hasPawn.color != self.color) {
+                    targetField.hasPawn.returnHome();
+                    return true;
+                } else {
+                    return false;
+                }
             }
             return true;
         };
 
-        console.log ( 'pawnCanLeaveHome', pawnCanLeaveHome() );
-        console.log ( 'targetFieldIsEmpty', targetFieldIsEmpty() );
+        console.log('pawnCanLeaveHome', pawnCanLeaveHome());
+        console.log('targetFieldIsEmpty', targetFieldIsEmpty());
 
         // Pawn doesn't skip another pawn inside ending arena.
 

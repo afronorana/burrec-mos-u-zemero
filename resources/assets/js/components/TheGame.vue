@@ -5,7 +5,6 @@
 
             <span href="javascript:void(0);"
                class="circle" v-for="(steppingField, index) in store.steppingFields"
-
             >
                 <!--:class="[steppingField.hasPawn.color]"-->
                 {{index}}

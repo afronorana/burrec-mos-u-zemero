@@ -50,16 +50,16 @@
     }
 
     &.red {
-        background: red;
+        background: $red;
     }
     &.yellow {
-        background: yellow;
+        background: $yellow;
     }
     &.green {
-        background: green;
+        background: $green;
     }
     &.blue {
-        background: dodgerblue;
+        background: $blue;
     }
 
     @for $i from 1 through 5 {
@@ -204,16 +204,16 @@
     top: 0;
 
     &.red {
-        color: red;
+        color: $red;
     }
     &.yellow {
-        color: yellow;
+        color: $yellow;
     }
     &.green {
-        color: green;
+        color: $green;
     }
     &.blue {
-        color: dodgerblue;
+        color: $blue;
     }
 
     .pawn {
@@ -231,7 +231,7 @@ body {
     height: 20px;
     transition: all .2s ease-in-out;
 
-    box-shadow: 7px 6px 11px 0px rgba(0,0,0,1.1);
+    box-shadow: 7px 6px 11px 0px rgba(0, 0, 0, 1.1);
     //transform: translateX(-10px) translateY(-10px);
 
     border: 1px solid black;
@@ -247,16 +247,16 @@ body {
     transform: translateX(-11px) translateY(-11px);
 
     &.red {
-        background: red;
+        background: $red;
     }
     &.yellow {
-        background: yellow;
+        background: $yellow;
     }
     &.green {
-        background: green;
+        background: $green;
     }
     &.blue {
-        background: dodgerblue;
+        background: $blue;
     }
 
     &.is-avaliable {
@@ -277,7 +277,7 @@ $class-slug: field !default;
 
 .scene.animate {
 
-    animation: shake 1s cubic-bezier(.36,.07,.19,.97) both;
+    animation: shake 1s cubic-bezier(.36, .07, .19, .97) both;
     transform: translate3d(0, 0, 0);
     backface-visibility: hidden;
     perspective: 1000px;
@@ -290,10 +290,10 @@ $class-slug: field !default;
     }
 
     10%, 30%, 50%, 70%, 90% {
-        transform: translate3d(-10px,0,0);
+        transform: translate3d(-10px, 0, 0);
     }
     20%, 40%, 60%, 80% {
-        transform: translate3d(10px,0,0);
+        transform: translate3d(10px, 0, 0);
     }
 
 }
@@ -305,7 +305,6 @@ $class-slug: field !default;
     //margin: 80px;
     //perspective: 400px;
 
-
     width: 1000px;
     position: absolute;
     height: 1200px;
@@ -314,8 +313,10 @@ $class-slug: field !default;
     border: 1px solid #CCC;
     perspective: 1010px;
     transform: perspective(1000px) rotatex(31deg) rotateY(-10deg) rotatez(10deg) translateZ(-760px);
+    pointer-events: none;
 
     .cube {
+        pointer-events: all;
         width: 100px;
         height: 100px;
         position: relative;
