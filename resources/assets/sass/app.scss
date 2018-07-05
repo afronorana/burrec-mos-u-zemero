@@ -68,6 +68,9 @@
             left: 300px;
         }
     }
+
+
+
     @for $i from 21 through 25 {
         &:nth-child(#{$i}),
         &:nth-child(#{$i+14}) {

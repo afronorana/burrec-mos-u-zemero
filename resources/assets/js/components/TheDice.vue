@@ -1,10 +1,14 @@
 <template>
     <div>
         <div class="scene">
-            <div class="cube" :class="['show-' + currentFace, store.gamePlayStatus.isRolling?'is-active':'']" @click="rollDice" >
+            <div class="cube"
+                 :class="['show-' + currentFace, store.gamePlayStatus.isRolling?'is-active':'']"
+                 @click="rollDice" >
+
                 <div v-for="cubeFace in cubeFaces" class="cube__face" :class="['cube__face--' + cubeFace.face]">
                     <div class="dot" v-for="dot in cubeFace.number"></div>
                 </div>
+
             </div>
         </div>
 
