@@ -641,7 +641,6 @@ var GlobalMixin = __webpack_require__(14);
 Vue.use(GlobalMixin);
 
 window.ApplicationStore = {
-    steppingFields: [],
     players: [],
     currentPlayerId: -1,
     lastRolledDice: 'Start',
@@ -650,22 +649,38 @@ window.ApplicationStore = {
     gamePlayStatus: {
         isRolling: false,
         isMoving: false
-    },
-    currentPlayer: new Player()
+    }
 };
 
 // Components
 Vue.component('the-game', __webpack_require__(28));
 Vue.component('the-dice', __webpack_require__(27));
 
-var Burrec = new Vue({
+window.Burrec = new Vue({
     el: '#app',
     mounted: function mounted() {
-        this.$nextTick(function () {}.bind(this));
+        this.$nextTick(function () {
+            EventBus.listen(EventKeys.pawn.move, function (fieldIndex) {
+                // this.steppingFields[fieldIndex]
+
+            }.bind(this));
+        });
     },
 
 
-    data: {},
+    data: {
+        steppingFields: []
+    },
+
+    watch: {
+        steppingFields: {
+            handler: function handler(val) {
+                console.log(val);
+            },
+
+            deep: true
+        }
+    },
     events: {},
     methods: {}
 });
@@ -788,7 +803,8 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
         },
         rollDice: function rollDice() {
             if (!this.store.gamePlayStatus.isRolling) return;
-            var diceResult = 1 + Math.floor(Math.random() * 6);
+            //                let diceResult = 1 + Math.floor(Math.random() * 6);
+            var diceResult = 6;
 
             this.cubeFaces.forEach(function (cubeFace) {
                 if (cubeFace.number == diceResult) {
@@ -848,23 +864,14 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
 //
 //
 //
-//
-//
-//
-//
-//
-//
-//
-//
-//
 
 /* harmony default export */ __webpack_exports__["default"] = ({
+    props: ['steppingFields'],
     components: {},
     mounted: function mounted() {
         this.$nextTick(function () {
             this.createPlayers();
             this.fillSteppingFields();
-
             this.startGame();
 
             EventBus.listen(EventKeys.turns.endTurn, function () {
@@ -880,11 +887,6 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
 
     events: {},
 
-    computed: {
-        fieldHasPawn: function fieldHasPawn() {
-            return false;
-        }
-    },
     methods: {
         rollDice: function rollDice() {
             if (!this.store.gamePlayStatus.isRolling) return;
@@ -898,9 +900,8 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
         },
         fillSteppingFields: function fillSteppingFields() {
             for (var field = 1; field <= 40; field++) {
-                this.store.steppingFields.push({
-                    //                        hasPawn: false,
-                    hasPawn: this.fieldHasPawn
+                this.steppingFields.push({
+                    hasPawn: false
                 });
             }
         },
@@ -924,12 +925,6 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
             }
 
             this.store.players[this.store.currentPlayerId].startTurn();
-        },
-        clickedField: function clickedField(steppingField) {
-            if (steppingField.hasPawn) {
-                steppingField.hasPawn.position = 12;
-                steppingField.hasPawn.globalPosition = 12;
-            }
         }
     }
 });
@@ -941,6 +936,9 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
 module.exports = {
     turns: {
         endTurn: 'turns.endTurn'
+    },
+    pawn: {
+        move: 'pawn.move'
     }
 };
 
@@ -966,6 +964,7 @@ var Pawn = function () {
         this.isFinished = false;
         this.isActive = false;
         this.startingPlace = _startingPlace;
+
         this.animations = {
             isSkipping: false,
             isKnocked: false
@@ -973,65 +972,79 @@ var Pawn = function () {
     }
 
     _createClass(Pawn, [{
-        key: 'returnHome',
+        key: "returnHome",
         value: function returnHome() {
             this.position = 0;
             this.globalPosition = this.startingGlobalPosition;
         }
     }, {
-        key: 'isAvaliable',
+        key: "isAvaliable",
         value: function isAvaliable(steps) {
             var self = this;
 
             /*** Check if pawn is home and dice rolled to 6 ***/
             var pawnCanLeaveHome = function pawnCanLeaveHome() {
-                return self.position == 0 && steps == 6;
+                var canLeave = true;
+
+                ApplicationStore.players.forEach(function (player) {
+                    player.pawns.forEach(function (pawn) {
+                        if (pawn.globalPosition == self.startingGlobalPosition + 1 && player.isPlaying) {
+                            canLeave = false;
+                        }
+                    });
+                });
+                return self.position == 0 && steps == 6 && canLeave;
             };
 
-            console.log(self.id, 'pawnCanLeaveHome', pawnCanLeaveHome());
+            // console.log(self.id, 'pawnCanLeaveHome', pawnCanLeaveHome());
 
             /*** Check if target field has pawn of the same color ***/
             var targetFieldIsEmpty = function targetFieldIsEmpty() {
                 if (self.position == 0) return false;
 
-                var targetFieldId = self.globalPosition + steps;
-                var targetField = ApplicationStore.steppingFields[targetFieldId];
+                var finalTarget = self.globalPosition + steps; // 23
+                var targetFieldId = finalTarget <= 39 ? finalTarget : finalTarget - 40; // 23
 
-                if (targetField.hasPawn != false) {
-                    if (targetField.hasPawn.color != self.color) {
-                        targetField.hasPawn.returnHome();
-                        return true;
-                    } else {
-                        return false;
-                    }
-                }
-                return true;
+                var targetFieldIsFree = true;
+
+                ApplicationStore.players.forEach(function (player) {
+                    player.pawns.forEach(function (pawn) {
+                        if (pawn.globalPosition == targetFieldId && player.isPlaying) {
+                            targetFieldIsFree = false;
+                        }
+                    });
+                });
+
+                return targetFieldIsFree;
             };
-
-            console.log('pawnCanLeaveHome', pawnCanLeaveHome());
-            console.log('targetFieldIsEmpty', targetFieldIsEmpty());
 
             // Pawn doesn't skip another pawn inside ending arena.
 
             return pawnCanLeaveHome() || targetFieldIsEmpty();
         }
     }, {
-        key: 'move',
+        key: "move",
         value: function move() {
             if (!this.isActive) return;
-
-            ApplicationStore.steppingFields[this.globalPosition].hasPawn = false;
 
             if (this.position == 0) {
                 this.globalPosition = this.startingGlobalPosition + 1;
                 this.position = 1;
             } else {
-
-                this.globalPosition += ApplicationStore.lastRolledDice;
+                var globalPosition = this.globalPosition + ApplicationStore.lastRolledDice;
+                this.globalPosition = globalPosition <= 39 ? globalPosition : globalPosition - 40;
                 this.position += this.position + ApplicationStore.lastRolledDice;
             }
 
-            ApplicationStore.steppingFields[this.globalPosition].hasPawn = this;
+            ApplicationStore.players.forEach(function (player) {
+                if (!player.isPlaying) {
+                    player.pawns.forEach(function (pawn) {
+                        if (pawn.globalPosition == this.globalPosition) {
+                            pawn.returnHome();
+                        }
+                    }.bind(this));
+                }
+            }.bind(this));
 
             EventBus.fire(EventKeys.turns.endTurn);
         }
@@ -1068,7 +1081,6 @@ var Player = function () {
     _createClass(Player, [{
         key: 'startTurn',
         value: function startTurn() {
-            ApplicationStore.currentPlayer = this;
             ApplicationStore.gamePlayStatus.isRolling = true;
 
             this.isPlaying = true;
@@ -1142,13 +1154,21 @@ var Player = function () {
             this.avaliablePawnsIndexes = [];
             this.pawns.forEach(function (pawn, index) {
                 if (pawn.isAvaliable(steps)) {
-
                     this.avaliablePawnsIndexes.push(index);
                     pawn.isActive = true;
                 }
             }.bind(this));
 
             console.log(this.avaliablePawnsIndexes);
+        }
+    }, {
+        key: 'pawnPositions',
+        value: function pawnPositions() {
+            var pawnGlobalPositions = [];
+            this.pawns.forEach(function (pawn) {
+                pawnGlobalPositions.push(pawn.globalPosition);
+            });
+            return pawnGlobalPositions;
         }
     }]);
 
@@ -29625,28 +29645,22 @@ if (false) {
 module.exports={render:function (){var _vm=this;var _h=_vm.$createElement;var _c=_vm._self._c||_h;
   return _c('div', [_c('div', {
     staticClass: "board"
-  }, [_vm._l((_vm.store.steppingFields), function(steppingField, index) {
+  }, [_vm._l((_vm.steppingFields), function(steppingField, index) {
     return _c('span', {
-      staticClass: "circle",
-      attrs: {
-        "href": "javascript:void(0);"
-      }
-    }, [_vm._v("\n                " + _vm._s(index) + "\n            ")])
+      staticClass: "circle"
+    }, [_vm._v(_vm._s(index))])
   }), _vm._v(" "), _vm._l((_vm.store.players), function(player) {
     return _c('div', {
       staticClass: "player-home",
       class: {
         'is-playing': player.isPlaying
       }
-    }, [_vm._v("\n                " + _vm._s(player.name) + " " + _vm._s(player.turn) + "\n                "), _c('div', {
+    }, [_vm._v("\n                " + _vm._s(player.name) + " " + _vm._s(player.turn) + "\n            "), _c('div', {
       staticClass: "circles"
     }, _vm._l((player.pawns), function(pawn) {
-      return _c('a', {
+      return _c('span', {
         staticClass: "circle",
         class: [player.isPlaying && pawn.isActive && pawn.position == 0 ? 'is-avaliable' : '', pawn.color],
-        attrs: {
-          "href": "javascript:void(0);"
-        },
         on: {
           "click": function($event) {
             pawn.move()
@@ -29678,7 +29692,7 @@ module.exports={render:function (){var _vm=this;var _h=_vm.$createElement;var _c
             pawn.move()
           }
         }
-      }, [_vm._v("\n                    " + _vm._s(pawn.startingPlace) + "\n                ")])
+      }, [_vm._v("\n                " + _vm._s(pawn.startingPlace) + "\n            ")])
     }))
   })], 2), _vm._v(" "), _c('the-dice')], 1)
 },staticRenderFns: []}

@@ -23,7 +23,6 @@ const GlobalMixin = require('./mixins/Global');
 Vue.use(GlobalMixin);
 
 window.ApplicationStore = {
-    steppingFields: [],
     players: [],
     currentPlayerId: -1,
     lastRolledDice: 'Start',
@@ -32,24 +31,37 @@ window.ApplicationStore = {
     gamePlayStatus: {
         isRolling: false,
         isMoving: false,
-    },
-    currentPlayer: new Player(),
+    }
 };
 
 // Components
 Vue.component('the-game', require('./components/TheGame'));
 Vue.component('the-dice', require('./components/TheDice'));
 
-const Burrec = new Vue({
+window.Burrec = new Vue({
     el: '#app',
     mounted() {
         this.$nextTick(function () {
+            EventBus.listen(EventKeys.pawn.move, function (fieldIndex) {
+                // this.steppingFields[fieldIndex]
 
-        }.bind(this));
+            }.bind(this));
+        });
     },
 
 
-    data: {},
+    data: {
+        steppingFields: [],
+    },
+
+    watch: {
+        steppingFields: {
+            handler(val) {
+                console.log(val);
+            },
+            deep: true
+        }
+    },
     events: {},
     methods: {}
 });
