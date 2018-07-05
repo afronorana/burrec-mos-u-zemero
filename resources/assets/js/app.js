@@ -23,7 +23,6 @@ const GlobalMixin = require('./mixins/Global');
 Vue.use(GlobalMixin);
 
 window.ApplicationStore = {
-    steppingFields: [],
     players: [],
     currentPlayerId: -1,
     lastRolledDice: 'Start',
@@ -45,17 +44,7 @@ window.Burrec = new Vue({
         this.$nextTick(function () {
             EventBus.listen(EventKeys.pawn.move, function (fieldIndex) {
                 // this.steppingFields[fieldIndex]
-                ApplicationStore.players.forEach(function (player) {
-                    if (!player.isPlaying) {
 
-
-                        player.pawns.forEach(function (pawn) {
-                            if (pawn.globalPosition == fieldIndex) {
-                                pawn.returnHome();
-                            }
-                        });
-                    }
-                });
             }.bind(this));
         });
     },

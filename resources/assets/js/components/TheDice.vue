@@ -39,7 +39,8 @@
             },
             rollDice() {
                 if (!this.store.gamePlayStatus.isRolling) return;
-                let diceResult = 1 + Math.floor(Math.random() * 6);
+//                let diceResult = 1 + Math.floor(Math.random() * 6);
+                let diceResult = 6;
 
                 this.cubeFaces.forEach(function (cubeFace) {
                     if (cubeFace.number == diceResult) {

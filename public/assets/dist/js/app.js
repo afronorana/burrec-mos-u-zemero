@@ -641,7 +641,6 @@ var GlobalMixin = __webpack_require__(14);
 Vue.use(GlobalMixin);
 
 window.ApplicationStore = {
-    steppingFields: [],
     players: [],
     currentPlayerId: -1,
     lastRolledDice: 'Start',
@@ -663,16 +662,7 @@ window.Burrec = new Vue({
         this.$nextTick(function () {
             EventBus.listen(EventKeys.pawn.move, function (fieldIndex) {
                 // this.steppingFields[fieldIndex]
-                ApplicationStore.players.forEach(function (player) {
-                    if (!player.isPlaying) {
 
-                        player.pawns.forEach(function (pawn) {
-                            if (pawn.globalPosition == fieldIndex) {
-                                pawn.returnHome();
-                            }
-                        });
-                    }
-                });
             }.bind(this));
         });
     },
@@ -813,7 +803,8 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
         },
         rollDice: function rollDice() {
             if (!this.store.gamePlayStatus.isRolling) return;
-            var diceResult = 1 + Math.floor(Math.random() * 6);
+            //                let diceResult = 1 + Math.floor(Math.random() * 6);
+            var diceResult = 6;
 
             this.cubeFaces.forEach(function (cubeFace) {
                 if (cubeFace.number == diceResult) {
@@ -973,6 +964,7 @@ var Pawn = function () {
         this.isFinished = false;
         this.isActive = false;
         this.startingPlace = _startingPlace;
+
         this.animations = {
             isSkipping: false,
             isKnocked: false
@@ -980,19 +972,28 @@ var Pawn = function () {
     }
 
     _createClass(Pawn, [{
-        key: 'returnHome',
+        key: "returnHome",
         value: function returnHome() {
             this.position = 0;
             this.globalPosition = this.startingGlobalPosition;
         }
     }, {
-        key: 'isAvaliable',
+        key: "isAvaliable",
         value: function isAvaliable(steps) {
             var self = this;
 
             /*** Check if pawn is home and dice rolled to 6 ***/
             var pawnCanLeaveHome = function pawnCanLeaveHome() {
-                return self.position == 0 && steps == 6;
+                var canLeave = true;
+
+                ApplicationStore.players.forEach(function (player) {
+                    player.pawns.forEach(function (pawn) {
+                        if (pawn.globalPosition == self.startingGlobalPosition + 1 && player.isPlaying) {
+                            canLeave = false;
+                        }
+                    });
+                });
+                return self.position == 0 && steps == 6 && canLeave;
             };
 
             // console.log(self.id, 'pawnCanLeaveHome', pawnCanLeaveHome());
@@ -1001,46 +1002,49 @@ var Pawn = function () {
             var targetFieldIsEmpty = function targetFieldIsEmpty() {
                 if (self.position == 0) return false;
 
-                var targetFieldId = self.globalPosition + steps;
-                var targetField = Burrec.steppingFields[targetFieldId];
+                var finalTarget = self.globalPosition + steps; // 23
+                var targetFieldId = finalTarget <= 39 ? finalTarget : finalTarget - 40; // 23
 
-                if (targetField.hasPawn != false) {
-                    if (targetField.hasPawn.color != self.color) {
-                        targetField.hasPawn.returnHome();
-                        return true;
-                    } else {
-                        return false;
-                    }
-                }
-                return true;
+                var targetFieldIsFree = true;
+
+                ApplicationStore.players.forEach(function (player) {
+                    player.pawns.forEach(function (pawn) {
+                        if (pawn.globalPosition == targetFieldId && player.isPlaying) {
+                            targetFieldIsFree = false;
+                        }
+                    });
+                });
+
+                return targetFieldIsFree;
             };
-
-            console.log('pawnCanLeaveHome', pawnCanLeaveHome());
-            console.log('targetFieldIsEmpty', targetFieldIsEmpty());
 
             // Pawn doesn't skip another pawn inside ending arena.
 
             return pawnCanLeaveHome() || targetFieldIsEmpty();
         }
     }, {
-        key: 'move',
+        key: "move",
         value: function move() {
             if (!this.isActive) return;
-
-            // Burrec.steppingFields[this.globalPosition].hasPawn = false;
-
 
             if (this.position == 0) {
                 this.globalPosition = this.startingGlobalPosition + 1;
                 this.position = 1;
             } else {
-                this.globalPosition += ApplicationStore.lastRolledDice;
+                var globalPosition = this.globalPosition + ApplicationStore.lastRolledDice;
+                this.globalPosition = globalPosition <= 39 ? globalPosition : globalPosition - 40;
                 this.position += this.position + ApplicationStore.lastRolledDice;
             }
 
-            EventBus.fire(EventKeys.pawn.move, this.globalPosition);
-
-            // Burrec.steppingFields[this.globalPosition].hasPawn = this;
+            ApplicationStore.players.forEach(function (player) {
+                if (!player.isPlaying) {
+                    player.pawns.forEach(function (pawn) {
+                        if (pawn.globalPosition == this.globalPosition) {
+                            pawn.returnHome();
+                        }
+                    }.bind(this));
+                }
+            }.bind(this));
 
             EventBus.fire(EventKeys.turns.endTurn);
         }
