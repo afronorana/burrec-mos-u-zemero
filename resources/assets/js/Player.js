@@ -2,14 +2,14 @@ class Player {
     constructor(_name, _color, _turn) {
         this.turn = _turn;
         this.name = _name;
-        this.color = _color;
+        // this.color = _color;
         this.isPlaying = false;
         this.avaliablePawnsIndexes = [];
         this.pawns = [
-            new Pawn('pawnId.' + _turn + '.1', 1, _color, (_turn - 1) * 10),
-            new Pawn('pawnId.' + _turn + '.2', 2, _color, (_turn - 1) * 10),
-            new Pawn('pawnId.' + _turn + '.3', 3, _color, (_turn - 1) * 10),
-            new Pawn('pawnId.' + _turn + '.4', 4, _color, (_turn - 1) * 10)
+            new Pawn(1, _color, (_turn - 1) * 10),
+            new Pawn(2, _color, (_turn - 1) * 10),
+            new Pawn(3, _color, (_turn - 1) * 10),
+            new Pawn(4, _color, (_turn - 1) * 10)
         ];
 
         this.stillHome = true;

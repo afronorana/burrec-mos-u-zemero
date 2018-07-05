@@ -1,19 +1,23 @@
 class Pawn {
-    constructor(_id, _startingPlace, _color, _globalPosition = 0) {
-        this.id = _id;
+
+    constructor(_startingPlace, _color, _globalPosition = 0) {
+
+        this.startingGlobalPosition = _globalPosition + 37 <= 39 ? _globalPosition  + 37 : _globalPosition  + 37- 40;
+        this.globalPosition = _globalPosition + 37 <= 39 ? _globalPosition  + 37 : _globalPosition  + 37- 40;
+
         this.color = _color;
-        this.position = 0;
-        this.startingGlobalPosition = _globalPosition;
-        this.globalPosition = _globalPosition;
-        this.isFinished = false;
+        this.position = 37;
+        // this.startingGlobalPosition = _globalPosition;
+        // this.globalPosition = _globalPosition;
         this.isActive = false;
         this.startingPlace = _startingPlace;
 
-        this.animations = {
-            isSkipping: false,
-            isKnocked: false
-        };
-
+        // this.id = _id;
+        // this.isFinished = false;
+        // this.animations = {
+        //     isSkipping: false,
+        //     isKnocked: false
+        // };
     }
 
     returnHome() {
@@ -21,22 +25,23 @@ class Pawn {
         this.globalPosition = this.startingGlobalPosition;
     }
 
+    canLeaveHome(steps) {
+        let canLeave = true;
+
+        ApplicationStore.players.forEach(function (player) {
+            player.pawns.forEach(function (pawn) {
+                if (pawn.globalPosition == this.startingGlobalPosition + 1 && player.isPlaying) {
+                    canLeave = false;
+                }
+            }.bind(this));
+        }.bind(this));
+        return this.position == 0 && steps == 6 && canLeave;
+    };
+
     isAvaliable(steps) {
         let self = this;
 
-        /*** Check if pawn is home and dice rolled to 6 ***/
-        let pawnCanLeaveHome = function () {
-            let canLeave = true;
 
-            ApplicationStore.players.forEach(function (player) {
-                player.pawns.forEach(function (pawn) {
-                    if (pawn.globalPosition == self.startingGlobalPosition + 1 && player.isPlaying) {
-                        canLeave = false;
-                    }
-                });
-            });
-            return self.position == 0 && steps == 6 && canLeave;
-        };
 
         // console.log(self.id, 'pawnCanLeaveHome', pawnCanLeaveHome());
 
@@ -62,7 +67,7 @@ class Pawn {
 
         // Pawn doesn't skip another pawn inside ending arena.
 
-        return pawnCanLeaveHome() || targetFieldIsEmpty();
+        return self.canLeaveHome(steps) || targetFieldIsEmpty();
     }
 
     move() {

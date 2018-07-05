@@ -128,6 +128,12 @@
         left: 250px;
         top: 0;
     }
+
+    &:nth-child(41) {
+        left: 250px;
+        top: 50px;
+    }
+
 }
 
 .the-dice {
@@ -224,6 +230,7 @@
 
 body {
     background: #ccc;
+    overflow: hidden;
 }
 
 .pawn-figure {
@@ -277,7 +284,6 @@ $class-slug: field !default;
 // The DICE
 
 .scene.animate {
-
     animation: shake 1s cubic-bezier(.36, .07, .19, .97) both;
     transform: translate3d(0, 0, 0);
     backface-visibility: hidden;
@@ -311,7 +317,6 @@ $class-slug: field !default;
     height: 1200px;
     left: -130px;
     top: -300px;
-    border: 1px solid #CCC;
     perspective: 1010px;
     transform: perspective(1000px) rotatex(31deg) rotateY(-10deg) rotatez(10deg) translateZ(-760px);
     pointer-events: none;
@@ -323,7 +328,7 @@ $class-slug: field !default;
         position: relative;
         transform-style: preserve-3d;
         transform: translateZ(-50px);
-        transition: transform 1s;
+        transition: transform .2s;
         cursor: pointer;
 
         &.show-one {
