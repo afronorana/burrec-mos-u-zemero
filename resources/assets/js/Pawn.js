@@ -28,14 +28,14 @@ class Pawn {
             return self.position == 0 && steps == 6
         };
 
-        console.log(self.id, 'pawnCanLeaveHome', pawnCanLeaveHome());
+        // console.log(self.id, 'pawnCanLeaveHome', pawnCanLeaveHome());
 
         /*** Check if target field has pawn of the same color ***/
         let targetFieldIsEmpty = function () {
             if (self.position == 0) return false;
 
             let targetFieldId = self.globalPosition + steps;
-            let targetField = ApplicationStore.steppingFields[targetFieldId];
+            let targetField = Burrec.steppingFields[targetFieldId];
 
             if (targetField.hasPawn != false) {
                 if (targetField.hasPawn.color != self.color) {
@@ -59,19 +59,22 @@ class Pawn {
     move() {
         if (!this.isActive) return;
 
-        ApplicationStore.steppingFields[this.globalPosition].hasPawn = false;
+
+
+        // Burrec.steppingFields[this.globalPosition].hasPawn = false;
+
 
         if (this.position == 0) {
             this.globalPosition = this.startingGlobalPosition + 1;
             this.position = 1;
         } else {
-
             this.globalPosition += ApplicationStore.lastRolledDice;
             this.position += this.position + ApplicationStore.lastRolledDice;
         }
 
+        EventBus.fire(EventKeys.pawn.move, this.globalPosition);
 
-        ApplicationStore.steppingFields[this.globalPosition].hasPawn = this;
+        // Burrec.steppingFields[this.globalPosition].hasPawn = this;
 
         EventBus.fire(EventKeys.turns.endTurn);
 

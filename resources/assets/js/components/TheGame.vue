@@ -1,28 +1,22 @@
 <template>
     <div>
-<!--Board containing -->
         <div class="board">
 
-            <span href="javascript:void(0);"
-               class="circle" v-for="(steppingField, index) in store.steppingFields"
-            >
-                <!--:class="[steppingField.hasPawn.color]"-->
-                {{index}}
-            </span>
+            <span class="circle"
+                  v-for="(steppingField, index) in steppingFields"
+            >{{index}}</span>
 
-
-
-
-
-            <div class="player-home"  :class="{'is-playing' : player.isPlaying}" v-for="player in store.players">
-                {{player.name}} {{player.turn}}
+            <div class="player-home"
+                 :class="{'is-playing' : player.isPlaying}"
+                 v-for="player in store.players">
+                    {{player.name}} {{player.turn}}
                 <div class="circles">
-                    <a href="javascript:void(0);" class="circle"
+                    <span class="circle"
                        v-for="pawn in player.pawns"
                        :class="[player.isPlaying && pawn.isActive && pawn.position ==0 ? 'is-avaliable': '', pawn.color]"
                        @click="pawn.move()"
                     >
-                    </a>
+                    </span>
                 </div>
             </div>
 
@@ -37,9 +31,6 @@
                     {{pawn.startingPlace}}
                 </a>
             </div>
-
-
-
         </div>
 
 
@@ -50,12 +41,12 @@
 </template>
 <script>
     export default {
+        props: ['steppingFields'],
         components: {},
         mounted() {
             this.$nextTick(function () {
                 this.createPlayers();
                 this.fillSteppingFields();
-
                 this.startGame();
 
                 EventBus.listen(EventKeys.turns.endTurn, function () {
@@ -71,11 +62,6 @@
         },
         events: {},
 
-        computed: {
-            fieldHasPawn() {
-                return false;
-            }
-        },
         methods: {
 
             rollDice() {
@@ -92,9 +78,8 @@
 
             fillSteppingFields() {
                 for (let field = 1; field <= 40; field++) {
-                    this.store.steppingFields.push({
-//                        hasPawn: false,
-                        hasPawn: this.fieldHasPawn
+                    this.steppingFields.push({
+                        hasPawn: false,
                     })
                 }
             },
@@ -122,12 +107,8 @@
 
                 this.store.players[this.store.currentPlayerId].startTurn();
             },
-            clickedField(steppingField){
-                if (steppingField.hasPawn) {
-                    steppingField.hasPawn.position = 12;
-                    steppingField.hasPawn.globalPosition = 12;
-                }
-            }
+
+
 
         }
     }

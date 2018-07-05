@@ -32,24 +32,47 @@ window.ApplicationStore = {
     gamePlayStatus: {
         isRolling: false,
         isMoving: false,
-    },
-    currentPlayer: new Player(),
+    }
 };
 
 // Components
 Vue.component('the-game', require('./components/TheGame'));
 Vue.component('the-dice', require('./components/TheDice'));
 
-const Burrec = new Vue({
+window.Burrec = new Vue({
     el: '#app',
     mounted() {
         this.$nextTick(function () {
+            EventBus.listen(EventKeys.pawn.move, function (fieldIndex) {
+                // this.steppingFields[fieldIndex]
+                ApplicationStore.players.forEach(function (player) {
+                    if (!player.isPlaying) {
 
-        }.bind(this));
+
+                        player.pawns.forEach(function (pawn) {
+                            if (pawn.globalPosition == fieldIndex) {
+                                pawn.returnHome();
+                            }
+                        });
+                    }
+                });
+            }.bind(this));
+        });
     },
 
 
-    data: {},
+    data: {
+        steppingFields: [],
+    },
+
+    watch: {
+        steppingFields: {
+            handler(val) {
+                console.log(val);
+            },
+            deep: true
+        }
+    },
     events: {},
     methods: {}
 });

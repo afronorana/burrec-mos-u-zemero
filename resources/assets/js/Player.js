@@ -17,7 +17,6 @@ class Player {
     }
 
     startTurn() {
-        ApplicationStore.currentPlayer = this;
         ApplicationStore.gamePlayStatus.isRolling = true;
 
         this.isPlaying = true;
@@ -89,14 +88,20 @@ class Player {
         this.avaliablePawnsIndexes = [];
         this.pawns.forEach(function (pawn, index) {
             if (pawn.isAvaliable(steps)) {
-
                 this.avaliablePawnsIndexes.push(index);
                 pawn.isActive = true;
             }
         }.bind(this));
 
-
         console.log ( this.avaliablePawnsIndexes );
+    }
+
+    pawnPositions() {
+        let pawnGlobalPositions = [];
+        this.pawns.forEach(function (pawn) {
+            pawnGlobalPositions.push(pawn.globalPosition);
+        });
+        return pawnGlobalPositions;
     }
 
 
