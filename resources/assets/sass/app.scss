@@ -122,17 +122,27 @@
     }
     &:nth-child(30) {
         top: 250px;
-        left: 0;
+        left: 20px;
     }
     &:nth-child(40) {
         left: 250px;
-        top: 0;
+        top: 20px;
     }
 
-    &:nth-child(41) {
-        left: 250px;
-        top: 50px;
+    @for $i from 41 through 44 {
+        &:nth-child(#{$i}),
+        &:nth-child(#{$i+8}) {
+            left: 250px;
+        }
     }
+
+    @for $i from 41 through 44 {
+        &:nth-child(#{$i}) {
+            top: 50px* ($i - 40);
+        }
+    }
+
+
 
 }
 
