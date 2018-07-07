@@ -5,7 +5,9 @@
                  :class="['show-' + currentFace, store.gamePlayStatus.isRolling?'is-active':'']"
                  @click="rollDice" >
 
-                <div v-for="cubeFace in cubeFaces" class="cube__face" :class="['cube__face--' + cubeFace.face]">
+                <div v-for="cubeFace in cubeFaces"
+                     class="cube__face"
+                     :class="['cube__face--' + cubeFace.face]">
                     <div class="dot" v-for="dot in cubeFace.number"></div>
                 </div>
 
@@ -19,8 +21,13 @@
         components: {},
         mounted() {
             this.$nextTick(function () {
+                window.addEventListener("keypress", function (e) {
+                    if (e.keyCode == 32) {
+                        this.rollDice();
+                    }
+                }.bind(this));
+            });
 
-            }.bind(this));
         },
         data() {
             return {

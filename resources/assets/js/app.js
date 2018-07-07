@@ -37,6 +37,8 @@ window.ApplicationStore = {
 // Components
 Vue.component('the-game', require('./components/TheGame'));
 Vue.component('the-dice', require('./components/TheDice'));
+Vue.component('stepping-fields', require('./components/SteppingFields'));
+Vue.component('player-homes', require('./components/PlayerHomes'));
 
 window.Burrec = new Vue({
     el: '#app',

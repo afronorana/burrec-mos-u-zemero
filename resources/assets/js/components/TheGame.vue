@@ -2,35 +2,28 @@
     <div>
         <div class="board">
 
-            <span class="circle"
-                  v-for="(steppingField, index) in steppingFields"
-            >{{index}}</span>
+            <player-homes></player-homes>
 
-            <div class="player-home"
-                 :class="{'is-playing' : player.isPlaying}"
-                 v-for="player in store.players">
-                    {{player.name}} {{player.turn}}
-                <div class="circles">
-                    <span class="circle"
-                       v-for="pawn in player.pawns"
-                       :class="[player.isPlaying && pawn.isActive && pawn.position ==0 ? 'is-avaliable': '', pawn.color]"
-                       @click="pawn.move()"
-                    >
-                    </span>
-                </div>
-            </div>
+            <stepping-fields :stepping-fields="steppingFields"></stepping-fields>
 
-
-            <div class="player-pawns" style="color: #fff" v-for="player in store.players">
-                <a href="javascript:void(0);" class="pawn-figure"
+            <div class="player-pawns" style="color: #fff"
+                 v-for="player in store.players"
+            >
+                <a href="javascript:void(0);"
+                   class="pawn-figure"
                    v-for="pawn in player.pawns"
                    v-show="pawn.position != 0"
-                     :class="['field-' + pawn.globalPosition, player.isPlaying && pawn.isActive? 'is-avaliable': '', pawn.color]"
-                     @click="pawn.move()"
+                   :class="[
+                   'field-' + pawn.globalPosition,
+                   player.isPlaying && pawn.isActive? 'is-avaliable': '',
+                   pawn.color
+                   ]"
+                   @click="pawn.move()"
                 >
                     {{pawn.startingPlace}}
                 </a>
             </div>
+
         </div>
 
 
@@ -107,7 +100,6 @@
 
                 this.store.players[this.store.currentPlayerId].startTurn();
             },
-
 
 
         }
