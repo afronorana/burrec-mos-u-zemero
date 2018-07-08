@@ -677,7 +677,8 @@ window.Burrec = new Vue({
     watch: {
         steppingFields: {
             handler: function handler(val) {
-                console.log(val);
+                // console.log(val);
+                // console.log ( 'adsa' );
             },
 
             deep: true
@@ -889,8 +890,8 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
         },
         rollDice: function rollDice() {
             if (!this.store.gamePlayStatus.isRolling) return;
-            //                let diceResult = 1 + Math.floor(Math.random() * 6);
-            var diceResult = 6;
+            var diceResult = 1 + Math.floor(Math.random() * 6);
+            //                let diceResult = 5;
 
             this.cubeFaces.forEach(function (cubeFace) {
                 if (cubeFace.number == diceResult) {
@@ -1035,18 +1036,21 @@ var Pawn = function () {
 
         _classCallCheck(this, Pawn);
 
-        this.startingGlobalPosition = _globalPosition + 37 <= 39 ? _globalPosition + 37 : _globalPosition + 37 - 40;
-        this.globalPosition = _globalPosition + 37 <= 39 ? _globalPosition + 37 : _globalPosition + 37 - 40;
+        // this.startingGlobalPosition = _globalPosition + 38 <= 39 ? _globalPosition + 38 : _globalPosition + 38 - 40;
+        // this.globalPosition = _globalPosition + 38 <= 39 ? _globalPosition + 38 : _globalPosition + 38 - 40;
+        // this.position = 38;
+
+        this.position = 0;
+        this.globalPosition = _globalPosition;
+        this.startingGlobalPosition = _globalPosition;
 
         this.color = _color;
-        this.position = 37;
-        // this.startingGlobalPosition = _globalPosition;
-        // this.globalPosition = _globalPosition;
         this.isActive = false;
         this.startingPlace = _startingPlace;
 
+        this.isInTargetField = false;
+
         // this.id = _id;
-        // this.isFinished = false;
         // this.animations = {
         //     isSkipping: false,
         //     isKnocked: false
@@ -1074,50 +1078,63 @@ var Pawn = function () {
             return this.position == 0 && steps == 6 && canLeave;
         }
     }, {
+        key: "pathEnds",
+        value: function pathEnds(steps) {
+            return this.position + steps < 44;
+        }
+    }, {
         key: "isAvaliable",
         value: function isAvaliable(steps) {
             var self = this;
-
-            // console.log(self.id, 'pawnCanLeaveHome', pawnCanLeaveHome());
 
             /*** Check if target field has pawn of the same color ***/
             var targetFieldIsEmpty = function targetFieldIsEmpty() {
                 if (self.position == 0) return false;
 
-                var finalTarget = self.globalPosition + steps; // 23
-                var targetFieldId = finalTarget <= 39 ? finalTarget : finalTarget - 40; // 23
-
+                var targetFieldId = self.position + steps;
                 var targetFieldIsFree = true;
 
                 ApplicationStore.players.forEach(function (player) {
-                    player.pawns.forEach(function (pawn) {
-                        if (pawn.globalPosition == targetFieldId && player.isPlaying) {
-                            targetFieldIsFree = false;
-                        }
-                    });
+                    if (player.isPlaying) {
+                        player.pawns.forEach(function (pawn) {
+                            if (pawn.position == targetFieldId) {
+                                targetFieldIsFree = false;
+                            }
+                        });
+                    }
                 });
 
                 return targetFieldIsFree;
             };
 
-            // Pawn doesn't skip another pawn inside ending arena.
-
-            return self.canLeaveHome(steps) || targetFieldIsEmpty();
+            return (self.canLeaveHome(steps) || targetFieldIsEmpty()) && self.pathEnds(steps);
         }
     }, {
         key: "move",
         value: function move() {
+            //If not active is home
             if (!this.isActive) return;
 
+            var steps = ApplicationStore.lastRolledDice;
+
             if (this.position == 0) {
+                /** If pawn is home **/
                 this.globalPosition = this.startingGlobalPosition + 1;
                 this.position = 1;
+            } else if (this.position + steps >= 40) {
+                /** If pawn is close to ending **/
+
+                this.isInTargetField = true;
+                this.globalPosition = 100 + this.position;
+                // this.position
+
             } else {
-                var globalPosition = this.globalPosition + ApplicationStore.lastRolledDice;
+                var globalPosition = this.globalPosition + steps;
                 this.globalPosition = globalPosition <= 39 ? globalPosition : globalPosition - 40;
-                this.position += this.position + ApplicationStore.lastRolledDice;
+                this.position += steps;
             }
 
+            /** Check if there is an opponents pown on the target, if so, remove it. **/
             ApplicationStore.players.forEach(function (player) {
                 if (!player.isPlaying) {
                     player.pawns.forEach(function (pawn) {
@@ -1161,65 +1178,60 @@ var Player = function () {
     }
 
     _createClass(Player, [{
-        key: 'startTurn',
+        key: "startTurn",
         value: function startTurn() {
             ApplicationStore.gamePlayStatus.isRolling = true;
 
             this.isPlaying = true;
         }
     }, {
-        key: 'pawnsAvailable',
+        key: "pawnsAvailable",
         value: function pawnsAvailable() {
             return this.avaliablePawnsIndexes.length;
         }
     }, {
-        key: 'rollDice',
+        key: "rollDice",
         value: function rollDice(diceResult) {
 
             ApplicationStore.lastRolledDice = diceResult;
 
             this.setAvaliablePawns(diceResult);
 
-            console.log(this.name, 'pawns pvailable: ', this.pawnsAvailable());
-
             /** Check if player has available pawns **/
-            if (!this.pawnsAvailable()) {
+            if (this.pawnsAvailable() != 0) {
 
                 if (this.stillHome && diceResult != 6) {
-                    this.stillHomeCounter++;
+                    /** If all pawns home, roll dice 3 times **/
 
-                    if (this.stillHomeCounter < 3) {
-                        console.log(this.name, 'got: ', diceResult, 'play again.');
-                    } else {
-                        console.log(this.name, 'got: ', diceResult, 'End of turn.');
+                    this.stillHomeCounter++;
+                    if (this.stillHomeCounter >= 3) {
                         EventBus.fire(EventKeys.turns.endTurn);
                         this.stillHomeCounter = 0;
                     }
                 } else {
-
-                    console.log(this.name, 'got: ', diceResult, 'Choose pawn to move.');
+                    // console.log ( this.name, 'got: ', diceResult, 'Choose pawn to move.' );
                     ApplicationStore.gamePlayStatus.isRolling = false;
                     ApplicationStore.gamePlayStatus.isMoving = true;
                     this.stillHome = false;
-                    console.log('home nomore');
+                    // console.log ( 'home nomore' );
                     // EventBus.fire(EventKeys.turns.endTurn);
                 }
             } else {
-
-                console.log(this.name, 'got: ', diceResult, 'Choose pawn to move.');
-                ApplicationStore.gamePlayStatus.isRolling = false;
-                ApplicationStore.gamePlayStatus.isMoving = true;
+                /** If no pawns available **/
+                EventBus.fire(EventKeys.turns.endTurn);
+                // ApplicationStore.gamePlayStatus.isRolling = trie;
+                // ApplicationStore.gamePlayStatus.isMoving = true;
             }
         }
     }, {
-        key: 'hasAllPawnsHome',
+        key: "hasAllPawnsHome",
         value: function hasAllPawnsHome() {
             this.pawns.every(function (pawn) {
                 pawn.position = 0;
             });
         }
     }, {
-        key: 'endTurn',
+        key: "endTurn",
         value: function endTurn() {
             this.isPlaying = false;
 
@@ -1231,7 +1243,7 @@ var Player = function () {
         /** Returns array of all avaliable pawns. */
 
     }, {
-        key: 'setAvaliablePawns',
+        key: "setAvaliablePawns",
         value: function setAvaliablePawns(steps) {
             this.avaliablePawnsIndexes = [];
             this.pawns.forEach(function (pawn, index) {
@@ -1241,10 +1253,10 @@ var Player = function () {
                 }
             }.bind(this));
 
-            console.log(this.avaliablePawnsIndexes);
+            // console.log ( this.avaliablePawnsIndexes );
         }
     }, {
-        key: 'pawnPositions',
+        key: "pawnPositions",
         value: function pawnPositions() {
             var pawnGlobalPositions = [];
             this.pawns.forEach(function (pawn) {
@@ -29768,7 +29780,7 @@ module.exports={render:function (){var _vm=this;var _h=_vm.$createElement;var _c
   }), _vm._v(" "), _vm._l((16), function(targetField, index) {
     return _c('span', {
       staticClass: "circle"
-    }, [_vm._v(_vm._s(index))])
+    }, [_vm._v(_vm._s(index + 40))])
   })], 2)
 },staticRenderFns: []}
 module.exports.render._withStripped = true

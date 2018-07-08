@@ -329,7 +329,7 @@ body {
 
 $class-slug: field !default;
 
-@for $i from 1 through 40 {
+@for $i from 1 through 55 {
     .#{$class-slug}-#{$i - 1} {
         @extend .circle:nth-child(#{$i});
     }

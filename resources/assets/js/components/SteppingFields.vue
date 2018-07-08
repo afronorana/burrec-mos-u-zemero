@@ -5,7 +5,7 @@
         >{{index}}</span>
         <span class="circle"
               v-for="(targetField, index) in 16"
-        >{{index}}</span>
+        >{{index + 40}}</span>
     </div>
 </template>
 <script>

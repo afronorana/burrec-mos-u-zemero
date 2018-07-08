@@ -59,7 +59,8 @@ window.Burrec = new Vue({
     watch: {
         steppingFields: {
             handler(val) {
-                console.log(val);
+                // console.log(val);
+                // console.log ( 'adsa' );
             },
             deep: true
         }
