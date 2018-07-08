@@ -37,7 +37,6 @@
     margin: 5px;
     position: absolute;
 
-
     display: flex;
     justify-content: center;
     align-items: center;
@@ -134,15 +133,60 @@
         &:nth-child(#{$i+8}) {
             left: 250px;
         }
+
+        &:nth-child(#{$i + 8}){
+            background-color: $blue;
+        }
     }
 
     @for $i from 41 through 44 {
         &:nth-child(#{$i}) {
             top: 50px* ($i - 40);
+            background-color: $red;
         }
     }
 
+    &:nth-child(49) {
+        top: 50px * 9;
+    }
+    &:nth-child(50) {
+        top: 50px * 8;
+    }
+    &:nth-child(51) {
+        top: 50px * 7;
+    }
+    &:nth-child(52) {
+        top: 50px * 6;
+    }
 
+
+    &:nth-child(45) {
+        left:50px * 9;
+    }
+    &:nth-child(46) {
+        left:50px * 8;
+    }
+    &:nth-child(47) {
+        left:50px * 7;
+    }
+    &:nth-child(48) {
+        left:50px * 6;
+    }
+
+    @for $i from 45 through 48 {
+        &:nth-child(#{$i}) {
+            top: 250px;
+            background-color: $yellow;
+        }
+    }
+    @for $i from 53 through 56 {
+        &:nth-child(#{$i}) {
+            top: 250px;
+            left: 50px * ($i - 52);
+
+            background-color: $green;
+        }
+    }
 
 }
 
