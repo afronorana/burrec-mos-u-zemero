@@ -33,37 +33,30 @@ class Player {
 
         this.setAvaliablePawns(diceResult);
 
-        console.log ( this.name, 'pawns pvailable: ', this.pawnsAvailable());
-
-
         /** Check if player has available pawns **/
-        if (!this.pawnsAvailable()) {
+        if (this.pawnsAvailable() != 0) {
 
             if (this.stillHome && diceResult != 6) {
+                /** If all pawns home, roll dice 3 times **/
+
                 this.stillHomeCounter++;
-
-                if (this.stillHomeCounter < 3) {
-                    console.log ( this.name, 'got: ', diceResult, 'play again.' );
-
-                } else {
-                    console.log ( this.name, 'got: ', diceResult, 'End of turn.' );
+                if (this.stillHomeCounter >= 3) {
                     EventBus.fire(EventKeys.turns.endTurn);
                     this.stillHomeCounter = 0;
                 }
             } else {
-
-                console.log ( this.name, 'got: ', diceResult, 'Choose pawn to move.' );
+                // console.log ( this.name, 'got: ', diceResult, 'Choose pawn to move.' );
                 ApplicationStore.gamePlayStatus.isRolling = false;
                 ApplicationStore.gamePlayStatus.isMoving = true;
                 this.stillHome = false;
-                console.log ( 'home nomore' );
+                // console.log ( 'home nomore' );
                 // EventBus.fire(EventKeys.turns.endTurn);
             }
         } else {
-
-            console.log ( this.name, 'got: ', diceResult, 'Choose pawn to move.' );
-            ApplicationStore.gamePlayStatus.isRolling = false;
-            ApplicationStore.gamePlayStatus.isMoving = true;
+            /** If no pawns available **/
+            EventBus.fire(EventKeys.turns.endTurn);
+            // ApplicationStore.gamePlayStatus.isRolling = trie;
+            // ApplicationStore.gamePlayStatus.isMoving = true;
 
         }
     }
@@ -93,7 +86,7 @@ class Player {
             }
         }.bind(this));
 
-        console.log ( this.avaliablePawnsIndexes );
+        // console.log ( this.avaliablePawnsIndexes );
     }
 
     pawnPositions() {

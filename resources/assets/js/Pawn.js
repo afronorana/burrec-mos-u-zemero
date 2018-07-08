@@ -2,18 +2,21 @@ class Pawn {
 
     constructor(_startingPlace, _color, _globalPosition = 0) {
 
-        this.startingGlobalPosition = _globalPosition + 37 <= 39 ? _globalPosition  + 37 : _globalPosition  + 37- 40;
-        this.globalPosition = _globalPosition + 37 <= 39 ? _globalPosition  + 37 : _globalPosition  + 37- 40;
+        // this.startingGlobalPosition = _globalPosition + 38 <= 39 ? _globalPosition + 38 : _globalPosition + 38 - 40;
+        // this.globalPosition = _globalPosition + 38 <= 39 ? _globalPosition + 38 : _globalPosition + 38 - 40;
+        // this.position = 38;
+
+        this.position = 0;
+        this.globalPosition = _globalPosition;
+        this.startingGlobalPosition = _globalPosition;
 
         this.color = _color;
-        this.position = 37;
-        // this.startingGlobalPosition = _globalPosition;
-        // this.globalPosition = _globalPosition;
         this.isActive = false;
         this.startingPlace = _startingPlace;
 
+        this.isInTargetField = false;
+
         // this.id = _id;
-        // this.isFinished = false;
         // this.animations = {
         //     isSkipping: false,
         //     isKnocked: false
@@ -38,50 +41,64 @@ class Pawn {
         return this.position == 0 && steps == 6 && canLeave;
     };
 
+    pathEnds(steps) {
+        return this.position + steps < 44
+    }
+
     isAvaliable(steps) {
         let self = this;
 
-
-
-        // console.log(self.id, 'pawnCanLeaveHome', pawnCanLeaveHome());
 
         /*** Check if target field has pawn of the same color ***/
         let targetFieldIsEmpty = function () {
             if (self.position == 0) return false;
 
-            let finalTarget = self.globalPosition + steps; // 23
-            let targetFieldId = finalTarget <= 39 ? finalTarget : finalTarget - 40;  // 23
-
+            let targetFieldId = self.position + steps;
             let targetFieldIsFree = true;
 
             ApplicationStore.players.forEach(function (player) {
-                player.pawns.forEach(function (pawn) {
-                    if (pawn.globalPosition == targetFieldId && player.isPlaying) {
-                        targetFieldIsFree = false;
-                    }
-                });
+                if (player.isPlaying) {
+                    player.pawns.forEach(function (pawn) {
+                        if (pawn.position == targetFieldId) {
+                            targetFieldIsFree = false;
+                        }
+                    });
+                }
             });
 
             return targetFieldIsFree;
         };
 
-        // Pawn doesn't skip another pawn inside ending arena.
-
-        return self.canLeaveHome(steps) || targetFieldIsEmpty();
+        return (self.canLeaveHome(steps) || targetFieldIsEmpty()) && self.pathEnds(steps);
     }
 
+
     move() {
+        //If not active is home
         if (!this.isActive) return;
 
+        let steps = ApplicationStore.lastRolledDice;
+
         if (this.position == 0) {
+            /** If pawn is home **/
             this.globalPosition = this.startingGlobalPosition + 1;
             this.position = 1;
+
+        } else if (this.position + steps >= 40) {
+            /** If pawn is close to ending **/
+
+            this.isInTargetField = true;
+            this.globalPosition = 100 + this.position;
+            // this.position
+
+
         } else {
-            let globalPosition = this.globalPosition + ApplicationStore.lastRolledDice;
+            let globalPosition = this.globalPosition + steps;
             this.globalPosition = globalPosition <= 39 ? globalPosition : globalPosition - 40;
-            this.position += this.position + ApplicationStore.lastRolledDice;
+            this.position += steps;
         }
 
+        /** Check if there is an opponents pown on the target, if so, remove it. **/
         ApplicationStore.players.forEach(function (player) {
             if (!player.isPlaying) {
                 player.pawns.forEach(function (pawn) {
