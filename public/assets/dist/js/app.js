@@ -890,8 +890,8 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
         },
         rollDice: function rollDice() {
             if (!this.store.gamePlayStatus.isRolling) return;
-            //                let diceResult = 1 + Math.floor(Math.random() * 6);
-            var diceResult = 5 + Math.floor(Math.random() * 2);
+            var diceResult = 1 + Math.floor(Math.random() * 6);
+            //                let diceResult = 5 + Math.floor(Math.random() * 2);
             //                let diceResult = 5;
 
             this.cubeFaces.forEach(function (cubeFace) {
@@ -1055,35 +1055,18 @@ var Pawn = function () {
     }
 
     _createClass(Pawn, [{
-        key: 'targetPosition',
-        value: function targetPosition() {
-            /**
-             *  0  39       field-target-39
-             * 10  35       field-target-35
-             * 20  31       field-target-31
-             * 30  27
-             *
-             * +10  -4
-             */
-
+        key: 'targetPositionClassName',
+        value: function targetPositionClassName() {
             if (this.position < 40) return '';
 
             var playerTurn = this.startingGlobalPosition / 10;
-            //                            2 + 4
             return 'field-target-' + (this.position - 39 + playerTurn * 4);
-
-            // for (let index = 0; index <= ApplicationStore.players.length; index++) {
-            //     if (this.startingGlobalPosition == index * 10)
-            //         // return 'field-target-' + (this.position - 39 - (index * 4));
-            //         return 'field-target-' + this.position - 39 + (playerTurn * 4);
-            // }
-
         }
     }, {
         key: 'classes',
         value: function classes() {
             return [this.globalPosition >= 0 ? 'field-' + this.globalPosition : '', // Position on playing fields
-            this.targetPosition(), // Position on target
+            this.targetPositionClassName(), // Position on target
             this.isActive ? 'is-avaliable' : '', // Availability
             this.color // Color
             ];
@@ -1113,7 +1096,7 @@ var Pawn = function () {
     }, {
         key: 'pathEnds',
         value: function pathEnds(steps) {
-            return this.position + steps > 44;
+            return this.position + steps >= 44;
         }
     }, {
         key: 'isAvaliable',
@@ -1162,14 +1145,13 @@ var Pawn = function () {
                 this.globalPosition = this.startingGlobalPosition + 1;
                 this.position = 1;
             } else if (this.position + steps >= 40) {
-                /** If pawn is close to ending **/
 
+                /** If pawn is close to ending **/
                 this.isInTargetField = true;
                 this.position += steps;
                 this.globalPosition = -13 * this.startingGlobalPosition;
-                // this.position
-
             } else {
+
                 var globalPosition = this.globalPosition + steps;
                 this.globalPosition = globalPosition <= 39 ? globalPosition : globalPosition - 40;
                 this.position += steps;
@@ -1179,10 +1161,12 @@ var Pawn = function () {
             ApplicationStore.players.forEach(function (player) {
                 if (!player.isPlaying) {
                     player.pawns.forEach(function (pawn) {
-                        if (pawn.globalPosition == this.globalPosition) {
+                        if (pawn.globalPosition == this.globalPosition && !pawn.isInTargetField) {
                             pawn.returnHome();
                         }
                     }.bind(this));
+                } else if (player.didWin()) {
+                    alert('congrats:' + player.name + '! You WON!!!');
                 }
             }.bind(this));
 
@@ -1250,21 +1234,28 @@ var Player = function () {
                         this.stillHomeCounter = 0;
                     }
                 } else {
-                    this.setAvaliablePawns(diceResult);
-                    // console.log ( this.name, 'got: ', diceResult, 'Choose pawn to move.' );
                     ApplicationStore.gamePlayStatus.isRolling = false;
                     ApplicationStore.gamePlayStatus.isMoving = true;
-
                     this.stillHome = false;
-                    // console.log ( 'home nomore' );
-                    // EventBus.fire(EventKeys.turns.endTurn);
+
+                    if (this.pawnsAvailable() == 1) {
+                        this.movePawnAutomatically();
+                    }
                 }
             } else {
                 /** If no pawns available **/
                 EventBus.fire(EventKeys.turns.endTurn);
-                // ApplicationStore.gamePlayStatus.isRolling = trie;
-                // ApplicationStore.gamePlayStatus.isMoving = true;
             }
+        }
+    }, {
+        key: "movePawnAutomatically",
+        value: function movePawnAutomatically() {
+            this.pawns.forEach(function (pawn) {
+
+                if (pawn.isActive) {
+                    pawn.move();
+                }
+            });
         }
     }, {
         key: "hasAllPawnsHome",
@@ -1296,8 +1287,6 @@ var Player = function () {
                     pawn.isActive = true;
                 }
             }.bind(this));
-
-            // console.log ( this.avaliablePawnsIndexes );
         }
     }, {
         key: "pawnPositions",
@@ -1307,6 +1296,19 @@ var Player = function () {
                 pawnGlobalPositions.push(pawn.globalPosition);
             });
             return pawnGlobalPositions;
+        }
+    }, {
+        key: "didWin",
+        value: function didWin() {
+            var pawnsInTarget = [];
+
+            this.pawns.forEach(function (pawn, index) {
+                if (pawn.isInTargetField) {
+                    pawnsInTarget.push(index);
+                }
+            }.bind(this));
+
+            return pawnsInTarget.length == 4;
         }
     }]);
 

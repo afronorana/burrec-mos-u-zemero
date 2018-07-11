@@ -23,38 +23,18 @@ class Pawn {
         // };
     }
 
-    targetPosition() {
-        /**
-         *  0  39       field-target-39
-         * 10  35       field-target-35
-         * 20  31       field-target-31
-         * 30  27
-         *
-         * +10  -4
-         */
-
-
+    targetPositionClassName() {
         if (this.position < 40)
             return '';
 
-
         let playerTurn = this.startingGlobalPosition/10;
-                    //                            2 + 4
         return 'field-target-' + (this.position - 39 + (playerTurn * 4));
-
-        // for (let index = 0; index <= ApplicationStore.players.length; index++) {
-        //     if (this.startingGlobalPosition == index * 10)
-        //         // return 'field-target-' + (this.position - 39 - (index * 4));
-        //         return 'field-target-' + this.position - 39 + (playerTurn * 4);
-        // }
-
-
     }
 
     classes() {
         return [
             this.globalPosition >= 0 ? 'field-' + this.globalPosition : '',         // Position on playing fields
-            this.targetPosition(),         // Position on target
+            this.targetPositionClassName(),         // Position on target
             this.isActive ? 'is-avaliable' : '',      // Availability
             this.color                              // Color
         ]
@@ -81,7 +61,7 @@ class Pawn {
     };
 
     pathEnds(steps) {
-        return this.position + steps > 44
+        return this.position + steps >= 44
     }
 
     isAvaliable(steps) {
@@ -130,30 +110,34 @@ class Pawn {
             this.position = 1;
 
         } else if (this.position + steps >= 40) {
-            /** If pawn is close to ending **/
 
+            /** If pawn is close to ending **/
             this.isInTargetField = true;
             this.position += steps;
             this.globalPosition = -13 * this.startingGlobalPosition;
-            // this.position
-
 
         } else {
+
             let globalPosition = this.globalPosition + steps;
             this.globalPosition = globalPosition <= 39 ? globalPosition : globalPosition - 40;
             this.position += steps;
+
         }
 
         /** Check if there is an opponents pown on the target, if so, remove it. **/
         ApplicationStore.players.forEach(function (player) {
             if (!player.isPlaying) {
                 player.pawns.forEach(function (pawn) {
-                    if (pawn.globalPosition == this.globalPosition) {
+                    if (pawn.globalPosition == this.globalPosition && !pawn.isInTargetField) {
                         pawn.returnHome();
                     }
                 }.bind(this));
+            } else if (player.didWin()){
+                alert('congrats:' + player.name + '! You WON!!!');
             }
         }.bind(this));
+
+
 
         EventBus.fire(EventKeys.turns.endTurn);
 
