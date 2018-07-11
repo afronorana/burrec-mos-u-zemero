@@ -1069,18 +1069,20 @@ var Pawn = function () {
             var canLeave = true;
 
             ApplicationStore.players.forEach(function (player) {
-                player.pawns.forEach(function (pawn) {
-                    if (pawn.globalPosition == this.startingGlobalPosition + 1 && player.isPlaying) {
-                        canLeave = false;
-                    }
-                }.bind(this));
+                if (player.isPlaying) {
+                    player.pawns.forEach(function (pawn) {
+                        if (pawn.globalPosition == this.startingGlobalPosition + 1) {
+                            canLeave = false;
+                        }
+                    }.bind(this));
+                }
             }.bind(this));
             return this.position == 0 && steps == 6 && canLeave;
         }
     }, {
         key: "pathEnds",
         value: function pathEnds(steps) {
-            return this.position + steps < 44;
+            return this.position + steps > 44;
         }
     }, {
         key: "isAvaliable",
@@ -1089,6 +1091,7 @@ var Pawn = function () {
 
             /*** Check if target field has pawn of the same color ***/
             var targetFieldIsEmpty = function targetFieldIsEmpty() {
+
                 if (self.position == 0) return false;
 
                 var targetFieldId = self.position + steps;
@@ -1107,7 +1110,12 @@ var Pawn = function () {
                 return targetFieldIsFree;
             };
 
-            return (self.canLeaveHome(steps) || targetFieldIsEmpty()) && self.pathEnds(steps);
+            /** pawn is avaliable if:
+             * It can leave home (no other pawn of same color is on the dock and player rolled 6)
+             * no other pawn of same color is on the targeted field
+             * The path does not end
+             */
+            return (self.canLeaveHome(steps) || targetFieldIsEmpty()) && !self.pathEnds(steps);
         }
     }, {
         key: "move",
@@ -1198,7 +1206,7 @@ var Player = function () {
             this.setAvaliablePawns(diceResult);
 
             /** Check if player has available pawns **/
-            if (this.pawnsAvailable() != 0) {
+            if (this.pawnsAvailable() != 0 || this.stillHome) {
 
                 if (this.stillHome && diceResult != 6) {
                     /** If all pawns home, roll dice 3 times **/
@@ -1209,9 +1217,11 @@ var Player = function () {
                         this.stillHomeCounter = 0;
                     }
                 } else {
+                    this.setAvaliablePawns(diceResult);
                     // console.log ( this.name, 'got: ', diceResult, 'Choose pawn to move.' );
                     ApplicationStore.gamePlayStatus.isRolling = false;
                     ApplicationStore.gamePlayStatus.isMoving = true;
+
                     this.stillHome = false;
                     // console.log ( 'home nomore' );
                     // EventBus.fire(EventKeys.turns.endTurn);
@@ -1246,6 +1256,7 @@ var Player = function () {
         key: "setAvaliablePawns",
         value: function setAvaliablePawns(steps) {
             this.avaliablePawnsIndexes = [];
+
             this.pawns.forEach(function (pawn, index) {
                 if (pawn.isAvaliable(steps)) {
                     this.avaliablePawnsIndexes.push(index);

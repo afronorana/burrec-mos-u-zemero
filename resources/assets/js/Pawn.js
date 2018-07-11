@@ -32,25 +32,27 @@ class Pawn {
         let canLeave = true;
 
         ApplicationStore.players.forEach(function (player) {
-            player.pawns.forEach(function (pawn) {
-                if (pawn.globalPosition == this.startingGlobalPosition + 1 && player.isPlaying) {
-                    canLeave = false;
-                }
-            }.bind(this));
+            if (player.isPlaying) {
+                player.pawns.forEach(function (pawn) {
+                    if (pawn.globalPosition == this.startingGlobalPosition + 1) {
+                        canLeave = false;
+                    }
+                }.bind(this));
+            }
         }.bind(this));
         return this.position == 0 && steps == 6 && canLeave;
     };
 
     pathEnds(steps) {
-        return this.position + steps < 44
+        return this.position + steps > 44
     }
 
     isAvaliable(steps) {
         let self = this;
 
-
         /*** Check if target field has pawn of the same color ***/
         let targetFieldIsEmpty = function () {
+
             if (self.position == 0) return false;
 
             let targetFieldId = self.position + steps;
@@ -69,7 +71,13 @@ class Pawn {
             return targetFieldIsFree;
         };
 
-        return (self.canLeaveHome(steps) || targetFieldIsEmpty()) && self.pathEnds(steps);
+        /** pawn is avaliable if:
+         * It can leave home (no other pawn of same color is on the dock and player rolled 6)
+         * no other pawn of same color is on the targeted field
+         * The path does not end
+         */
+
+        return (self.canLeaveHome(steps) || targetFieldIsEmpty()) && !self.pathEnds(steps);
     }
 
 
