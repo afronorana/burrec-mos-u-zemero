@@ -890,7 +890,8 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
         },
         rollDice: function rollDice() {
             if (!this.store.gamePlayStatus.isRolling) return;
-            var diceResult = 1 + Math.floor(Math.random() * 6);
+            //                let diceResult = 1 + Math.floor(Math.random() * 6);
+            var diceResult = 5 + Math.floor(Math.random() * 2);
             //                let diceResult = 5;
 
             this.cubeFaces.forEach(function (cubeFace) {
@@ -910,10 +911,6 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
 
 "use strict";
 Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
-//
-//
-//
-//
 //
 //
 //
@@ -1058,13 +1055,47 @@ var Pawn = function () {
     }
 
     _createClass(Pawn, [{
-        key: "returnHome",
+        key: 'targetPosition',
+        value: function targetPosition() {
+            /**
+             *  0  39       field-target-39
+             * 10  35       field-target-35
+             * 20  31       field-target-31
+             * 30  27
+             *
+             * +10  -4
+             */
+
+            if (this.position < 40) return '';
+
+            var playerTurn = this.startingGlobalPosition / 10;
+            //                            2 + 4
+            return 'field-target-' + (this.position - 39 + playerTurn * 4);
+
+            // for (let index = 0; index <= ApplicationStore.players.length; index++) {
+            //     if (this.startingGlobalPosition == index * 10)
+            //         // return 'field-target-' + (this.position - 39 - (index * 4));
+            //         return 'field-target-' + this.position - 39 + (playerTurn * 4);
+            // }
+
+        }
+    }, {
+        key: 'classes',
+        value: function classes() {
+            return [this.globalPosition >= 0 ? 'field-' + this.globalPosition : '', // Position on playing fields
+            this.targetPosition(), // Position on target
+            this.isActive ? 'is-avaliable' : '', // Availability
+            this.color // Color
+            ];
+        }
+    }, {
+        key: 'returnHome',
         value: function returnHome() {
             this.position = 0;
             this.globalPosition = this.startingGlobalPosition;
         }
     }, {
-        key: "canLeaveHome",
+        key: 'canLeaveHome',
         value: function canLeaveHome(steps) {
             var canLeave = true;
 
@@ -1080,12 +1111,12 @@ var Pawn = function () {
             return this.position == 0 && steps == 6 && canLeave;
         }
     }, {
-        key: "pathEnds",
+        key: 'pathEnds',
         value: function pathEnds(steps) {
             return this.position + steps > 44;
         }
     }, {
-        key: "isAvaliable",
+        key: 'isAvaliable',
         value: function isAvaliable(steps) {
             var self = this;
 
@@ -1115,10 +1146,11 @@ var Pawn = function () {
              * no other pawn of same color is on the targeted field
              * The path does not end
              */
+
             return (self.canLeaveHome(steps) || targetFieldIsEmpty()) && !self.pathEnds(steps);
         }
     }, {
-        key: "move",
+        key: 'move',
         value: function move() {
             //If not active is home
             if (!this.isActive) return;
@@ -1133,7 +1165,8 @@ var Pawn = function () {
                 /** If pawn is close to ending **/
 
                 this.isInTargetField = true;
-                this.globalPosition = 100 + this.position;
+                this.position += steps;
+                this.globalPosition = -13 * this.startingGlobalPosition;
                 // this.position
 
             } else {
@@ -29894,11 +29927,7 @@ module.exports={render:function (){var _vm=this;var _h=_vm.$createElement;var _c
           expression: "pawn.position != 0"
         }],
         staticClass: "pawn-figure",
-        class: [
-          'field-' + pawn.globalPosition,
-          player.isPlaying && pawn.isActive ? 'is-avaliable' : '',
-          pawn.color
-        ],
+        class: pawn.classes(),
         attrs: {
           "href": "javascript:void(0);"
         },

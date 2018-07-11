@@ -49,7 +49,8 @@
             },
             rollDice() {
                 if (!this.store.gamePlayStatus.isRolling) return;
-                let diceResult = 1 + Math.floor(Math.random() * 6);
+//                let diceResult = 1 + Math.floor(Math.random() * 6);
+                let diceResult = 5 + Math.floor(Math.random() * 2);
 //                let diceResult = 5;
 
                 this.cubeFaces.forEach(function (cubeFace) {

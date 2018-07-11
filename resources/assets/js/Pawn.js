@@ -23,6 +23,43 @@ class Pawn {
         // };
     }
 
+    targetPosition() {
+        /**
+         *  0  39       field-target-39
+         * 10  35       field-target-35
+         * 20  31       field-target-31
+         * 30  27
+         *
+         * +10  -4
+         */
+
+
+        if (this.position < 40)
+            return '';
+
+
+        let playerTurn = this.startingGlobalPosition/10;
+                    //                            2 + 4
+        return 'field-target-' + (this.position - 39 + (playerTurn * 4));
+
+        // for (let index = 0; index <= ApplicationStore.players.length; index++) {
+        //     if (this.startingGlobalPosition == index * 10)
+        //         // return 'field-target-' + (this.position - 39 - (index * 4));
+        //         return 'field-target-' + this.position - 39 + (playerTurn * 4);
+        // }
+
+
+    }
+
+    classes() {
+        return [
+            this.globalPosition >= 0 ? 'field-' + this.globalPosition : '',         // Position on playing fields
+            this.targetPosition(),         // Position on target
+            this.isActive ? 'is-avaliable' : '',      // Availability
+            this.color                              // Color
+        ]
+    }
+
     returnHome() {
         this.position = 0;
         this.globalPosition = this.startingGlobalPosition;
@@ -96,7 +133,8 @@ class Pawn {
             /** If pawn is close to ending **/
 
             this.isInTargetField = true;
-            this.globalPosition = 100 + this.position;
+            this.position += steps;
+            this.globalPosition = -13 * this.startingGlobalPosition;
             // this.position
 
 

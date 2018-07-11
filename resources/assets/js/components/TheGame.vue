@@ -13,11 +13,7 @@
                    class="pawn-figure"
                    v-for="pawn in player.pawns"
                    v-show="pawn.position != 0"
-                   :class="[
-                   'field-' + pawn.globalPosition,
-                   player.isPlaying && pawn.isActive? 'is-avaliable': '',
-                   pawn.color
-                   ]"
+                   :class="pawn.classes()"
                    @click="pawn.move()"
                 >
                     {{pawn.startingPlace}}
