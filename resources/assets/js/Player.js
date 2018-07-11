@@ -33,8 +33,10 @@ class Player {
 
         this.setAvaliablePawns(diceResult);
 
+
+
         /** Check if player has available pawns **/
-        if (this.pawnsAvailable() != 0) {
+        if (this.pawnsAvailable() != 0 || this.stillHome ) {
 
             if (this.stillHome && diceResult != 6) {
                 /** If all pawns home, roll dice 3 times **/
@@ -45,9 +47,11 @@ class Player {
                     this.stillHomeCounter = 0;
                 }
             } else {
+                this.setAvaliablePawns(diceResult);
                 // console.log ( this.name, 'got: ', diceResult, 'Choose pawn to move.' );
                 ApplicationStore.gamePlayStatus.isRolling = false;
                 ApplicationStore.gamePlayStatus.isMoving = true;
+
                 this.stillHome = false;
                 // console.log ( 'home nomore' );
                 // EventBus.fire(EventKeys.turns.endTurn);
@@ -79,6 +83,7 @@ class Player {
     /** Returns array of all avaliable pawns. */
     setAvaliablePawns(steps) {
         this.avaliablePawnsIndexes = [];
+
         this.pawns.forEach(function (pawn, index) {
             if (pawn.isAvaliable(steps)) {
                 this.avaliablePawnsIndexes.push(index);

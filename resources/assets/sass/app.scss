@@ -190,8 +190,15 @@
             background-color: $green;
         }
     }
-
 }
+
+
+@for $i from 1 through 16 {
+    .field-target-#{$i} {
+        @extend .circle:nth-child(#{$i + 40}) !optional;
+    }
+}
+
 
 .the-dice {
     position: absolute;
@@ -337,6 +344,8 @@ $class-slug: field !default;
         @extend .circle:nth-child(#{$i});
     }
 }
+
+
 
 // The DICE
 
