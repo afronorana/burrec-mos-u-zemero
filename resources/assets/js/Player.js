@@ -47,22 +47,27 @@ class Player {
                     this.stillHomeCounter = 0;
                 }
             } else {
-                this.setAvaliablePawns(diceResult);
-                // console.log ( this.name, 'got: ', diceResult, 'Choose pawn to move.' );
                 ApplicationStore.gamePlayStatus.isRolling = false;
                 ApplicationStore.gamePlayStatus.isMoving = true;
-
                 this.stillHome = false;
-                // console.log ( 'home nomore' );
-                // EventBus.fire(EventKeys.turns.endTurn);
+
+                if (this.pawnsAvailable() == 1) {
+                    this.movePawnAutomatically();
+                }
             }
         } else {
             /** If no pawns available **/
             EventBus.fire(EventKeys.turns.endTurn);
-            // ApplicationStore.gamePlayStatus.isRolling = trie;
-            // ApplicationStore.gamePlayStatus.isMoving = true;
-
         }
+    }
+
+    movePawnAutomatically() {
+        this.pawns.forEach(function (pawn) {
+
+             if(pawn.isActive) {
+                 pawn.move();
+             }
+        });
     }
 
     hasAllPawnsHome() {
@@ -90,8 +95,6 @@ class Player {
                 pawn.isActive = true;
             }
         }.bind(this));
-
-        // console.log ( this.avaliablePawnsIndexes );
     }
 
     pawnPositions() {
@@ -100,6 +103,19 @@ class Player {
             pawnGlobalPositions.push(pawn.globalPosition);
         });
         return pawnGlobalPositions;
+    }
+
+    didWin() {
+        let pawnsInTarget = [];
+
+
+        this.pawns.forEach(function (pawn, index) {
+            if (pawn.isInTargetField) {
+                pawnsInTarget.push(index);
+            }
+        }.bind(this));
+
+        return pawnsInTarget.length == 4;
     }
 
 
