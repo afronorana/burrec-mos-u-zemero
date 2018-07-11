@@ -1,28 +1,18 @@
 <template>
     <div>
-        <span class="circle"
-              v-for="(steppingField, index) in steppingFields"
-        >{{index}}</span>
-        <span class="circle"
-              v-for="(targetField, index) in 16"
-        >{{index + 40}}</span>
+        <span class="circle" v-for="(steppingField, index) in steppingFields"></span>
+        <span class="circle" v-for="(targetField, index) in 16"></span>
+
     </div>
 </template>
 <script>
     export default {
         props: ['steppingFields'],
-        mounted() {
-            this.$nextTick(function () {
-
-            }.bind(this));
-        },
+        mounted() {},
         data() {
-            return {
-                store: window.ApplicationStore,
-            }
+            return {}
         },
         events: {},
-
         methods: {}
     }
 </script>

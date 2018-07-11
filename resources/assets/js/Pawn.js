@@ -1,33 +1,19 @@
 class Pawn {
 
     constructor(_startingPlace, _color, _globalPosition = 0) {
-
-        // this.startingGlobalPosition = _globalPosition + 38 <= 39 ? _globalPosition + 38 : _globalPosition + 38 - 40;
-        // this.globalPosition = _globalPosition + 38 <= 39 ? _globalPosition + 38 : _globalPosition + 38 - 40;
-        // this.position = 38;
-
         this.position = 0;
         this.globalPosition = _globalPosition;
         this.startingGlobalPosition = _globalPosition;
-
         this.color = _color;
         this.isActive = false;
         this.startingPlace = _startingPlace;
-
         this.isInTargetField = false;
-
-        // this.id = _id;
-        // this.animations = {
-        //     isSkipping: false,
-        //     isKnocked: false
-        // };
     }
 
     targetPositionClassName() {
         if (this.position < 40)
             return '';
-
-        let playerTurn = this.startingGlobalPosition/10;
+        let playerTurn = this.startingGlobalPosition / 10;
         return 'field-target-' + (this.position - 39 + (playerTurn * 4));
     }
 
@@ -64,39 +50,28 @@ class Pawn {
         return this.position + steps >= 44
     }
 
+    targetFieldIsEmpty(steps) {
+        if (this.position == 0) return false;
+
+        let targetFieldId = this.position + steps;
+        let targetFieldIsFree = true;
+
+        ApplicationStore.players.forEach(function (player) {
+            if (player.isPlaying) {
+                player.pawns.forEach(function (pawn) {
+                    if (pawn.position == targetFieldId) {
+                        targetFieldIsFree = false;
+                    }
+                });
+            }
+        });
+        return targetFieldIsFree;
+    };
+
     isAvaliable(steps) {
         let self = this;
-
-        /*** Check if target field has pawn of the same color ***/
-        let targetFieldIsEmpty = function () {
-
-            if (self.position == 0) return false;
-
-            let targetFieldId = self.position + steps;
-            let targetFieldIsFree = true;
-
-            ApplicationStore.players.forEach(function (player) {
-                if (player.isPlaying) {
-                    player.pawns.forEach(function (pawn) {
-                        if (pawn.position == targetFieldId) {
-                            targetFieldIsFree = false;
-                        }
-                    });
-                }
-            });
-
-            return targetFieldIsFree;
-        };
-
-        /** pawn is avaliable if:
-         * It can leave home (no other pawn of same color is on the dock and player rolled 6)
-         * no other pawn of same color is on the targeted field
-         * The path does not end
-         */
-
-        return (self.canLeaveHome(steps) || targetFieldIsEmpty()) && !self.pathEnds(steps);
+        return (self.canLeaveHome(steps) || this.targetFieldIsEmpty(steps)) && !self.pathEnds(steps);
     }
-
 
     move() {
         //If not active is home
@@ -132,15 +107,16 @@ class Pawn {
                         pawn.returnHome();
                     }
                 }.bind(this));
-            } else if (player.didWin()){
+            } else if (player.didWin()) {
                 alert('congrats:' + player.name + '! You WON!!!');
             }
         }.bind(this));
 
-
-
-        EventBus.fire(EventKeys.turns.endTurn);
-
+        if (steps == 6) {
+            EventBus.fire(EventKeys.turns.repeatTurn);
+        } else {
+            EventBus.fire(EventKeys.turns.endTurn);
+        }
     }
 
 }

@@ -2,7 +2,6 @@ class Player {
     constructor(_name, _color, _turn) {
         this.turn = _turn;
         this.name = _name;
-        // this.color = _color;
         this.isPlaying = false;
         this.avaliablePawnsIndexes = [];
         this.pawns = [
@@ -18,8 +17,14 @@ class Player {
 
     startTurn() {
         ApplicationStore.gamePlayStatus.isRolling = true;
-
         this.isPlaying = true;
+    }
+
+    endTurn() {
+        this.isPlaying = false;
+        this.pawns.forEach(function (pawn) {
+            pawn.isActive = false;
+        });
     }
 
     pawnsAvailable() {
@@ -27,13 +32,9 @@ class Player {
     }
 
     rollDice(diceResult) {
-
-
         ApplicationStore.lastRolledDice = diceResult;
 
         this.setAvaliablePawns(diceResult);
-
-
 
         /** Check if player has available pawns **/
         if (this.pawnsAvailable() != 0 || this.stillHome ) {
@@ -76,14 +77,6 @@ class Player {
         })
     }
 
-    endTurn() {
-        this.isPlaying = false;
-
-        this.pawns.forEach(function (pawn) {
-            pawn.isActive = false;
-        });
-
-    }
 
     /** Returns array of all avaliable pawns. */
     setAvaliablePawns(steps) {

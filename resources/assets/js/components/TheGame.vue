@@ -15,9 +15,7 @@
                    v-show="pawn.position != 0"
                    :class="pawn.classes()"
                    @click="pawn.move()"
-                >
-                    {{pawn.startingPlace}}
-                </a>
+                ></a>
             </div>
 
         </div>
@@ -40,6 +38,9 @@
 
                 EventBus.listen(EventKeys.turns.endTurn, function () {
                     this.changePlayersTurn();
+                }.bind(this));
+                EventBus.listen(EventKeys.turns.repeatTurn, function () {
+                    this.repeatPlayersTurn();
                 }.bind(this));
 
             }.bind(this));
@@ -79,6 +80,7 @@
             },
 
             changePlayersTurn() {
+
                 ApplicationStore.gamePlayStatus.isMoving = false;
 
                 /** Check if its first round **/
@@ -95,6 +97,12 @@
                 }
 
                 this.store.players[this.store.currentPlayerId].startTurn();
+            },
+            repeatPlayersTurn() {
+                ApplicationStore.gamePlayStatus.isMoving = false;
+                let currentPlayer = this.store.players[this.store.currentPlayerId];
+                currentPlayer.endTurn();
+                currentPlayer.startTurn();
             },
 
 
