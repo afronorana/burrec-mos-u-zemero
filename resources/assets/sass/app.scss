@@ -295,6 +295,7 @@ body {
 }
 
 .pawn-figure {
+    background-image: url('/public/assets/img/pawn.png');
     position: absolute;
     width: 20px;
     height: 20px;
@@ -329,6 +330,9 @@ body {
     &.blue {
         background: $blue;
     }
+    &.is-skipping {
+    transform: perspective(287px) translateX(-21px) translateY(-21px) translateZ(90px)
+    }
 
     &.is-avaliable {
         box-shadow: 7px 6px 11px 0px greenyellow;
@@ -336,10 +340,19 @@ body {
 
 }
 
-$class-slug: field !default;
+.field-0{
+    @extend .circle:nth-child(1);
+}
+.field-1{
+    @extend .circle:nth-child(2);
+}
+
+.field-54{
+
+}
 
 @for $i from 1 through 55 {
-    .#{$class-slug}-#{$i - 1} {
+    .field-#{$i - 1} {
         @extend .circle:nth-child(#{$i});
     }
 }

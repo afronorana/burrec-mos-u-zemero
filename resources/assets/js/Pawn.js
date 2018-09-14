@@ -8,6 +8,7 @@ class Pawn {
         this.isActive = false;
         this.startingPlace = _startingPlace;
         this.isInTargetField = false;
+        this.isSkipping = false;
     }
 
     targetPositionClassName() {
@@ -22,7 +23,8 @@ class Pawn {
             this.globalPosition >= 0 ? 'field-' + this.globalPosition : '',         // Position on playing fields
             this.targetPositionClassName(),         // Position on target
             this.isActive ? 'is-avaliable' : '',      // Availability
-            this.color                              // Color
+            this.color,                              // Color
+            this.isSkipping ? 'is-skipping' : ''
         ]
     }
 
@@ -73,14 +75,21 @@ class Pawn {
         return (self.canLeaveHome(steps) || this.targetFieldIsEmpty(steps)) && !self.pathEnds(steps);
     }
 
+    skippingAnimation() {
+        this.isSkipping = true;
+        setTimeout(function () {
+            this.isSkipping = false;
+        }.bind(this), 120);
+    }
+
     move() {
         //If not active is home
         if (!this.isActive) return;
 
         let steps = ApplicationStore.lastRolledDice;
 
+        /** If pawn is home **/
         if (this.position == 0) {
-            /** If pawn is home **/
             this.globalPosition = this.startingGlobalPosition + 1;
             this.position = 1;
 
@@ -93,29 +102,58 @@ class Pawn {
 
         } else {
 
-            let globalPosition = this.globalPosition + steps;
-            this.globalPosition = globalPosition <= 39 ? globalPosition : globalPosition - 40;
+            let targetSum = this.globalPosition + steps;
+            let targetField = targetSum <= 39 ? targetSum : targetSum - 40;
             this.position += steps;
+
+            let steppingIndex = this.globalPosition;
+
+            let skippingInterval = setInterval(function () {
+
+                this.skippingAnimation();
+
+                if ((steppingIndex < targetField && steppingIndex <= 39) || (targetSum > 40 && steppingIndex < 40)) {
+                    steppingIndex++;
+                    this.globalPosition = steppingIndex;
+                    if (steppingIndex == targetField) {
+                        clearInterval(skippingInterval);
+                        checkIfTargetfieldEmpty();
+                    }
+                }
+                else if (targetSum > 40 && steppingIndex == 40) {
+                    steppingIndex = 0;
+                    this.globalPosition = steppingIndex;
+                } else {
+                    clearInterval(skippingInterval);
+                    checkIfTargetfieldEmpty();
+                }
+            }.bind(this), 250);
 
         }
 
-        /** Check if there is an opponents pown on the target, if so, remove it. **/
-        ApplicationStore.players.forEach(function (player) {
-            if (!player.isPlaying) {
-                player.pawns.forEach(function (pawn) {
-                    if (pawn.globalPosition == this.globalPosition && !pawn.isInTargetField) {
-                        pawn.returnHome();
-                    }
-                }.bind(this));
-            } else if (player.didWin()) {
-                alert('congrats:' + player.name + '! You WON!!!');
-            }
-        }.bind(this));
+        let checkIfTargetfieldEmpty = function () {
 
-        if (steps == 6) {
-            EventBus.fire(EventKeys.turns.repeatTurn);
-        } else {
-            EventBus.fire(EventKeys.turns.endTurn);
+
+            /** Check if there is an opponents pown on the target, if so, remove it. **/
+            ApplicationStore.players.forEach(function (player) {
+                if (!player.isPlaying) {
+                    player.pawns.forEach(function (pawn) {
+                        if (pawn.globalPosition == this.globalPosition && !pawn.isInTargetField) {
+                            pawn.returnHome();
+                        }
+                    }.bind(this));
+                } else if (player.didWin()) {
+                    alert('congrats:' + player.name + '! You WON!!!');
+                }
+            }.bind(this));
+
+
+            if (steps == 6) {
+                EventBus.fire(EventKeys.turns.repeatTurn);
+            } else {
+                EventBus.fire(EventKeys.turns.endTurn);
+            }
+
         }
     }
 
