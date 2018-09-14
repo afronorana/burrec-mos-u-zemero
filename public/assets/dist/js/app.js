@@ -855,6 +855,7 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
 //
 //
 //
+//
 
 /* harmony default export */ __webpack_exports__["default"] = ({
     components: {},
@@ -1041,6 +1042,7 @@ var Pawn = function () {
         this.isActive = false;
         this.startingPlace = _startingPlace;
         this.isInTargetField = false;
+        this.isSkipping = false;
     }
 
     _createClass(Pawn, [{
@@ -1056,8 +1058,8 @@ var Pawn = function () {
             return [this.globalPosition >= 0 ? 'field-' + this.globalPosition : '', // Position on playing fields
             this.targetPositionClassName(), // Position on target
             this.isActive ? 'is-avaliable' : '', // Availability
-            this.color // Color
-            ];
+            this.color, // Color
+            this.isSkipping ? 'is-skipping' : ''];
         }
     }, {
         key: 'returnHome',
@@ -1112,6 +1114,14 @@ var Pawn = function () {
             return (self.canLeaveHome(steps) || this.targetFieldIsEmpty(steps)) && !self.pathEnds(steps);
         }
     }, {
+        key: 'skippingAnimation',
+        value: function skippingAnimation() {
+            this.isSkipping = true;
+            setTimeout(function () {
+                this.isSkipping = false;
+            }.bind(this), 120);
+        }
+    }, {
         key: 'move',
         value: function move() {
             //If not active is home
@@ -1119,8 +1129,8 @@ var Pawn = function () {
 
             var steps = ApplicationStore.lastRolledDice;
 
+            /** If pawn is home **/
             if (this.position == 0) {
-                /** If pawn is home **/
                 this.globalPosition = this.startingGlobalPosition + 1;
                 this.position = 1;
             } else if (this.position + steps >= 40) {
@@ -1131,29 +1141,54 @@ var Pawn = function () {
                 this.globalPosition = -13 * this.startingGlobalPosition;
             } else {
 
-                var globalPosition = this.globalPosition + steps;
-                this.globalPosition = globalPosition <= 39 ? globalPosition : globalPosition - 40;
+                var targetSum = this.globalPosition + steps;
+                var targetField = targetSum <= 39 ? targetSum : targetSum - 40;
                 this.position += steps;
-            }
 
-            /** Check if there is an opponents pown on the target, if so, remove it. **/
-            ApplicationStore.players.forEach(function (player) {
-                if (!player.isPlaying) {
-                    player.pawns.forEach(function (pawn) {
-                        if (pawn.globalPosition == this.globalPosition && !pawn.isInTargetField) {
-                            pawn.returnHome();
+                var steppingIndex = this.globalPosition;
+
+                var skippingInterval = setInterval(function () {
+
+                    this.skippingAnimation();
+
+                    if (steppingIndex < targetField && steppingIndex <= 39 || targetSum > 40 && steppingIndex < 40) {
+                        steppingIndex++;
+                        this.globalPosition = steppingIndex;
+                        if (steppingIndex == targetField) {
+                            clearInterval(skippingInterval);
+                            checkIfTargetfieldEmpty();
                         }
-                    }.bind(this));
-                } else if (player.didWin()) {
-                    alert('congrats:' + player.name + '! You WON!!!');
-                }
-            }.bind(this));
-
-            if (steps == 6) {
-                EventBus.fire(EventKeys.turns.repeatTurn);
-            } else {
-                EventBus.fire(EventKeys.turns.endTurn);
+                    } else if (targetSum > 40 && steppingIndex == 40) {
+                        steppingIndex = 0;
+                        this.globalPosition = steppingIndex;
+                    } else {
+                        clearInterval(skippingInterval);
+                        checkIfTargetfieldEmpty();
+                    }
+                }.bind(this), 250);
             }
+
+            var checkIfTargetfieldEmpty = function checkIfTargetfieldEmpty() {
+
+                /** Check if there is an opponents pown on the target, if so, remove it. **/
+                ApplicationStore.players.forEach(function (player) {
+                    if (!player.isPlaying) {
+                        player.pawns.forEach(function (pawn) {
+                            if (pawn.globalPosition == this.globalPosition && !pawn.isInTargetField) {
+                                pawn.returnHome();
+                            }
+                        }.bind(this));
+                    } else if (player.didWin()) {
+                        alert('congrats:' + player.name + '! You WON!!!');
+                    }
+                }.bind(this));
+
+                if (steps == 6) {
+                    EventBus.fire(EventKeys.turns.repeatTurn);
+                } else {
+                    EventBus.fire(EventKeys.turns.endTurn);
+                }
+            };
         }
     }]);
 
@@ -29821,7 +29856,11 @@ if (false) {
 /***/ (function(module, exports, __webpack_require__) {
 
 module.exports={render:function (){var _vm=this;var _h=_vm.$createElement;var _c=_vm._self._c||_h;
-  return _c('div', [_c('div', {
+  return _c('div', [_c('h3', {
+    on: {
+      "click": _vm.rollDice
+    }
+  }, [_vm._v(_vm._s(_vm.currentFace))]), _vm._v(" "), _c('div', {
     staticClass: "scene"
   }, [_c('div', {
     staticClass: "cube",

@@ -1,5 +1,6 @@
 <template>
     <div>
+        <h3 @click="rollDice">{{currentFace}}</h3>
         <div class="scene">
             <div class="cube"
                  :class="['show-' + currentFace, store.gamePlayStatus.isRolling?'is-active':'']"
