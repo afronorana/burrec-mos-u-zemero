@@ -11,23 +11,26 @@ class Pawn {
         this.isSkipping = false;
     }
 
+
+    // Generate target class name
     targetPositionClassName() {
-        if (this.position < 40)
-            return '';
+        if (this.position < 40) return '';
         let playerTurn = this.startingGlobalPosition / 10;
         return 'field-target-' + (this.position - 39 + (playerTurn * 4));
     }
 
+    // Returns pawn classes
     classes() {
         return [
-            this.globalPosition >= 0 ? 'field-' + this.globalPosition : '',         // Position on playing fields
-            this.targetPositionClassName(),         // Position on target
-            this.isActive ? 'is-avaliable' : '',      // Availability
-            this.color,                              // Color
-            this.isSkipping ? 'is-skipping' : ''
+            this.globalPosition >= 0 ? 'field-' + this.globalPosition : '',  // Position on playing fields
+            this.targetPositionClassName(),                                  // Position on target
+            this.isActive ? 'is-avaliable' : '',                             // Availability
+            this.color,                                                      // Color
+            this.isSkipping ? 'is-skipping' : ''                             // Skip animation
         ]
     }
 
+    // Returns pawn home (Triggered by other players)
     returnHome() {
         this.position = 0;
         this.globalPosition = this.startingGlobalPosition;
@@ -75,11 +78,74 @@ class Pawn {
         return (self.canLeaveHome(steps) || this.targetFieldIsEmpty(steps)) && !self.pathEnds(steps);
     }
 
+    // Adds and removes skipping state
     skippingAnimation() {
         this.isSkipping = true;
         setTimeout(function () {
             this.isSkipping = false;
-        }.bind(this), 120);
+        }.bind(this), 100);
+    }
+
+    // Checks if an opponents pawn is on the target, if so removes it.
+    checkIfTargetfieldEmpty(targetField) {
+        ApplicationStore.players.forEach(function (player) {
+            if (!player.isPlaying) {
+                player.pawns.forEach(function (pawn) {
+                    if (pawn.globalPosition == targetField && !pawn.isInTargetField) {
+                        pawn.returnHome();
+                    }
+                });
+            } else if (player.wonGame()) {
+                alert('congrats:' + player.name + '! You WON!!!');
+            }
+        });
+    }
+
+    getOutOfHome(steps) {
+        this.globalPosition = this.startingGlobalPosition + 1;
+        this.position = 1;
+        this.endOfMove(steps);
+    }
+
+    enterTargetZone(steps) {
+        this.isInTargetField = true;
+        this.position += steps;
+        this.globalPosition = -13 * this.startingGlobalPosition;
+        this.endOfMove(steps);
+    }
+
+    moveToPosition(steps) {
+
+        let targetSum = this.globalPosition + steps;
+        let targetField = targetSum <= 39 ? targetSum : targetSum - 40;
+
+        this.checkIfTargetfieldEmpty(targetField);
+
+        let steppingIndex = this.globalPosition;
+
+        let skippingInterval = setInterval(function () {
+
+            this.skippingAnimation();
+
+            if ((steppingIndex < targetField && steppingIndex <= 39) || (targetSum > 40 && steppingIndex < 40) || (targetSum == 40 && steppingIndex <= 39)) {
+                steppingIndex++;
+                this.globalPosition = steppingIndex;
+                if (steppingIndex == targetField) {
+                    this.endOfMove(steps);
+                    clearInterval(skippingInterval);
+                }
+            } else if (targetSum >= 40 && steppingIndex == 40) {
+                steppingIndex = 0;
+                this.globalPosition = steppingIndex;
+                if (targetSum == 40)
+                    clearInterval(skippingInterval);
+            } else {
+                console.log('Guess I missed something here!');
+                this.endOfMove(steps);
+                clearInterval(skippingInterval);
+            }
+        }.bind(this), 200);
+        this.position += steps;
     }
 
     move() {
@@ -88,75 +154,23 @@ class Pawn {
 
         let steps = ApplicationStore.lastRolledDice;
 
-        /** If pawn is home **/
-        if (this.position == 0) {
-            this.globalPosition = this.startingGlobalPosition + 1;
-            this.position = 1;
-
-        } else if (this.position + steps >= 40) {
-
-            /** If pawn is close to ending **/
-            this.isInTargetField = true;
-            this.position += steps;
-            this.globalPosition = -13 * this.startingGlobalPosition;
-
+        if (this.position == 0) { // If pawn is home
+            this.getOutOfHome(steps)
+        } else if (this.position + steps >= 40) { // If pawn is close to ending
+            this.enterTargetZone(steps)
         } else {
 
-            let targetSum = this.globalPosition + steps;
-            let targetField = targetSum <= 39 ? targetSum : targetSum - 40;
-            this.position += steps;
-
-            let steppingIndex = this.globalPosition;
-
-            let skippingInterval = setInterval(function () {
-
-                this.skippingAnimation();
-
-                if ((steppingIndex < targetField && steppingIndex <= 39) || (targetSum > 40 && steppingIndex < 40)) {
-                    steppingIndex++;
-                    this.globalPosition = steppingIndex;
-                    if (steppingIndex == targetField) {
-                        clearInterval(skippingInterval);
-                        checkIfTargetfieldEmpty();
-                    }
-                }
-                else if (targetSum > 40 && steppingIndex == 40) {
-                    steppingIndex = 0;
-                    this.globalPosition = steppingIndex;
-                } else {
-                    clearInterval(skippingInterval);
-                    checkIfTargetfieldEmpty();
-                }
-            }.bind(this), 250);
-
-        }
-
-        let checkIfTargetfieldEmpty = function () {
-
-
-            /** Check if there is an opponents pown on the target, if so, remove it. **/
-            ApplicationStore.players.forEach(function (player) {
-                if (!player.isPlaying) {
-                    player.pawns.forEach(function (pawn) {
-                        if (pawn.globalPosition == this.globalPosition && !pawn.isInTargetField) {
-                            pawn.returnHome();
-                        }
-                    }.bind(this));
-                } else if (player.didWin()) {
-                    alert('congrats:' + player.name + '! You WON!!!');
-                }
-            }.bind(this));
-
-
-            if (steps == 6) {
-                EventBus.fire(EventKeys.turns.repeatTurn);
-            } else {
-                EventBus.fire(EventKeys.turns.endTurn);
-            }
-
+            this.moveToPosition(steps);
         }
     }
 
+    endOfMove(steps) {
+        if (steps == 6) {
+            EventBus.fire(EventKeys.turns.repeatTurn);
+        } else {
+            EventBus.fire(EventKeys.turns.endTurn);
+        }
+    }
 }
 
 module.exports = Pawn;

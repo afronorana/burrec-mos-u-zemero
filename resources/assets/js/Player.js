@@ -98,7 +98,7 @@ class Player {
         return pawnGlobalPositions;
     }
 
-    didWin() {
+    wonGame() {
         let pawnsInTarget = [];
 
 

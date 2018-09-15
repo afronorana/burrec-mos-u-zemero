@@ -856,6 +856,7 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
 //
 //
 //
+//
 
 /* harmony default export */ __webpack_exports__["default"] = ({
     components: {},
@@ -1045,6 +1046,9 @@ var Pawn = function () {
         this.isSkipping = false;
     }
 
+    // Generate target class name
+
+
     _createClass(Pawn, [{
         key: 'targetPositionClassName',
         value: function targetPositionClassName() {
@@ -1052,6 +1056,9 @@ var Pawn = function () {
             var playerTurn = this.startingGlobalPosition / 10;
             return 'field-target-' + (this.position - 39 + playerTurn * 4);
         }
+
+        // Returns pawn classes
+
     }, {
         key: 'classes',
         value: function classes() {
@@ -1059,8 +1066,12 @@ var Pawn = function () {
             this.targetPositionClassName(), // Position on target
             this.isActive ? 'is-avaliable' : '', // Availability
             this.color, // Color
-            this.isSkipping ? 'is-skipping' : ''];
+            this.isSkipping ? 'is-skipping' : '' // Skip animation
+            ];
         }
+
+        // Returns pawn home (Triggered by other players)
+
     }, {
         key: 'returnHome',
         value: function returnHome() {
@@ -1113,13 +1124,83 @@ var Pawn = function () {
             var self = this;
             return (self.canLeaveHome(steps) || this.targetFieldIsEmpty(steps)) && !self.pathEnds(steps);
         }
+
+        // Adds and removes skipping state
+
     }, {
         key: 'skippingAnimation',
         value: function skippingAnimation() {
             this.isSkipping = true;
             setTimeout(function () {
                 this.isSkipping = false;
-            }.bind(this), 120);
+            }.bind(this), 100);
+        }
+
+        // Checks if an opponents pawn is on the target, if so removes it.
+
+    }, {
+        key: 'checkIfTargetfieldEmpty',
+        value: function checkIfTargetfieldEmpty(targetField) {
+            ApplicationStore.players.forEach(function (player) {
+                if (!player.isPlaying) {
+                    player.pawns.forEach(function (pawn) {
+                        if (pawn.globalPosition == targetField && !pawn.isInTargetField) {
+                            pawn.returnHome();
+                        }
+                    });
+                } else if (player.wonGame()) {
+                    alert('congrats:' + player.name + '! You WON!!!');
+                }
+            });
+        }
+    }, {
+        key: 'getOutOfHome',
+        value: function getOutOfHome(steps) {
+            this.globalPosition = this.startingGlobalPosition + 1;
+            this.position = 1;
+            this.endOfMove(steps);
+        }
+    }, {
+        key: 'enterTargetZone',
+        value: function enterTargetZone(steps) {
+            this.isInTargetField = true;
+            this.position += steps;
+            this.globalPosition = -13 * this.startingGlobalPosition;
+            this.endOfMove(steps);
+        }
+    }, {
+        key: 'moveToPosition',
+        value: function moveToPosition(steps) {
+
+            var targetSum = this.globalPosition + steps;
+            var targetField = targetSum <= 39 ? targetSum : targetSum - 40;
+
+            this.checkIfTargetfieldEmpty(targetField);
+
+            var steppingIndex = this.globalPosition;
+
+            var skippingInterval = setInterval(function () {
+
+                this.skippingAnimation();
+
+                if (steppingIndex < targetField && steppingIndex <= 39 || targetSum > 40 && steppingIndex < 40 || targetSum == 40 && steppingIndex <= 39) {
+                    steppingIndex++;
+                    this.globalPosition = steppingIndex;
+                    if (steppingIndex == targetField) {
+                        this.endOfMove(steps);
+                        clearInterval(skippingInterval);
+                    }
+                } else if (targetSum >= 40 && steppingIndex == 40) {
+                    steppingIndex = 0;
+                    this.globalPosition = steppingIndex;
+                    if (targetSum == 40) clearInterval(skippingInterval);
+                } else {
+                    console.log('Guess I missed something here!');
+                    this.endOfMove(steps);
+                    clearInterval(skippingInterval);
+                }
+            }.bind(this), 200);
+            this.position += steps;
         }
     }, {
         key: 'move',
@@ -1129,66 +1210,25 @@ var Pawn = function () {
 
             var steps = ApplicationStore.lastRolledDice;
 
-            /** If pawn is home **/
             if (this.position == 0) {
-                this.globalPosition = this.startingGlobalPosition + 1;
-                this.position = 1;
+                // If pawn is home
+                this.getOutOfHome(steps);
             } else if (this.position + steps >= 40) {
-
-                /** If pawn is close to ending **/
-                this.isInTargetField = true;
-                this.position += steps;
-                this.globalPosition = -13 * this.startingGlobalPosition;
+                // If pawn is close to ending
+                this.enterTargetZone(steps);
             } else {
 
-                var targetSum = this.globalPosition + steps;
-                var targetField = targetSum <= 39 ? targetSum : targetSum - 40;
-                this.position += steps;
-
-                var steppingIndex = this.globalPosition;
-
-                var skippingInterval = setInterval(function () {
-
-                    this.skippingAnimation();
-
-                    if (steppingIndex < targetField && steppingIndex <= 39 || targetSum > 40 && steppingIndex < 40) {
-                        steppingIndex++;
-                        this.globalPosition = steppingIndex;
-                        if (steppingIndex == targetField) {
-                            clearInterval(skippingInterval);
-                            checkIfTargetfieldEmpty();
-                        }
-                    } else if (targetSum > 40 && steppingIndex == 40) {
-                        steppingIndex = 0;
-                        this.globalPosition = steppingIndex;
-                    } else {
-                        clearInterval(skippingInterval);
-                        checkIfTargetfieldEmpty();
-                    }
-                }.bind(this), 250);
+                this.moveToPosition(steps);
             }
-
-            var checkIfTargetfieldEmpty = function checkIfTargetfieldEmpty() {
-
-                /** Check if there is an opponents pown on the target, if so, remove it. **/
-                ApplicationStore.players.forEach(function (player) {
-                    if (!player.isPlaying) {
-                        player.pawns.forEach(function (pawn) {
-                            if (pawn.globalPosition == this.globalPosition && !pawn.isInTargetField) {
-                                pawn.returnHome();
-                            }
-                        }.bind(this));
-                    } else if (player.didWin()) {
-                        alert('congrats:' + player.name + '! You WON!!!');
-                    }
-                }.bind(this));
-
-                if (steps == 6) {
-                    EventBus.fire(EventKeys.turns.repeatTurn);
-                } else {
-                    EventBus.fire(EventKeys.turns.endTurn);
-                }
-            };
+        }
+    }, {
+        key: 'endOfMove',
+        value: function endOfMove(steps) {
+            if (steps == 6) {
+                EventBus.fire(EventKeys.turns.repeatTurn);
+            } else {
+                EventBus.fire(EventKeys.turns.endTurn);
+            }
         }
     }]);
 
@@ -1312,8 +1352,8 @@ var Player = function () {
             return pawnGlobalPositions;
         }
     }, {
-        key: "didWin",
-        value: function didWin() {
+        key: "wonGame",
+        value: function wonGame() {
             var pawnsInTarget = [];
 
             this.pawns.forEach(function (pawn, index) {
