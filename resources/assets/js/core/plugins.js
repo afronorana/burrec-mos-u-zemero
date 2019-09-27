@@ -1,5 +1,7 @@
+
+// Set scene
 window.scene = new THREE.Scene();
-window.camera = new THREE.PerspectiveCamera(90,
+window.camera = new THREE.PerspectiveCamera(20,
     window.innerWidth / window.innerHeight, 0.1, 100);
 window.renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -11,33 +13,15 @@ window.addEventListener('resize', function() {
   camera.updateProjectionMatrix();
 });
 
-var body = document.getElementsByTagName('body')[0];
-window.setCursor = function(cursor) {
-  if (body.style.cursor !== cursor)
-    body.style.cursor = cursor;
-};
+// Camera
+camera.position.y = 15;
+camera.position.x = -15;
+camera.position.z = -15;
+
+camera.lookAt(5.5, 0, 5.5);
 
 
-
-
-window.bases = [
-  new THREE.Vector3(5.5, cubeHeight/2, 0.5),
-  new THREE.Vector3(5.5, cubeHeight/2, 1.5),
-  new THREE.Vector3(5.5, cubeHeight/2, 2.5),
-  new THREE.Vector3(5.5, cubeHeight/2, 3.5),
-  new THREE.Vector3(5.5, cubeHeight/2, 4.5),
-  new THREE.Vector3(5.5, cubeHeight/2, 5.5),
-  new THREE.Vector3(4.5, cubeHeight/2, 5.5),
-  new THREE.Vector3(3.5, cubeHeight/2, 5.5),
-  new THREE.Vector3(2.5, cubeHeight/2, 5.5),
-  new THREE.Vector3(1.5, cubeHeight/2, 5.5),
-  new THREE.Vector3(0.5, cubeHeight/2, 5.5)
-]
-// Camera controls
-require('three/examples/js/controls/OrbitControls');
-controls = new THREE.OrbitControls(camera, renderer.domElement);
-controls.maxPolarAngle = Math.PI / 2;
-
+// Lighting
 let ambientLight = new THREE.AmbientLight(0xFFFFFF, 0.3);
 scene.add(ambientLight);
 
@@ -48,6 +32,38 @@ scene.add(light1);
 
 var pointLightHelper = new THREE.PointLightHelper(light1, 1);
 scene.add(pointLightHelper);
+
+
+// Mouse interaction
+
+var body = document.getElementsByTagName('body')[0];
+window.setCursor = function(cursor) {
+  if (body.style.cursor !== cursor)
+    body.style.cursor = cursor;
+};
+
+
+// Mouse events
+var raycaster = new THREE.Raycaster();
+var mouse = new THREE.Vector2();
+
+function onMouseMove(event) {
+  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+}
+
+
+
+
+
+
+var bases = [
+  new THREE.Vector3(0.5, 0.5, 1),
+  new THREE.Vector3(5.5, 0, 1.5),
+  new THREE.Vector3(5.5, 0, 2.5),
+  new THREE.Vector3(5.5, 0, 2.5),
+]
+
 
 //create the shape
 let boardGeometry = new THREE.BoxGeometry(11, 0.1, 11);
@@ -73,14 +89,6 @@ let material3 = new THREE.MeshLambertMaterial({
   color: 0xFFFFFF,
 });
 
-// Mouse events
-var raycaster = new THREE.Raycaster();
-var mouse = new THREE.Vector2();
-
-function onMouseMove(event) {
-  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-}
 
 window.cube1 = new THREE.Mesh(cubeGeometry, material1);
 let cube2 = new THREE.Mesh(cubeGeometry, material2);
@@ -97,32 +105,14 @@ scene.add(cube2);
 scene.add(cube3);
 scene.add(cube4);
 
-cube1.position.x = 0.5;
-cube2.position.x = 1.5;
-cube3.position.x = 0.5;
-cube4.position.x = 1.5;
+cube1.position.set(bases[0].x,bases[0].y,bases[0].z);
+cube2.position.set(bases[1].x,bases[0].y,bases[0].z);
+cube3.position.set(bases[1].x,bases[0].y,bases[0].z);
+cube4.position.set(bases[1].x,bases[0].y,bases[0].z);
 
-cube1.position.z = 0.5;
-cube2.position.z = 0.5;
-cube3.position.z = 1.5;
-cube4.position.z = 10.5;
 
-cube2.position.y = cube3.position.y = cube4.position.y = cubeHeight /
-    2;
-
-cube1.position = bases[0];
-camera.position.y = 7;
-camera.position.x = -2;
-camera.position.z = -2;
-
-camera.lookAt(5.5, 0, 5.5);
-
-let rotate1 = false;
-let rotate2 = false;
-let rotate3 = false;
 
 let lastHoveredObject = null;
-
 // draw Scene
 let render = function() {
   raycaster.setFromCamera(mouse, camera);
@@ -152,16 +142,15 @@ var bouncing = false;
 var bouncingObject = null;
 
 var bounce = function(_bouncingObject){
-  bouncingObject = _bouncingObject
+  bouncingObject = _bouncingObject;
   bouncing = true;
 };
 
 let i = 0;
 
-let pawnPosition = 0;
-
 //game logic
 let update = function() {
+
   if (bouncing && bouncingObject){
     if (i < 10) {
       bouncingObject.translateOnAxis(new THREE.Vector3(0, 0.05, 0.05), 1);
@@ -175,8 +164,8 @@ let update = function() {
       bouncing = false;
       i=0;
     }
-
   }
+
 };
 
 window.addEventListener('mousemove', onMouseMove, false);
@@ -195,4 +184,5 @@ let GameLoop = function() {
 };
 
 GameLoop();
+
 
