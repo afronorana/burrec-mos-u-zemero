@@ -1,6 +1,6 @@
 window.scene = new THREE.Scene();
-window.camera = new THREE.PerspectiveCamera(75,
-    window.innerWidth / window.innerHeight, 0.1, 1000);
+window.camera = new THREE.PerspectiveCamera(90,
+    window.innerWidth / window.innerHeight, 0.1, 100);
 window.renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
@@ -17,6 +17,22 @@ window.setCursor = function(cursor) {
     body.style.cursor = cursor;
 };
 
+
+
+
+window.bases = [
+  new THREE.Vector3(5.5, cubeHeight/2, 0.5),
+  new THREE.Vector3(5.5, cubeHeight/2, 1.5),
+  new THREE.Vector3(5.5, cubeHeight/2, 2.5),
+  new THREE.Vector3(5.5, cubeHeight/2, 3.5),
+  new THREE.Vector3(5.5, cubeHeight/2, 4.5),
+  new THREE.Vector3(5.5, cubeHeight/2, 5.5),
+  new THREE.Vector3(4.5, cubeHeight/2, 5.5),
+  new THREE.Vector3(3.5, cubeHeight/2, 5.5),
+  new THREE.Vector3(2.5, cubeHeight/2, 5.5),
+  new THREE.Vector3(1.5, cubeHeight/2, 5.5),
+  new THREE.Vector3(0.5, cubeHeight/2, 5.5)
+]
 // Camera controls
 require('three/examples/js/controls/OrbitControls');
 controls = new THREE.OrbitControls(camera, renderer.domElement);
@@ -34,7 +50,17 @@ var pointLightHelper = new THREE.PointLightHelper(light1, 1);
 scene.add(pointLightHelper);
 
 //create the shape
-let geometry = new THREE.BoxGeometry(1, 1, 1);
+let boardGeometry = new THREE.BoxGeometry(11, 0.1, 11);
+let boardMaterial = new THREE.MeshLambertMaterial({
+  color: 0xFFFFFF,
+});
+window.board = new THREE.Mesh(boardGeometry, boardMaterial);
+board.position.x = board.position.z = 5.5;
+board.position.y = -0.05;
+
+scene.add(board);
+let cubeHeight = 1;
+let cubeGeometry = new THREE.BoxGeometry(.3, cubeHeight, .3);
 
 // create a material, colour or image texture
 let material1 = new THREE.MeshLambertMaterial({
@@ -52,51 +78,53 @@ var raycaster = new THREE.Raycaster();
 var mouse = new THREE.Vector2();
 
 function onMouseMove(event) {
-
-  // calculate mouse position in normalized device coordinates
-  // (-1 to +1) for both components
-
   mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
   mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 }
 
-let cube1 = new THREE.Mesh(geometry, material1);
-let cube2 = new THREE.Mesh(geometry, material2);
-let cube3 = new THREE.Mesh(geometry, material3);
+window.cube1 = new THREE.Mesh(cubeGeometry, material1);
+let cube2 = new THREE.Mesh(cubeGeometry, material2);
+let cube3 = new THREE.Mesh(cubeGeometry, material3);
+let cube4 = new THREE.Mesh(cubeGeometry, material1);
 
-cube1.name = 'cube_1';
-cube2.name = 'cube_2';
-cube3.name = 'cube_3';
+cube1.name = 'cube';
+cube2.name = 'cube';
+cube3.name = 'cube';
+cube4.name = 'cube';
 
 scene.add(cube1);
-
 scene.add(cube2);
-
 scene.add(cube3);
-cube1.position.x = 1.1;
-cube2.position.x = 2.2;
-cube3.position.x = 3.3;
+scene.add(cube4);
 
-camera.position.z = 3;
+cube1.position.x = 0.5;
+cube2.position.x = 1.5;
+cube3.position.x = 0.5;
+cube4.position.x = 1.5;
 
-// camera.lookAt(1,0,0)
-let rotate1 = false
-let rotate2 = false
-let rotate3 = false
-//game logic
-let update = function() {
-  if (rotate1)
-    cube1.rotation.x += 0.01;
-  if (rotate2)
-    cube2.rotation.y += 0.01;
-  if (rotate3)
-    cube3.rotation.z += 0.01;
-};
+cube1.position.z = 0.5;
+cube2.position.z = 0.5;
+cube3.position.z = 1.5;
+cube4.position.z = 10.5;
+
+cube2.position.y = cube3.position.y = cube4.position.y = cubeHeight /
+    2;
+
+cube1.position = bases[0];
+camera.position.y = 7;
+camera.position.x = -2;
+camera.position.z = -2;
+
+camera.lookAt(5.5, 0, 5.5);
+
+let rotate1 = false;
+let rotate2 = false;
+let rotate3 = false;
+
 let lastHoveredObject = null;
 
 // draw Scene
 let render = function() {
-
   raycaster.setFromCamera(mouse, camera);
   let intersects = raycaster.intersectObjects(scene.children);
   if (intersects.length > 0) {
@@ -119,14 +147,43 @@ let render = function() {
   renderer.render(scene, camera);
 };
 
+
+var bouncing = false;
+var bouncingObject = null;
+
+var bounce = function(_bouncingObject){
+  bouncingObject = _bouncingObject
+  bouncing = true;
+};
+
+let i = 0;
+
+let pawnPosition = 0;
+
+//game logic
+let update = function() {
+  if (bouncing && bouncingObject){
+    if (i < 10) {
+      bouncingObject.translateOnAxis(new THREE.Vector3(0, 0.05, 0.05), 1);
+      i++;
+    } else if (i<20) {
+      bouncingObject.translateOnAxis(new THREE.Vector3(0, -0.05, 0.05), 1);
+      i++;
+    }
+    else {
+      bouncingObject = null;
+      bouncing = false;
+      i=0;
+    }
+
+  }
+};
+
 window.addEventListener('mousemove', onMouseMove, false);
 
 window.addEventListener('click', function() {
-  if (!lastHoveredObject) return;
-
-  if (lastHoveredObject.name === 'cube_1') rotate1 = !rotate1;
-  if (lastHoveredObject.name === 'cube_2') rotate2 = !rotate2;
-  if (lastHoveredObject.name === 'cube_3') rotate3 = !rotate3;
+  if (!lastHoveredObject || lastHoveredObject.name !== 'cube') return;
+    bounce(lastHoveredObject);
 
 }, false);
 
