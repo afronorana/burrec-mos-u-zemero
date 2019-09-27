@@ -2,6 +2,7 @@ require('./core/bootstrap');
 require('./core/plugins');
 
 
+
 window.EventBus = new class {
     constructor() {
         this.vue = new Vue();

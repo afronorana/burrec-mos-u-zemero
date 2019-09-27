@@ -2142,8 +2142,7 @@ body {
   -ms-flex-align: center;
   align-items: center;
   font-size: 9px;
-  -webkit-filter: saturate(2);
-          filter: saturate(2);
+  filter: saturate(2);
   transform: perspective(287px) translateX(-11px) translateY(-11px) translateZ(70px);
 }
 
