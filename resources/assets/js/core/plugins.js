@@ -1,4 +1,3 @@
-
 // Set scene
 window.scene = new THREE.Scene();
 window.camera = new THREE.PerspectiveCamera(20,
@@ -7,41 +6,27 @@ window.renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
+// Controls
+require('three/examples/js/controls/OrbitControls');
+var controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+// Camera
+camera.position.y = 15;
+camera.position.x = -15;
+camera.position.z = -15;
+camera.lookAt(5, 0, 5);
 window.addEventListener('resize', function() {
   renderer.setSize(window.innerWidth, window.innerHeight);
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
 });
 
-// Camera
-camera.position.y = 15;
-camera.position.x = -15;
-camera.position.z = -15;
-
-camera.lookAt(5.5, 0, 5.5);
-
-
-// Lighting
-let ambientLight = new THREE.AmbientLight(0xFFFFFF, 0.3);
-scene.add(ambientLight);
-
-let light1 = new THREE.PointLight(0xFFFFFF, 1, 20);
-light1.position.set(10, 10, 10);
-light1.castShadow = true;
-scene.add(light1);
-
-var pointLightHelper = new THREE.PointLightHelper(light1, 1);
-scene.add(pointLightHelper);
-
-
 // Mouse interaction
-
 var body = document.getElementsByTagName('body')[0];
 window.setCursor = function(cursor) {
   if (body.style.cursor !== cursor)
     body.style.cursor = cursor;
 };
-
 
 // Mouse events
 var raycaster = new THREE.Raycaster();
@@ -52,119 +37,187 @@ function onMouseMove(event) {
   mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 }
 
+// Lighting
+let ambientLight = new THREE.AmbientLight(0xFFFFFF, 0.1);
+let lights = [
+  new THREE.PointLight(0xFFFFFF, 1, 20),
+  new THREE.PointLight(0xFFFFFF, 1, 20),
+  new THREE.PointLight(0xFFFFFF, 1, 20),
+  new THREE.PointLight(0xFFFFFF, 1, 20),
+];
+lights[0].position.set(-2, 10, -2);
+lights[1].position.set(-2, 10, 13);
+lights[2].position.set(13, 10, -2);
+lights[3].position.set(13, 10, 13);
+// light1.castShadow = true;
+scene.add(ambientLight);
+scene.add(lights[0]);
+scene.add(lights[1]);
+scene.add(lights[2]);
+scene.add(lights[3]);
 
+var pointLightHelpers = [
+  new THREE.PointLightHelper(lights[0], 1),
+  new THREE.PointLightHelper(lights[1], 1),
+  new THREE.PointLightHelper(lights[2], 1),
+  new THREE.PointLightHelper(lights[3], 1),
+];
+scene.add(pointLightHelpers[0]);
+scene.add(pointLightHelpers[1]);
+scene.add(pointLightHelpers[2]);
+scene.add(pointLightHelpers[3]);
 
+/**
+ *  Create objects
+ **/
+let fields = [
+  new THREE.Vector3(4, 0.5, 0),
+  new THREE.Vector3(4, 0.5, 1),
+  new THREE.Vector3(4, 0.5, 2),
+  new THREE.Vector3(4, 0.5, 3),
+  new THREE.Vector3(4, 0.5, 4),
+  new THREE.Vector3(3, 0.5, 4),
+  new THREE.Vector3(2, 0.5, 4),
+  new THREE.Vector3(1, 0.5, 4),
+  new THREE.Vector3(0, 0.5, 4),
+  new THREE.Vector3(0, 0.5, 5),
+  new THREE.Vector3(0, 0.5, 6),
+  new THREE.Vector3(1, 0.5, 6),
+  new THREE.Vector3(2, 0.5, 6),
+  new THREE.Vector3(3, 0.5, 6),
+  new THREE.Vector3(4, 0.5, 6),
+  new THREE.Vector3(4, 0.5, 7),
+  new THREE.Vector3(4, 0.5, 8),
+  new THREE.Vector3(4, 0.5, 9),
+  new THREE.Vector3(4, 0.5, 10),
+  new THREE.Vector3(5, 0.5, 10),
+  new THREE.Vector3(6, 0.5, 10),
+  new THREE.Vector3(6, 0.5, 9),
+  new THREE.Vector3(6, 0.5, 8),
+  new THREE.Vector3(6, 0.5, 7),
+  new THREE.Vector3(6, 0.5, 6),
+  new THREE.Vector3(7, 0.5, 6),
+  new THREE.Vector3(8, 0.5, 6),
+  new THREE.Vector3(9, 0.5, 6),
+  new THREE.Vector3(10, 0.5, 6),
+  new THREE.Vector3(10, 0.5, 5),
+  new THREE.Vector3(10, 0.5, 4),
+  new THREE.Vector3(9, 0.5, 4),
+  new THREE.Vector3(8, 0.5, 4),
+  new THREE.Vector3(7, 0.5, 4),
+  new THREE.Vector3(6, 0.5, 4),
+  new THREE.Vector3(6, 0.5, 3),
+  new THREE.Vector3(6, 0.5, 2),
+  new THREE.Vector3(6, 0.5, 1),
+  new THREE.Vector3(6, 0.5, 0),
+  new THREE.Vector3(5, 0.5, 0),
+];
 
-
-
-var bases = [
-  new THREE.Vector3(0.5, 0.5, 1),
-  new THREE.Vector3(5.5, 0, 1.5),
-  new THREE.Vector3(5.5, 0, 2.5),
-  new THREE.Vector3(5.5, 0, 2.5),
-]
-
-
-//create the shape
+// Board
 let boardGeometry = new THREE.BoxGeometry(11, 0.1, 11);
-let boardMaterial = new THREE.MeshLambertMaterial({
-  color: 0xFFFFFF,
-});
+let boardMaterials = [
+  new THREE.MeshLambertMaterial({
+    map: new THREE.TextureLoader().load('resources/board.png'),
+    side: THREE.DoubleSide,
+  }),
+  new THREE.MeshLambertMaterial({
+    map: new THREE.TextureLoader().load('resources/board.png'),
+    side: THREE.DoubleSide,
+  }),
+  new THREE.MeshLambertMaterial({
+    map: new THREE.TextureLoader().load('resources/board.png'),
+    side: THREE.DoubleSide,
+  }),
+  new THREE.MeshLambertMaterial({
+    map: new THREE.TextureLoader().load('resources/board.png'),
+    side: THREE.DoubleSide,
+  }),
+  new THREE.MeshLambertMaterial({
+    map: new THREE.TextureLoader().load('resources/board.png'),
+    side: THREE.DoubleSide,
+  }),
+  new THREE.MeshLambertMaterial({
+    map: new THREE.TextureLoader().load('resources/board.png'),
+    side: THREE.DoubleSide,
+  }),
+];
+let boardMaterial = new THREE.MeshFaceMaterial(boardMaterials);
 window.board = new THREE.Mesh(boardGeometry, boardMaterial);
-board.position.x = board.position.z = 5.5;
+board.position.x = board.position.z = 5;
 board.position.y = -0.05;
-
 scene.add(board);
-let cubeHeight = 1;
-let cubeGeometry = new THREE.BoxGeometry(.3, cubeHeight, .3);
 
-// create a material, colour or image texture
-let material1 = new THREE.MeshLambertMaterial({
-  color: 0xFFFFFF,
-});
-let material2 = new THREE.MeshLambertMaterial({
-  color: 0xFFFFFF,
-});
-let material3 = new THREE.MeshLambertMaterial({
-  color: 0xFFFFFF,
-});
+class Pawn {
+  constructor(_startingPlace, _color, _globalPosition = 0) {
+    //old
+    this.position = 0;
+    this.globalPosition = _globalPosition;
+    this.startingGlobalPosition = _globalPosition;
+    this.color = _color;
+    this.isActive = false;
+    this.startingPlace = _startingPlace;
+    this.isInTargetField = false;
+    this.isSkipping = false;
+    // 3d
+    this.height = 1;
+    this.geometry = new THREE.BoxGeometry(.3, 1, .3);
+    this.material = new THREE.MeshLambertMaterial({color: _color});
+    this.mesh = new THREE.Mesh(this.geometry, this.material);
+    this.mesh.position.copy(fields[_globalPosition]);
+    this.mesh.name = 'cube';
 
+    // this.mesh.renderOrder = 1 // like z-index
+  }
 
-window.cube1 = new THREE.Mesh(cubeGeometry, material1);
-let cube2 = new THREE.Mesh(cubeGeometry, material2);
-let cube3 = new THREE.Mesh(cubeGeometry, material3);
-let cube4 = new THREE.Mesh(cubeGeometry, material1);
+  moveTo(_position) {
+    this.mesh.position.copy(fields[_position]);
+    this.globalPosition++;
+  }
+}
 
-cube1.name = 'cube';
-cube2.name = 'cube';
-cube3.name = 'cube';
-cube4.name = 'cube';
+window.piunat = [];
 
-scene.add(cube1);
-scene.add(cube2);
-scene.add(cube3);
-scene.add(cube4);
+// Usage
+window.piunat = [
+  new Pawn(1, 0x0000FF, 0),
+  new Pawn(1, 0xFF0000, 1),
+  new Pawn(1, 0x00FF00, 2),
+  new Pawn(1, 0xFFFF00, 3)];
 
-cube1.position.set(bases[0].x,bases[0].y,bases[0].z);
-cube2.position.set(bases[1].x,bases[0].y,bases[0].z);
-cube3.position.set(bases[1].x,bases[0].y,bases[0].z);
-cube4.position.set(bases[1].x,bases[0].y,bases[0].z);
-
-
+scene.add(piunat[0].mesh);
+scene.add(piunat[1].mesh);
+scene.add(piunat[2].mesh);
+scene.add(piunat[3].mesh);
 
 let lastHoveredObject = null;
+
 // draw Scene
 let render = function() {
   raycaster.setFromCamera(mouse, camera);
   let intersects = raycaster.intersectObjects(scene.children);
   if (intersects.length > 0) {
-    setCursor('pointer');
+    if (intersects[0].object.name === 'cube') setCursor('pointer');
     if (intersects[0].object !== lastHoveredObject) {
       if (lastHoveredObject) {
-        lastHoveredObject.material.color.setHex(lastHoveredObject.currentHex);
+        // lastHoveredObject.material.color.setHex(lastHoveredObject.currentHex);
       }
       lastHoveredObject = intersects[0].object;
-      lastHoveredObject.currentHex = lastHoveredObject.material.color.getHex();
-      lastHoveredObject.material.color.setHex(0xffff00);
+      // lastHoveredObject.currentHex = lastHoveredObject.material.color.getHex();
+      // lastHoveredObject.material.color.setHex(0xffff00);
     }
   } else {
-    setCursor('default');
     if (lastHoveredObject) {
-      lastHoveredObject.material.color.setHex(lastHoveredObject.currentHex);
+      // lastHoveredObject.material.color.setHex(lastHoveredObject.currentHex);
     }
     lastHoveredObject = null;
+    setCursor('default');
   }
   renderer.render(scene, camera);
 };
 
 
-var bouncing = false;
-var bouncingObject = null;
-
-var bounce = function(_bouncingObject){
-  bouncingObject = _bouncingObject;
-  bouncing = true;
-};
-
-let i = 0;
-
 //game logic
 let update = function() {
-
-  if (bouncing && bouncingObject){
-    if (i < 10) {
-      bouncingObject.translateOnAxis(new THREE.Vector3(0, 0.05, 0.05), 1);
-      i++;
-    } else if (i<20) {
-      bouncingObject.translateOnAxis(new THREE.Vector3(0, -0.05, 0.05), 1);
-      i++;
-    }
-    else {
-      bouncingObject = null;
-      bouncing = false;
-      i=0;
-    }
-  }
 
 };
 
@@ -172,7 +225,12 @@ window.addEventListener('mousemove', onMouseMove, false);
 
 window.addEventListener('click', function() {
   if (!lastHoveredObject || lastHoveredObject.name !== 'cube') return;
-    bounce(lastHoveredObject);
+
+  piunat.forEach(function(piun) {
+    if (piun.mesh.uuid === lastHoveredObject.uuid) {
+      piun.moveTo(piun.globalPosition + 1);
+    }
+  });
 
 }, false);
 

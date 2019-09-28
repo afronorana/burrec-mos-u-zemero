@@ -1,8 +1,6 @@
 require('./core/bootstrap');
 require('./core/plugins');
 
-
-
 window.EventBus = new class {
     constructor() {
         this.vue = new Vue();
@@ -36,6 +34,7 @@ window.ApplicationStore = {
 };
 
 // Components
+Vue.component('the-Scene', require('./components/TheScene'));
 Vue.component('the-game', require('./components/TheGame'));
 Vue.component('the-dice', require('./components/TheDice'));
 Vue.component('stepping-fields', require('./components/SteppingFields'));

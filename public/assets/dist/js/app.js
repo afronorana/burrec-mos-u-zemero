@@ -63,7 +63,7 @@
 /******/ 	__webpack_require__.p = "";
 /******/
 /******/ 	// Load entry module and return exports
-/******/ 	return __webpack_require__(__webpack_require__.s = 42);
+/******/ 	return __webpack_require__(__webpack_require__.s = 41);
 /******/ })
 /************************************************************************/
 /******/ ([
@@ -653,10 +653,11 @@ window.ApplicationStore = {
 };
 
 // Components
-Vue.component('the-game', __webpack_require__(34));
-Vue.component('the-dice', __webpack_require__(33));
-Vue.component('stepping-fields', __webpack_require__(32));
-Vue.component('player-homes', __webpack_require__(31));
+Vue.component('the-Scene', __webpack_require__(48));
+Vue.component('the-game', __webpack_require__(33));
+Vue.component('the-dice', __webpack_require__(32));
+Vue.component('stepping-fields', __webpack_require__(31));
+Vue.component('player-homes', __webpack_require__(30));
 
 window.Burrec = new Vue({
     el: '#app',
@@ -1378,7 +1379,7 @@ module.exports = Player;
 window._ = __webpack_require__(18);
 window.$ = window.jQuery = __webpack_require__(17);
 window.Promise = __webpack_require__(20);
-window.Vue = __webpack_require__(40);
+window.Vue = __webpack_require__(39);
 window.EventKeys = __webpack_require__(11);
 
 window.Pawn = __webpack_require__(12);
@@ -1388,8 +1389,11 @@ window.THREE = __webpack_require__(28);
 
 /***/ }),
 /* 15 */
-/***/ (function(module, exports) {
+/***/ (function(module, exports, __webpack_require__) {
 
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
 // Set scene
 window.scene = new THREE.Scene();
@@ -1398,33 +1402,22 @@ window.renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
+// Controls
+__webpack_require__(45);
+var controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+// Camera
+camera.position.y = 15;
+camera.position.x = -15;
+camera.position.z = -15;
+camera.lookAt(5, 0, 5);
 window.addEventListener('resize', function () {
   renderer.setSize(window.innerWidth, window.innerHeight);
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
 });
 
-// Camera
-camera.position.y = 15;
-camera.position.x = -15;
-camera.position.z = -15;
-
-camera.lookAt(5.5, 0, 5.5);
-
-// Lighting
-var ambientLight = new THREE.AmbientLight(0xFFFFFF, 0.3);
-scene.add(ambientLight);
-
-var light1 = new THREE.PointLight(0xFFFFFF, 1, 20);
-light1.position.set(10, 10, 10);
-light1.castShadow = true;
-scene.add(light1);
-
-var pointLightHelper = new THREE.PointLightHelper(light1, 1);
-scene.add(pointLightHelper);
-
 // Mouse interaction
-
 var body = document.getElementsByTagName('body')[0];
 window.setCursor = function (cursor) {
   if (body.style.cursor !== cursor) body.style.cursor = cursor;
@@ -1439,110 +1432,144 @@ function onMouseMove(event) {
   mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 }
 
-var bases = [new THREE.Vector3(0.5, 0.5, 1), new THREE.Vector3(5.5, 0, 1.5), new THREE.Vector3(5.5, 0, 2.5), new THREE.Vector3(5.5, 0, 2.5)];
+// Lighting
+var ambientLight = new THREE.AmbientLight(0xFFFFFF, 0.1);
+var lights = [new THREE.PointLight(0xFFFFFF, 1, 20), new THREE.PointLight(0xFFFFFF, 1, 20), new THREE.PointLight(0xFFFFFF, 1, 20), new THREE.PointLight(0xFFFFFF, 1, 20)];
+lights[0].position.set(-2, 10, -2);
+lights[1].position.set(-2, 10, 13);
+lights[2].position.set(13, 10, -2);
+lights[3].position.set(13, 10, 13);
+// light1.castShadow = true;
+scene.add(ambientLight);
+scene.add(lights[0]);
+scene.add(lights[1]);
+scene.add(lights[2]);
+scene.add(lights[3]);
 
-//create the shape
+var pointLightHelpers = [new THREE.PointLightHelper(lights[0], 1), new THREE.PointLightHelper(lights[1], 1), new THREE.PointLightHelper(lights[2], 1), new THREE.PointLightHelper(lights[3], 1)];
+scene.add(pointLightHelpers[0]);
+scene.add(pointLightHelpers[1]);
+scene.add(pointLightHelpers[2]);
+scene.add(pointLightHelpers[3]);
+
+/**
+ *  Create objects
+ **/
+var fields = [new THREE.Vector3(4, 0.5, 0), new THREE.Vector3(4, 0.5, 1), new THREE.Vector3(4, 0.5, 2), new THREE.Vector3(4, 0.5, 3), new THREE.Vector3(4, 0.5, 4), new THREE.Vector3(3, 0.5, 4), new THREE.Vector3(2, 0.5, 4), new THREE.Vector3(1, 0.5, 4), new THREE.Vector3(0, 0.5, 4), new THREE.Vector3(0, 0.5, 5), new THREE.Vector3(0, 0.5, 6), new THREE.Vector3(1, 0.5, 6), new THREE.Vector3(2, 0.5, 6), new THREE.Vector3(3, 0.5, 6), new THREE.Vector3(4, 0.5, 6), new THREE.Vector3(4, 0.5, 7), new THREE.Vector3(4, 0.5, 8), new THREE.Vector3(4, 0.5, 9), new THREE.Vector3(4, 0.5, 10), new THREE.Vector3(5, 0.5, 10), new THREE.Vector3(6, 0.5, 10), new THREE.Vector3(6, 0.5, 9), new THREE.Vector3(6, 0.5, 8), new THREE.Vector3(6, 0.5, 7), new THREE.Vector3(6, 0.5, 6), new THREE.Vector3(7, 0.5, 6), new THREE.Vector3(8, 0.5, 6), new THREE.Vector3(9, 0.5, 6), new THREE.Vector3(10, 0.5, 6), new THREE.Vector3(10, 0.5, 5), new THREE.Vector3(10, 0.5, 4), new THREE.Vector3(9, 0.5, 4), new THREE.Vector3(8, 0.5, 4), new THREE.Vector3(7, 0.5, 4), new THREE.Vector3(6, 0.5, 4), new THREE.Vector3(6, 0.5, 3), new THREE.Vector3(6, 0.5, 2), new THREE.Vector3(6, 0.5, 1), new THREE.Vector3(6, 0.5, 0), new THREE.Vector3(5, 0.5, 0)];
+
+// Board
 var boardGeometry = new THREE.BoxGeometry(11, 0.1, 11);
-var boardMaterial = new THREE.MeshLambertMaterial({
-  color: 0xFFFFFF
-});
+var boardMaterials = [new THREE.MeshLambertMaterial({
+  map: new THREE.TextureLoader().load('resources/board.png'),
+  side: THREE.DoubleSide
+}), new THREE.MeshLambertMaterial({
+  map: new THREE.TextureLoader().load('resources/board.png'),
+  side: THREE.DoubleSide
+}), new THREE.MeshLambertMaterial({
+  map: new THREE.TextureLoader().load('resources/board.png'),
+  side: THREE.DoubleSide
+}), new THREE.MeshLambertMaterial({
+  map: new THREE.TextureLoader().load('resources/board.png'),
+  side: THREE.DoubleSide
+}), new THREE.MeshLambertMaterial({
+  map: new THREE.TextureLoader().load('resources/board.png'),
+  side: THREE.DoubleSide
+}), new THREE.MeshLambertMaterial({
+  map: new THREE.TextureLoader().load('resources/board.png'),
+  side: THREE.DoubleSide
+})];
+var boardMaterial = new THREE.MeshFaceMaterial(boardMaterials);
 window.board = new THREE.Mesh(boardGeometry, boardMaterial);
-board.position.x = board.position.z = 5.5;
+board.position.x = board.position.z = 5;
 board.position.y = -0.05;
-
 scene.add(board);
-var cubeHeight = 1;
-var cubeGeometry = new THREE.BoxGeometry(.3, cubeHeight, .3);
 
-// create a material, colour or image texture
-var material1 = new THREE.MeshLambertMaterial({
-  color: 0xFFFFFF
-});
-var material2 = new THREE.MeshLambertMaterial({
-  color: 0xFFFFFF
-});
-var material3 = new THREE.MeshLambertMaterial({
-  color: 0xFFFFFF
-});
+var Pawn = function () {
+  function Pawn(_startingPlace, _color) {
+    var _globalPosition = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 0;
 
-window.cube1 = new THREE.Mesh(cubeGeometry, material1);
-var cube2 = new THREE.Mesh(cubeGeometry, material2);
-var cube3 = new THREE.Mesh(cubeGeometry, material3);
-var cube4 = new THREE.Mesh(cubeGeometry, material1);
+    _classCallCheck(this, Pawn);
 
-cube1.name = 'cube';
-cube2.name = 'cube';
-cube3.name = 'cube';
-cube4.name = 'cube';
+    //old
+    this.position = 0;
+    this.globalPosition = _globalPosition;
+    this.startingGlobalPosition = _globalPosition;
+    this.color = _color;
+    this.isActive = false;
+    this.startingPlace = _startingPlace;
+    this.isInTargetField = false;
+    this.isSkipping = false;
+    // 3d
+    this.height = 1;
+    this.geometry = new THREE.BoxGeometry(.3, 1, .3);
+    this.material = new THREE.MeshLambertMaterial({ color: _color });
+    this.mesh = new THREE.Mesh(this.geometry, this.material);
+    this.mesh.position.copy(fields[_globalPosition]);
+    this.mesh.name = 'cube';
 
-scene.add(cube1);
-scene.add(cube2);
-scene.add(cube3);
-scene.add(cube4);
+    // this.mesh.renderOrder = 1 // like z-index
+  }
 
-cube1.position.set(bases[0].x, bases[0].y, bases[0].z);
-cube2.position.set(bases[1].x, bases[0].y, bases[0].z);
-cube3.position.set(bases[1].x, bases[0].y, bases[0].z);
-cube4.position.set(bases[1].x, bases[0].y, bases[0].z);
+  _createClass(Pawn, [{
+    key: 'moveTo',
+    value: function moveTo(_position) {
+      this.mesh.position.copy(fields[_position]);
+      this.globalPosition++;
+    }
+  }]);
+
+  return Pawn;
+}();
+
+window.piunat = [];
+
+// Usage
+window.piunat = [new Pawn(1, 0x0000FF, 0), new Pawn(1, 0xFF0000, 1), new Pawn(1, 0x00FF00, 2), new Pawn(1, 0xFFFF00, 3)];
+
+scene.add(piunat[0].mesh);
+scene.add(piunat[1].mesh);
+scene.add(piunat[2].mesh);
+scene.add(piunat[3].mesh);
 
 var lastHoveredObject = null;
+
 // draw Scene
 var render = function render() {
   raycaster.setFromCamera(mouse, camera);
   var intersects = raycaster.intersectObjects(scene.children);
   if (intersects.length > 0) {
-    setCursor('pointer');
+    if (intersects[0].object.name === 'cube') setCursor('pointer');
     if (intersects[0].object !== lastHoveredObject) {
       if (lastHoveredObject) {
-        lastHoveredObject.material.color.setHex(lastHoveredObject.currentHex);
+        // lastHoveredObject.material.color.setHex(lastHoveredObject.currentHex);
       }
       lastHoveredObject = intersects[0].object;
-      lastHoveredObject.currentHex = lastHoveredObject.material.color.getHex();
-      lastHoveredObject.material.color.setHex(0xffff00);
+      // lastHoveredObject.currentHex = lastHoveredObject.material.color.getHex();
+      // lastHoveredObject.material.color.setHex(0xffff00);
     }
   } else {
-    setCursor('default');
     if (lastHoveredObject) {
-      lastHoveredObject.material.color.setHex(lastHoveredObject.currentHex);
+      // lastHoveredObject.material.color.setHex(lastHoveredObject.currentHex);
     }
     lastHoveredObject = null;
+    setCursor('default');
   }
   renderer.render(scene, camera);
 };
 
-var bouncing = false;
-var bouncingObject = null;
-
-var bounce = function bounce(_bouncingObject) {
-  bouncingObject = _bouncingObject;
-  bouncing = true;
-};
-
-var i = 0;
-
 //game logic
-var update = function update() {
-
-  if (bouncing && bouncingObject) {
-    if (i < 10) {
-      bouncingObject.translateOnAxis(new THREE.Vector3(0, 0.05, 0.05), 1);
-      i++;
-    } else if (i < 20) {
-      bouncingObject.translateOnAxis(new THREE.Vector3(0, -0.05, 0.05), 1);
-      i++;
-    } else {
-      bouncingObject = null;
-      bouncing = false;
-      i = 0;
-    }
-  }
-};
+var update = function update() {};
 
 window.addEventListener('mousemove', onMouseMove, false);
 
 window.addEventListener('click', function () {
   if (!lastHoveredObject || lastHoveredObject.name !== 'cube') return;
-  bounce(lastHoveredObject);
+
+  piunat.forEach(function (piun) {
+    if (piun.mesh.uuid === lastHoveredObject.uuid) {
+      piun.moveTo(piun.globalPosition + 1);
+    }
+  });
 }, false);
 
 // run game loop
@@ -29053,7 +29080,7 @@ return jQuery;
   }
 }.call(this));
 
-/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(1), __webpack_require__(41)(module)))
+/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(1), __webpack_require__(40)(module)))
 
 /***/ }),
 /* 19 */
@@ -78753,8 +78780,7 @@ function LensFlare() {
 
 
 /***/ }),
-/* 29 */,
-/* 30 */
+/* 29 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /* WEBPACK VAR INJECTION */(function(global) {var scope = (typeof global !== "undefined" && global) ||
@@ -78824,14 +78850,14 @@ exports.clearImmediate = (typeof self !== "undefined" && self.clearImmediate) ||
 /* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(1)))
 
 /***/ }),
-/* 31 */
+/* 30 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var Component = __webpack_require__(2)(
   /* script */
   __webpack_require__(7),
   /* template */
-  __webpack_require__(37),
+  __webpack_require__(36),
   /* scopeId */
   null,
   /* cssModules */
@@ -78858,14 +78884,14 @@ module.exports = Component.exports
 
 
 /***/ }),
-/* 32 */
+/* 31 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var Component = __webpack_require__(2)(
   /* script */
   __webpack_require__(8),
   /* template */
-  __webpack_require__(35),
+  __webpack_require__(34),
   /* scopeId */
   null,
   /* cssModules */
@@ -78892,14 +78918,14 @@ module.exports = Component.exports
 
 
 /***/ }),
-/* 33 */
+/* 32 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var Component = __webpack_require__(2)(
   /* script */
   __webpack_require__(9),
   /* template */
-  __webpack_require__(36),
+  __webpack_require__(35),
   /* scopeId */
   null,
   /* cssModules */
@@ -78926,14 +78952,14 @@ module.exports = Component.exports
 
 
 /***/ }),
-/* 34 */
+/* 33 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var Component = __webpack_require__(2)(
   /* script */
   __webpack_require__(10),
   /* template */
-  __webpack_require__(38),
+  __webpack_require__(37),
   /* scopeId */
   null,
   /* cssModules */
@@ -78960,7 +78986,7 @@ module.exports = Component.exports
 
 
 /***/ }),
-/* 35 */
+/* 34 */
 /***/ (function(module, exports, __webpack_require__) {
 
 module.exports={render:function (){var _vm=this;var _h=_vm.$createElement;var _c=_vm._self._c||_h;
@@ -78983,7 +79009,7 @@ if (false) {
 }
 
 /***/ }),
-/* 36 */
+/* 35 */
 /***/ (function(module, exports, __webpack_require__) {
 
 module.exports={render:function (){var _vm=this;var _h=_vm.$createElement;var _c=_vm._self._c||_h;
@@ -79019,7 +79045,7 @@ if (false) {
 }
 
 /***/ }),
-/* 37 */
+/* 36 */
 /***/ (function(module, exports, __webpack_require__) {
 
 module.exports={render:function (){var _vm=this;var _h=_vm.$createElement;var _c=_vm._self._c||_h;
@@ -79053,7 +79079,7 @@ if (false) {
 }
 
 /***/ }),
-/* 38 */
+/* 37 */
 /***/ (function(module, exports, __webpack_require__) {
 
 module.exports={render:function (){var _vm=this;var _h=_vm.$createElement;var _c=_vm._self._c||_h;
@@ -79100,7 +79126,7 @@ if (false) {
 }
 
 /***/ }),
-/* 39 */
+/* 38 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -91043,21 +91069,21 @@ Vue.compile = compileToFunctions;
 
 module.exports = Vue;
 
-/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(1), __webpack_require__(30).setImmediate))
+/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(1), __webpack_require__(29).setImmediate))
 
 /***/ }),
-/* 40 */
+/* 39 */
 /***/ (function(module, exports, __webpack_require__) {
 
 if (false) {
   module.exports = require('./vue.common.prod.js')
 } else {
-  module.exports = __webpack_require__(39)
+  module.exports = __webpack_require__(38)
 }
 
 
 /***/ }),
-/* 41 */
+/* 40 */
 /***/ (function(module, exports) {
 
 module.exports = function(module) {
@@ -91085,11 +91111,1600 @@ module.exports = function(module) {
 
 
 /***/ }),
-/* 42 */
+/* 41 */
 /***/ (function(module, exports, __webpack_require__) {
 
 __webpack_require__(4);
 module.exports = __webpack_require__(5);
+
+
+/***/ }),
+/* 42 */,
+/* 43 */
+/***/ (function(module, exports) {
+
+/*
+	MIT License http://www.opensource.org/licenses/mit-license.php
+	Author Tobias Koppers @sokra
+*/
+// css base code, injected by the css-loader
+module.exports = function() {
+	var list = [];
+
+	// return the list of modules as css string
+	list.toString = function toString() {
+		var result = [];
+		for(var i = 0; i < this.length; i++) {
+			var item = this[i];
+			if(item[2]) {
+				result.push("@media " + item[2] + "{" + item[1] + "}");
+			} else {
+				result.push(item[1]);
+			}
+		}
+		return result.join("");
+	};
+
+	// import a list of modules into the list
+	list.i = function(modules, mediaQuery) {
+		if(typeof modules === "string")
+			modules = [[null, modules, ""]];
+		var alreadyImportedModules = {};
+		for(var i = 0; i < this.length; i++) {
+			var id = this[i][0];
+			if(typeof id === "number")
+				alreadyImportedModules[id] = true;
+		}
+		for(i = 0; i < modules.length; i++) {
+			var item = modules[i];
+			// skip already imported module
+			// this implementation is not 100% perfect for weird media query combinations
+			//  when a module is imported multiple times with different media queries.
+			//  I hope this will never occur (Hey this way we have smaller bundles)
+			if(typeof item[0] !== "number" || !alreadyImportedModules[item[0]]) {
+				if(mediaQuery && !item[2]) {
+					item[2] = mediaQuery;
+				} else if(mediaQuery) {
+					item[2] = "(" + item[2] + ") and (" + mediaQuery + ")";
+				}
+				list.push(item);
+			}
+		}
+	};
+	return list;
+};
+
+
+/***/ }),
+/* 44 */,
+/* 45 */
+/***/ (function(module, exports) {
+
+/**
+ * @author qiao / https://github.com/qiao
+ * @author mrdoob / http://mrdoob.com
+ * @author alteredq / http://alteredqualia.com/
+ * @author WestLangley / http://github.com/WestLangley
+ * @author erich666 / http://erichaines.com
+ * @author ScieCode / http://github.com/sciecode
+ */
+
+// This set of controls performs orbiting, dollying (zooming), and panning.
+// Unlike TrackballControls, it maintains the "up" direction object.up (+Y by default).
+//
+//    Orbit - left mouse / touch: one-finger move
+//    Zoom - middle mouse, or mousewheel / touch: two-finger spread or squish
+//    Pan - right mouse, or left mouse + ctrl/meta/shiftKey, or arrow keys / touch: two-finger move
+
+THREE.OrbitControls = function ( object, domElement ) {
+
+	this.object = object;
+
+	this.domElement = ( domElement !== undefined ) ? domElement : document;
+
+	// Set to false to disable this control
+	this.enabled = true;
+
+	// "target" sets the location of focus, where the object orbits around
+	this.target = new THREE.Vector3();
+
+	// How far you can dolly in and out ( PerspectiveCamera only )
+	this.minDistance = 0;
+	this.maxDistance = Infinity;
+
+	// How far you can zoom in and out ( OrthographicCamera only )
+	this.minZoom = 0;
+	this.maxZoom = Infinity;
+
+	// How far you can orbit vertically, upper and lower limits.
+	// Range is 0 to Math.PI radians.
+	this.minPolarAngle = 0; // radians
+	this.maxPolarAngle = Math.PI; // radians
+
+	// How far you can orbit horizontally, upper and lower limits.
+	// If set, must be a sub-interval of the interval [ - Math.PI, Math.PI ].
+	this.minAzimuthAngle = - Infinity; // radians
+	this.maxAzimuthAngle = Infinity; // radians
+
+	// Set to true to enable damping (inertia)
+	// If damping is enabled, you must call controls.update() in your animation loop
+	this.enableDamping = false;
+	this.dampingFactor = 0.05;
+
+	// This option actually enables dollying in and out; left as "zoom" for backwards compatibility.
+	// Set to false to disable zooming
+	this.enableZoom = true;
+	this.zoomSpeed = 1.0;
+
+	// Set to false to disable rotating
+	this.enableRotate = true;
+	this.rotateSpeed = 1.0;
+
+	// Set to false to disable panning
+	this.enablePan = true;
+	this.panSpeed = 1.0;
+	this.screenSpacePanning = false; // if true, pan in screen-space
+	this.keyPanSpeed = 7.0;	// pixels moved per arrow key push
+
+	// Set to true to automatically rotate around the target
+	// If auto-rotate is enabled, you must call controls.update() in your animation loop
+	this.autoRotate = false;
+	this.autoRotateSpeed = 2.0; // 30 seconds per round when fps is 60
+
+	// Set to false to disable use of the keys
+	this.enableKeys = true;
+
+	// The four arrow keys
+	this.keys = { LEFT: 37, UP: 38, RIGHT: 39, BOTTOM: 40 };
+
+	// Mouse buttons
+	this.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
+
+	// Touch fingers
+	this.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+
+	// for reset
+	this.target0 = this.target.clone();
+	this.position0 = this.object.position.clone();
+	this.zoom0 = this.object.zoom;
+
+	//
+	// public methods
+	//
+
+	this.getPolarAngle = function () {
+
+		return spherical.phi;
+
+	};
+
+	this.getAzimuthalAngle = function () {
+
+		return spherical.theta;
+
+	};
+
+	this.saveState = function () {
+
+		scope.target0.copy( scope.target );
+		scope.position0.copy( scope.object.position );
+		scope.zoom0 = scope.object.zoom;
+
+	};
+
+	this.reset = function () {
+
+		scope.target.copy( scope.target0 );
+		scope.object.position.copy( scope.position0 );
+		scope.object.zoom = scope.zoom0;
+
+		scope.object.updateProjectionMatrix();
+		scope.dispatchEvent( changeEvent );
+
+		scope.update();
+
+		state = STATE.NONE;
+
+	};
+
+	// this method is exposed, but perhaps it would be better if we can make it private...
+	this.update = function () {
+
+		var offset = new THREE.Vector3();
+
+		// so camera.up is the orbit axis
+		var quat = new THREE.Quaternion().setFromUnitVectors( object.up, new THREE.Vector3( 0, 1, 0 ) );
+		var quatInverse = quat.clone().inverse();
+
+		var lastPosition = new THREE.Vector3();
+		var lastQuaternion = new THREE.Quaternion();
+
+		return function update() {
+
+			var position = scope.object.position;
+
+			offset.copy( position ).sub( scope.target );
+
+			// rotate offset to "y-axis-is-up" space
+			offset.applyQuaternion( quat );
+
+			// angle from z-axis around y-axis
+			spherical.setFromVector3( offset );
+
+			if ( scope.autoRotate && state === STATE.NONE ) {
+
+				rotateLeft( getAutoRotationAngle() );
+
+			}
+
+			if ( scope.enableDamping ) {
+
+				spherical.theta += sphericalDelta.theta * scope.dampingFactor;
+				spherical.phi += sphericalDelta.phi * scope.dampingFactor;
+
+			} else {
+
+				spherical.theta += sphericalDelta.theta;
+				spherical.phi += sphericalDelta.phi;
+
+			}
+
+			// restrict theta to be between desired limits
+			spherical.theta = Math.max( scope.minAzimuthAngle, Math.min( scope.maxAzimuthAngle, spherical.theta ) );
+
+			// restrict phi to be between desired limits
+			spherical.phi = Math.max( scope.minPolarAngle, Math.min( scope.maxPolarAngle, spherical.phi ) );
+
+			spherical.makeSafe();
+
+
+			spherical.radius *= scale;
+
+			// restrict radius to be between desired limits
+			spherical.radius = Math.max( scope.minDistance, Math.min( scope.maxDistance, spherical.radius ) );
+
+			// move target to panned location
+
+			if ( scope.enableDamping === true ) {
+
+				scope.target.addScaledVector( panOffset, scope.dampingFactor );
+
+			} else {
+
+				scope.target.add( panOffset );
+
+			}
+
+			offset.setFromSpherical( spherical );
+
+			// rotate offset back to "camera-up-vector-is-up" space
+			offset.applyQuaternion( quatInverse );
+
+			position.copy( scope.target ).add( offset );
+
+			scope.object.lookAt( scope.target );
+
+			if ( scope.enableDamping === true ) {
+
+				sphericalDelta.theta *= ( 1 - scope.dampingFactor );
+				sphericalDelta.phi *= ( 1 - scope.dampingFactor );
+
+				panOffset.multiplyScalar( 1 - scope.dampingFactor );
+
+			} else {
+
+				sphericalDelta.set( 0, 0, 0 );
+
+				panOffset.set( 0, 0, 0 );
+
+			}
+
+			scale = 1;
+
+			// update condition is:
+			// min(camera displacement, camera rotation in radians)^2 > EPS
+			// using small-angle approximation cos(x/2) = 1 - x^2 / 8
+
+			if ( zoomChanged ||
+				lastPosition.distanceToSquared( scope.object.position ) > EPS ||
+				8 * ( 1 - lastQuaternion.dot( scope.object.quaternion ) ) > EPS ) {
+
+				scope.dispatchEvent( changeEvent );
+
+				lastPosition.copy( scope.object.position );
+				lastQuaternion.copy( scope.object.quaternion );
+				zoomChanged = false;
+
+				return true;
+
+			}
+
+			return false;
+
+		};
+
+	}();
+
+	this.dispose = function () {
+
+		scope.domElement.removeEventListener( 'contextmenu', onContextMenu, false );
+		scope.domElement.removeEventListener( 'mousedown', onMouseDown, false );
+		scope.domElement.removeEventListener( 'wheel', onMouseWheel, false );
+
+		scope.domElement.removeEventListener( 'touchstart', onTouchStart, false );
+		scope.domElement.removeEventListener( 'touchend', onTouchEnd, false );
+		scope.domElement.removeEventListener( 'touchmove', onTouchMove, false );
+
+		document.removeEventListener( 'mousemove', onMouseMove, false );
+		document.removeEventListener( 'mouseup', onMouseUp, false );
+
+		window.removeEventListener( 'keydown', onKeyDown, false );
+
+		//scope.dispatchEvent( { type: 'dispose' } ); // should this be added here?
+
+	};
+
+	//
+	// internals
+	//
+
+	var scope = this;
+
+	var changeEvent = { type: 'change' };
+	var startEvent = { type: 'start' };
+	var endEvent = { type: 'end' };
+
+	var STATE = {
+		NONE: - 1,
+		ROTATE: 0,
+		DOLLY: 1,
+		PAN: 2,
+		TOUCH_ROTATE: 3,
+		TOUCH_PAN: 4,
+		TOUCH_DOLLY_PAN: 5,
+		TOUCH_DOLLY_ROTATE: 6
+	};
+
+	var state = STATE.NONE;
+
+	var EPS = 0.000001;
+
+	// current position in spherical coordinates
+	var spherical = new THREE.Spherical();
+	var sphericalDelta = new THREE.Spherical();
+
+	var scale = 1;
+	var panOffset = new THREE.Vector3();
+	var zoomChanged = false;
+
+	var rotateStart = new THREE.Vector2();
+	var rotateEnd = new THREE.Vector2();
+	var rotateDelta = new THREE.Vector2();
+
+	var panStart = new THREE.Vector2();
+	var panEnd = new THREE.Vector2();
+	var panDelta = new THREE.Vector2();
+
+	var dollyStart = new THREE.Vector2();
+	var dollyEnd = new THREE.Vector2();
+	var dollyDelta = new THREE.Vector2();
+
+	function getAutoRotationAngle() {
+
+		return 2 * Math.PI / 60 / 60 * scope.autoRotateSpeed;
+
+	}
+
+	function getZoomScale() {
+
+		return Math.pow( 0.95, scope.zoomSpeed );
+
+	}
+
+	function rotateLeft( angle ) {
+
+		sphericalDelta.theta -= angle;
+
+	}
+
+	function rotateUp( angle ) {
+
+		sphericalDelta.phi -= angle;
+
+	}
+
+	var panLeft = function () {
+
+		var v = new THREE.Vector3();
+
+		return function panLeft( distance, objectMatrix ) {
+
+			v.setFromMatrixColumn( objectMatrix, 0 ); // get X column of objectMatrix
+			v.multiplyScalar( - distance );
+
+			panOffset.add( v );
+
+		};
+
+	}();
+
+	var panUp = function () {
+
+		var v = new THREE.Vector3();
+
+		return function panUp( distance, objectMatrix ) {
+
+			if ( scope.screenSpacePanning === true ) {
+
+				v.setFromMatrixColumn( objectMatrix, 1 );
+
+			} else {
+
+				v.setFromMatrixColumn( objectMatrix, 0 );
+				v.crossVectors( scope.object.up, v );
+
+			}
+
+			v.multiplyScalar( distance );
+
+			panOffset.add( v );
+
+		};
+
+	}();
+
+	// deltaX and deltaY are in pixels; right and down are positive
+	var pan = function () {
+
+		var offset = new THREE.Vector3();
+
+		return function pan( deltaX, deltaY ) {
+
+			var element = scope.domElement === document ? scope.domElement.body : scope.domElement;
+
+			if ( scope.object.isPerspectiveCamera ) {
+
+				// perspective
+				var position = scope.object.position;
+				offset.copy( position ).sub( scope.target );
+				var targetDistance = offset.length();
+
+				// half of the fov is center to top of screen
+				targetDistance *= Math.tan( ( scope.object.fov / 2 ) * Math.PI / 180.0 );
+
+				// we use only clientHeight here so aspect ratio does not distort speed
+				panLeft( 2 * deltaX * targetDistance / element.clientHeight, scope.object.matrix );
+				panUp( 2 * deltaY * targetDistance / element.clientHeight, scope.object.matrix );
+
+			} else if ( scope.object.isOrthographicCamera ) {
+
+				// orthographic
+				panLeft( deltaX * ( scope.object.right - scope.object.left ) / scope.object.zoom / element.clientWidth, scope.object.matrix );
+				panUp( deltaY * ( scope.object.top - scope.object.bottom ) / scope.object.zoom / element.clientHeight, scope.object.matrix );
+
+			} else {
+
+				// camera neither orthographic nor perspective
+				console.warn( 'WARNING: OrbitControls.js encountered an unknown camera type - pan disabled.' );
+				scope.enablePan = false;
+
+			}
+
+		};
+
+	}();
+
+	function dollyIn( dollyScale ) {
+
+		if ( scope.object.isPerspectiveCamera ) {
+
+			scale /= dollyScale;
+
+		} else if ( scope.object.isOrthographicCamera ) {
+
+			scope.object.zoom = Math.max( scope.minZoom, Math.min( scope.maxZoom, scope.object.zoom * dollyScale ) );
+			scope.object.updateProjectionMatrix();
+			zoomChanged = true;
+
+		} else {
+
+			console.warn( 'WARNING: OrbitControls.js encountered an unknown camera type - dolly/zoom disabled.' );
+			scope.enableZoom = false;
+
+		}
+
+	}
+
+	function dollyOut( dollyScale ) {
+
+		if ( scope.object.isPerspectiveCamera ) {
+
+			scale *= dollyScale;
+
+		} else if ( scope.object.isOrthographicCamera ) {
+
+			scope.object.zoom = Math.max( scope.minZoom, Math.min( scope.maxZoom, scope.object.zoom / dollyScale ) );
+			scope.object.updateProjectionMatrix();
+			zoomChanged = true;
+
+		} else {
+
+			console.warn( 'WARNING: OrbitControls.js encountered an unknown camera type - dolly/zoom disabled.' );
+			scope.enableZoom = false;
+
+		}
+
+	}
+
+	//
+	// event callbacks - update the object state
+	//
+
+	function handleMouseDownRotate( event ) {
+
+		rotateStart.set( event.clientX, event.clientY );
+
+	}
+
+	function handleMouseDownDolly( event ) {
+
+		dollyStart.set( event.clientX, event.clientY );
+
+	}
+
+	function handleMouseDownPan( event ) {
+
+		panStart.set( event.clientX, event.clientY );
+
+	}
+
+	function handleMouseMoveRotate( event ) {
+
+		rotateEnd.set( event.clientX, event.clientY );
+
+		rotateDelta.subVectors( rotateEnd, rotateStart ).multiplyScalar( scope.rotateSpeed );
+
+		var element = scope.domElement === document ? scope.domElement.body : scope.domElement;
+
+		rotateLeft( 2 * Math.PI * rotateDelta.x / element.clientHeight ); // yes, height
+
+		rotateUp( 2 * Math.PI * rotateDelta.y / element.clientHeight );
+
+		rotateStart.copy( rotateEnd );
+
+		scope.update();
+
+	}
+
+	function handleMouseMoveDolly( event ) {
+
+		dollyEnd.set( event.clientX, event.clientY );
+
+		dollyDelta.subVectors( dollyEnd, dollyStart );
+
+		if ( dollyDelta.y > 0 ) {
+
+			dollyIn( getZoomScale() );
+
+		} else if ( dollyDelta.y < 0 ) {
+
+			dollyOut( getZoomScale() );
+
+		}
+
+		dollyStart.copy( dollyEnd );
+
+		scope.update();
+
+	}
+
+	function handleMouseMovePan( event ) {
+
+		panEnd.set( event.clientX, event.clientY );
+
+		panDelta.subVectors( panEnd, panStart ).multiplyScalar( scope.panSpeed );
+
+		pan( panDelta.x, panDelta.y );
+
+		panStart.copy( panEnd );
+
+		scope.update();
+
+	}
+
+	function handleMouseUp( /*event*/ ) {
+
+		// no-op
+
+	}
+
+	function handleMouseWheel( event ) {
+
+		if ( event.deltaY < 0 ) {
+
+			dollyOut( getZoomScale() );
+
+		} else if ( event.deltaY > 0 ) {
+
+			dollyIn( getZoomScale() );
+
+		}
+
+		scope.update();
+
+	}
+
+	function handleKeyDown( event ) {
+
+		var needsUpdate = false;
+
+		switch ( event.keyCode ) {
+
+			case scope.keys.UP:
+				pan( 0, scope.keyPanSpeed );
+				needsUpdate = true;
+				break;
+
+			case scope.keys.BOTTOM:
+				pan( 0, - scope.keyPanSpeed );
+				needsUpdate = true;
+				break;
+
+			case scope.keys.LEFT:
+				pan( scope.keyPanSpeed, 0 );
+				needsUpdate = true;
+				break;
+
+			case scope.keys.RIGHT:
+				pan( - scope.keyPanSpeed, 0 );
+				needsUpdate = true;
+				break;
+
+		}
+
+		if ( needsUpdate ) {
+
+			// prevent the browser from scrolling on cursor keys
+			event.preventDefault();
+
+			scope.update();
+
+		}
+
+
+	}
+
+	function handleTouchStartRotate( event ) {
+
+		if ( event.touches.length == 1 ) {
+
+			rotateStart.set( event.touches[ 0 ].pageX, event.touches[ 0 ].pageY );
+
+		} else {
+
+			var x = 0.5 * ( event.touches[ 0 ].pageX + event.touches[ 1 ].pageX );
+			var y = 0.5 * ( event.touches[ 0 ].pageY + event.touches[ 1 ].pageY );
+
+			rotateStart.set( x, y );
+
+		}
+
+	}
+
+	function handleTouchStartPan( event ) {
+
+		if ( event.touches.length == 1 ) {
+
+			panStart.set( event.touches[ 0 ].pageX, event.touches[ 0 ].pageY );
+
+		} else {
+
+			var x = 0.5 * ( event.touches[ 0 ].pageX + event.touches[ 1 ].pageX );
+			var y = 0.5 * ( event.touches[ 0 ].pageY + event.touches[ 1 ].pageY );
+
+			panStart.set( x, y );
+
+		}
+
+	}
+
+	function handleTouchStartDolly( event ) {
+
+		var dx = event.touches[ 0 ].pageX - event.touches[ 1 ].pageX;
+		var dy = event.touches[ 0 ].pageY - event.touches[ 1 ].pageY;
+
+		var distance = Math.sqrt( dx * dx + dy * dy );
+
+		dollyStart.set( 0, distance );
+
+	}
+
+	function handleTouchStartDollyPan( event ) {
+
+		if ( scope.enableZoom ) handleTouchStartDolly( event );
+
+		if ( scope.enablePan ) handleTouchStartPan( event );
+
+	}
+
+	function handleTouchStartDollyRotate( event ) {
+
+		if ( scope.enableZoom ) handleTouchStartDolly( event );
+
+		if ( scope.enableRotate ) handleTouchStartRotate( event );
+
+	}
+
+	function handleTouchMoveRotate( event ) {
+
+		if ( event.touches.length == 1 ) {
+
+			rotateEnd.set( event.touches[ 0 ].pageX, event.touches[ 0 ].pageY );
+
+		} else {
+
+			var x = 0.5 * ( event.touches[ 0 ].pageX + event.touches[ 1 ].pageX );
+			var y = 0.5 * ( event.touches[ 0 ].pageY + event.touches[ 1 ].pageY );
+
+			rotateEnd.set( x, y );
+
+		}
+
+		rotateDelta.subVectors( rotateEnd, rotateStart ).multiplyScalar( scope.rotateSpeed );
+
+		var element = scope.domElement === document ? scope.domElement.body : scope.domElement;
+
+		rotateLeft( 2 * Math.PI * rotateDelta.x / element.clientHeight ); // yes, height
+
+		rotateUp( 2 * Math.PI * rotateDelta.y / element.clientHeight );
+
+		rotateStart.copy( rotateEnd );
+
+	}
+
+	function handleTouchMovePan( event ) {
+
+		if ( event.touches.length == 1 ) {
+
+			panEnd.set( event.touches[ 0 ].pageX, event.touches[ 0 ].pageY );
+
+		} else {
+
+			var x = 0.5 * ( event.touches[ 0 ].pageX + event.touches[ 1 ].pageX );
+			var y = 0.5 * ( event.touches[ 0 ].pageY + event.touches[ 1 ].pageY );
+
+			panEnd.set( x, y );
+
+		}
+
+		panDelta.subVectors( panEnd, panStart ).multiplyScalar( scope.panSpeed );
+
+		pan( panDelta.x, panDelta.y );
+
+		panStart.copy( panEnd );
+
+	}
+
+	function handleTouchMoveDolly( event ) {
+
+		var dx = event.touches[ 0 ].pageX - event.touches[ 1 ].pageX;
+		var dy = event.touches[ 0 ].pageY - event.touches[ 1 ].pageY;
+
+		var distance = Math.sqrt( dx * dx + dy * dy );
+
+		dollyEnd.set( 0, distance );
+
+		dollyDelta.set( 0, Math.pow( dollyEnd.y / dollyStart.y, scope.zoomSpeed ) );
+
+		dollyIn( dollyDelta.y );
+
+		dollyStart.copy( dollyEnd );
+
+	}
+
+	function handleTouchMoveDollyPan( event ) {
+
+		if ( scope.enableZoom ) handleTouchMoveDolly( event );
+
+		if ( scope.enablePan ) handleTouchMovePan( event );
+
+	}
+
+	function handleTouchMoveDollyRotate( event ) {
+
+		if ( scope.enableZoom ) handleTouchMoveDolly( event );
+
+		if ( scope.enableRotate ) handleTouchMoveRotate( event );
+
+	}
+
+	function handleTouchEnd( /*event*/ ) {
+
+		// no-op
+
+	}
+
+	//
+	// event handlers - FSM: listen for events and reset state
+	//
+
+	function onMouseDown( event ) {
+
+		if ( scope.enabled === false ) return;
+
+		// Prevent the browser from scrolling.
+
+		event.preventDefault();
+
+		// Manually set the focus since calling preventDefault above
+		// prevents the browser from setting it automatically.
+
+		scope.domElement.focus ? scope.domElement.focus() : window.focus();
+
+		switch ( event.button ) {
+
+			case 0:
+
+				switch ( scope.mouseButtons.LEFT ) {
+
+					case THREE.MOUSE.ROTATE:
+
+						if ( event.ctrlKey || event.metaKey || event.shiftKey ) {
+
+							if ( scope.enablePan === false ) return;
+
+							handleMouseDownPan( event );
+
+							state = STATE.PAN;
+
+						} else {
+
+							if ( scope.enableRotate === false ) return;
+
+							handleMouseDownRotate( event );
+
+							state = STATE.ROTATE;
+
+						}
+
+						break;
+
+					case THREE.MOUSE.PAN:
+
+						if ( event.ctrlKey || event.metaKey || event.shiftKey ) {
+
+							if ( scope.enableRotate === false ) return;
+
+							handleMouseDownRotate( event );
+
+							state = STATE.ROTATE;
+
+						} else {
+
+							if ( scope.enablePan === false ) return;
+
+							handleMouseDownPan( event );
+
+							state = STATE.PAN;
+
+						}
+
+						break;
+
+					default:
+
+						state = STATE.NONE;
+
+				}
+
+				break;
+
+
+			case 1:
+
+				switch ( scope.mouseButtons.MIDDLE ) {
+
+					case THREE.MOUSE.DOLLY:
+
+						if ( scope.enableZoom === false ) return;
+
+						handleMouseDownDolly( event );
+
+						state = STATE.DOLLY;
+
+						break;
+
+
+					default:
+
+						state = STATE.NONE;
+
+				}
+
+				break;
+
+			case 2:
+
+				switch ( scope.mouseButtons.RIGHT ) {
+
+					case THREE.MOUSE.ROTATE:
+
+						if ( scope.enableRotate === false ) return;
+
+						handleMouseDownRotate( event );
+
+						state = STATE.ROTATE;
+
+						break;
+
+					case THREE.MOUSE.PAN:
+
+						if ( scope.enablePan === false ) return;
+
+						handleMouseDownPan( event );
+
+						state = STATE.PAN;
+
+						break;
+
+					default:
+
+						state = STATE.NONE;
+
+				}
+
+				break;
+
+		}
+
+		if ( state !== STATE.NONE ) {
+
+			document.addEventListener( 'mousemove', onMouseMove, false );
+			document.addEventListener( 'mouseup', onMouseUp, false );
+
+			scope.dispatchEvent( startEvent );
+
+		}
+
+	}
+
+	function onMouseMove( event ) {
+
+		if ( scope.enabled === false ) return;
+
+		event.preventDefault();
+
+		switch ( state ) {
+
+			case STATE.ROTATE:
+
+				if ( scope.enableRotate === false ) return;
+
+				handleMouseMoveRotate( event );
+
+				break;
+
+			case STATE.DOLLY:
+
+				if ( scope.enableZoom === false ) return;
+
+				handleMouseMoveDolly( event );
+
+				break;
+
+			case STATE.PAN:
+
+				if ( scope.enablePan === false ) return;
+
+				handleMouseMovePan( event );
+
+				break;
+
+		}
+
+	}
+
+	function onMouseUp( event ) {
+
+		if ( scope.enabled === false ) return;
+
+		handleMouseUp( event );
+
+		document.removeEventListener( 'mousemove', onMouseMove, false );
+		document.removeEventListener( 'mouseup', onMouseUp, false );
+
+		scope.dispatchEvent( endEvent );
+
+		state = STATE.NONE;
+
+	}
+
+	function onMouseWheel( event ) {
+
+		if ( scope.enabled === false || scope.enableZoom === false || ( state !== STATE.NONE && state !== STATE.ROTATE ) ) return;
+
+		event.preventDefault();
+		event.stopPropagation();
+
+		scope.dispatchEvent( startEvent );
+
+		handleMouseWheel( event );
+
+		scope.dispatchEvent( endEvent );
+
+	}
+
+	function onKeyDown( event ) {
+
+		if ( scope.enabled === false || scope.enableKeys === false || scope.enablePan === false ) return;
+
+		handleKeyDown( event );
+
+	}
+
+	function onTouchStart( event ) {
+
+		if ( scope.enabled === false ) return;
+
+		event.preventDefault();
+
+		switch ( event.touches.length ) {
+
+			case 1:
+
+				switch ( scope.touches.ONE ) {
+
+					case THREE.TOUCH.ROTATE:
+
+						if ( scope.enableRotate === false ) return;
+
+						handleTouchStartRotate( event );
+
+						state = STATE.TOUCH_ROTATE;
+
+						break;
+
+					case THREE.TOUCH.PAN:
+
+						if ( scope.enablePan === false ) return;
+
+						handleTouchStartPan( event );
+
+						state = STATE.TOUCH_PAN;
+
+						break;
+
+					default:
+
+						state = STATE.NONE;
+
+				}
+
+				break;
+
+			case 2:
+
+				switch ( scope.touches.TWO ) {
+
+					case THREE.TOUCH.DOLLY_PAN:
+
+						if ( scope.enableZoom === false && scope.enablePan === false ) return;
+
+						handleTouchStartDollyPan( event );
+
+						state = STATE.TOUCH_DOLLY_PAN;
+
+						break;
+
+					case THREE.TOUCH.DOLLY_ROTATE:
+
+						if ( scope.enableZoom === false && scope.enableRotate === false ) return;
+
+						handleTouchStartDollyRotate( event );
+
+						state = STATE.TOUCH_DOLLY_ROTATE;
+
+						break;
+
+					default:
+
+						state = STATE.NONE;
+
+				}
+
+				break;
+
+			default:
+
+				state = STATE.NONE;
+
+		}
+
+		if ( state !== STATE.NONE ) {
+
+			scope.dispatchEvent( startEvent );
+
+		}
+
+	}
+
+	function onTouchMove( event ) {
+
+		if ( scope.enabled === false ) return;
+
+		event.preventDefault();
+		event.stopPropagation();
+
+		switch ( state ) {
+
+			case STATE.TOUCH_ROTATE:
+
+				if ( scope.enableRotate === false ) return;
+
+				handleTouchMoveRotate( event );
+
+				scope.update();
+
+				break;
+
+			case STATE.TOUCH_PAN:
+
+				if ( scope.enablePan === false ) return;
+
+				handleTouchMovePan( event );
+
+				scope.update();
+
+				break;
+
+			case STATE.TOUCH_DOLLY_PAN:
+
+				if ( scope.enableZoom === false && scope.enablePan === false ) return;
+
+				handleTouchMoveDollyPan( event );
+
+				scope.update();
+
+				break;
+
+			case STATE.TOUCH_DOLLY_ROTATE:
+
+				if ( scope.enableZoom === false && scope.enableRotate === false ) return;
+
+				handleTouchMoveDollyRotate( event );
+
+				scope.update();
+
+				break;
+
+			default:
+
+				state = STATE.NONE;
+
+		}
+
+	}
+
+	function onTouchEnd( event ) {
+
+		if ( scope.enabled === false ) return;
+
+		handleTouchEnd( event );
+
+		scope.dispatchEvent( endEvent );
+
+		state = STATE.NONE;
+
+	}
+
+	function onContextMenu( event ) {
+
+		if ( scope.enabled === false ) return;
+
+		event.preventDefault();
+
+	}
+
+	//
+
+	scope.domElement.addEventListener( 'contextmenu', onContextMenu, false );
+
+	scope.domElement.addEventListener( 'mousedown', onMouseDown, false );
+	scope.domElement.addEventListener( 'wheel', onMouseWheel, false );
+
+	scope.domElement.addEventListener( 'touchstart', onTouchStart, false );
+	scope.domElement.addEventListener( 'touchend', onTouchEnd, false );
+	scope.domElement.addEventListener( 'touchmove', onTouchMove, false );
+
+	window.addEventListener( 'keydown', onKeyDown, false );
+
+	// force an update at start
+
+	this.update();
+
+};
+
+THREE.OrbitControls.prototype = Object.create( THREE.EventDispatcher.prototype );
+THREE.OrbitControls.prototype.constructor = THREE.OrbitControls;
+
+
+// This set of controls performs orbiting, dollying (zooming), and panning.
+// Unlike TrackballControls, it maintains the "up" direction object.up (+Y by default).
+// This is very similar to OrbitControls, another set of touch behavior
+//
+//    Orbit - right mouse, or left mouse + ctrl/meta/shiftKey / touch: two-finger rotate
+//    Zoom - middle mouse, or mousewheel / touch: two-finger spread or squish
+//    Pan - left mouse, or arrow keys / touch: one-finger move
+
+THREE.MapControls = function ( object, domElement ) {
+
+	THREE.OrbitControls.call( this, object, domElement );
+
+	this.mouseButtons.LEFT = THREE.MOUSE.PAN;
+	this.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
+
+	this.touches.ONE = THREE.TOUCH.PAN;
+	this.touches.TWO = THREE.TOUCH.DOLLY_ROTATE;
+
+};
+
+THREE.MapControls.prototype = Object.create( THREE.EventDispatcher.prototype );
+THREE.MapControls.prototype.constructor = THREE.MapControls;
+
+
+/***/ }),
+/* 46 */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
+//
+//
+//
+//
+
+/* harmony default export */ __webpack_exports__["default"] = ({
+  name: 'TheScene'
+});
+
+/***/ }),
+/* 47 */
+/***/ (function(module, exports, __webpack_require__) {
+
+exports = module.exports = __webpack_require__(43)();
+exports.push([module.i, "\n\n\n\n\n\n\n\n\n\n\n\n", ""]);
+
+/***/ }),
+/* 48 */
+/***/ (function(module, exports, __webpack_require__) {
+
+
+/* styles */
+__webpack_require__(50)
+
+var Component = __webpack_require__(2)(
+  /* script */
+  __webpack_require__(46),
+  /* template */
+  __webpack_require__(49),
+  /* scopeId */
+  "data-v-e0c461c0",
+  /* cssModules */
+  null
+)
+Component.options.__file = "/Users/afronorana/Projects/Afron/burrec/resources/assets/js/components/TheScene.vue"
+if (Component.esModule && Object.keys(Component.esModule).some(function (key) {return key !== "default" && key !== "__esModule"})) {console.error("named exports are not supported in *.vue files.")}
+if (Component.options.functional) {console.error("[vue-loader] TheScene.vue: functional components are not supported with templates, they should use render functions.")}
+
+/* hot reload */
+if (false) {(function () {
+  var hotAPI = require("vue-hot-reload-api")
+  hotAPI.install(require("vue"), false)
+  if (!hotAPI.compatible) return
+  module.hot.accept()
+  if (!module.hot.data) {
+    hotAPI.createRecord("data-v-e0c461c0", Component.options)
+  } else {
+    hotAPI.reload("data-v-e0c461c0", Component.options)
+  }
+})()}
+
+module.exports = Component.exports
+
+
+/***/ }),
+/* 49 */
+/***/ (function(module, exports, __webpack_require__) {
+
+module.exports={render:function (){var _vm=this;var _h=_vm.$createElement;var _c=_vm._self._c||_h;
+  return _c("div")
+},staticRenderFns: []}
+module.exports.render._withStripped = true
+if (false) {
+  module.hot.accept()
+  if (module.hot.data) {
+     require("vue-hot-reload-api").rerender("data-v-e0c461c0", module.exports)
+  }
+}
+
+/***/ }),
+/* 50 */
+/***/ (function(module, exports, __webpack_require__) {
+
+// style-loader: Adds some css to the DOM by adding a <style> tag
+
+// load the styles
+var content = __webpack_require__(47);
+if(typeof content === 'string') content = [[module.i, content, '']];
+if(content.locals) module.exports = content.locals;
+// add the styles to the DOM
+var update = __webpack_require__(51)("1c195d70", content, false);
+// Hot Module Replacement
+if(false) {
+ // When the styles change, update the <style> tags
+ if(!content.locals) {
+   module.hot.accept("!!../../../../node_modules/css-loader/index.js!../../../../node_modules/vue-loader/lib/style-compiler/index.js?{\"id\":\"data-v-e0c461c0\",\"scoped\":true,\"hasInlineConfig\":true}!../../../../node_modules/vue-loader/lib/selector.js?type=styles&index=0!./TheScene.vue", function() {
+     var newContent = require("!!../../../../node_modules/css-loader/index.js!../../../../node_modules/vue-loader/lib/style-compiler/index.js?{\"id\":\"data-v-e0c461c0\",\"scoped\":true,\"hasInlineConfig\":true}!../../../../node_modules/vue-loader/lib/selector.js?type=styles&index=0!./TheScene.vue");
+     if(typeof newContent === 'string') newContent = [[module.id, newContent, '']];
+     update(newContent);
+   });
+ }
+ // When the module is disposed, remove the <style> tags
+ module.hot.dispose(function() { update(); });
+}
+
+/***/ }),
+/* 51 */
+/***/ (function(module, exports, __webpack_require__) {
+
+/*
+  MIT License http://www.opensource.org/licenses/mit-license.php
+  Author Tobias Koppers @sokra
+  Modified by Evan You @yyx990803
+*/
+
+var hasDocument = typeof document !== 'undefined'
+
+if (typeof DEBUG !== 'undefined' && DEBUG) {
+  if (!hasDocument) {
+    throw new Error(
+    'vue-style-loader cannot be used in a non-browser environment. ' +
+    "Use { target: 'node' } in your Webpack config to indicate a server-rendering environment."
+  ) }
+}
+
+var listToStyles = __webpack_require__(52)
+
+/*
+type StyleObject = {
+  id: number;
+  parts: Array<StyleObjectPart>
+}
+
+type StyleObjectPart = {
+  css: string;
+  media: string;
+  sourceMap: ?string
+}
+*/
+
+var stylesInDom = {/*
+  [id: number]: {
+    id: number,
+    refs: number,
+    parts: Array<(obj?: StyleObjectPart) => void>
+  }
+*/}
+
+var head = hasDocument && (document.head || document.getElementsByTagName('head')[0])
+var singletonElement = null
+var singletonCounter = 0
+var isProduction = false
+var noop = function () {}
+
+// Force single-tag solution on IE6-9, which has a hard limit on the # of <style>
+// tags it will allow on a page
+var isOldIE = typeof navigator !== 'undefined' && /msie [6-9]\b/.test(navigator.userAgent.toLowerCase())
+
+module.exports = function (parentId, list, _isProduction) {
+  isProduction = _isProduction
+
+  var styles = listToStyles(parentId, list)
+  addStylesToDom(styles)
+
+  return function update (newList) {
+    var mayRemove = []
+    for (var i = 0; i < styles.length; i++) {
+      var item = styles[i]
+      var domStyle = stylesInDom[item.id]
+      domStyle.refs--
+      mayRemove.push(domStyle)
+    }
+    if (newList) {
+      styles = listToStyles(parentId, newList)
+      addStylesToDom(styles)
+    } else {
+      styles = []
+    }
+    for (var i = 0; i < mayRemove.length; i++) {
+      var domStyle = mayRemove[i]
+      if (domStyle.refs === 0) {
+        for (var j = 0; j < domStyle.parts.length; j++) {
+          domStyle.parts[j]()
+        }
+        delete stylesInDom[domStyle.id]
+      }
+    }
+  }
+}
+
+function addStylesToDom (styles /* Array<StyleObject> */) {
+  for (var i = 0; i < styles.length; i++) {
+    var item = styles[i]
+    var domStyle = stylesInDom[item.id]
+    if (domStyle) {
+      domStyle.refs++
+      for (var j = 0; j < domStyle.parts.length; j++) {
+        domStyle.parts[j](item.parts[j])
+      }
+      for (; j < item.parts.length; j++) {
+        domStyle.parts.push(addStyle(item.parts[j]))
+      }
+      if (domStyle.parts.length > item.parts.length) {
+        domStyle.parts.length = item.parts.length
+      }
+    } else {
+      var parts = []
+      for (var j = 0; j < item.parts.length; j++) {
+        parts.push(addStyle(item.parts[j]))
+      }
+      stylesInDom[item.id] = { id: item.id, refs: 1, parts: parts }
+    }
+  }
+}
+
+function createStyleElement () {
+  var styleElement = document.createElement('style')
+  styleElement.type = 'text/css'
+  head.appendChild(styleElement)
+  return styleElement
+}
+
+function addStyle (obj /* StyleObjectPart */) {
+  var update, remove
+  var styleElement = document.querySelector('style[data-vue-ssr-id~="' + obj.id + '"]')
+
+  if (styleElement) {
+    if (isProduction) {
+      // has SSR styles and in production mode.
+      // simply do nothing.
+      return noop
+    } else {
+      // has SSR styles but in dev mode.
+      // for some reason Chrome can't handle source map in server-rendered
+      // style tags - source maps in <style> only works if the style tag is
+      // created and inserted dynamically. So we remove the server rendered
+      // styles and inject new ones.
+      styleElement.parentNode.removeChild(styleElement)
+    }
+  }
+
+  if (isOldIE) {
+    // use singleton mode for IE9.
+    var styleIndex = singletonCounter++
+    styleElement = singletonElement || (singletonElement = createStyleElement())
+    update = applyToSingletonTag.bind(null, styleElement, styleIndex, false)
+    remove = applyToSingletonTag.bind(null, styleElement, styleIndex, true)
+  } else {
+    // use multi-style-tag mode in all other cases
+    styleElement = createStyleElement()
+    update = applyToTag.bind(null, styleElement)
+    remove = function () {
+      styleElement.parentNode.removeChild(styleElement)
+    }
+  }
+
+  update(obj)
+
+  return function updateStyle (newObj /* StyleObjectPart */) {
+    if (newObj) {
+      if (newObj.css === obj.css &&
+          newObj.media === obj.media &&
+          newObj.sourceMap === obj.sourceMap) {
+        return
+      }
+      update(obj = newObj)
+    } else {
+      remove()
+    }
+  }
+}
+
+var replaceText = (function () {
+  var textStore = []
+
+  return function (index, replacement) {
+    textStore[index] = replacement
+    return textStore.filter(Boolean).join('\n')
+  }
+})()
+
+function applyToSingletonTag (styleElement, index, remove, obj) {
+  var css = remove ? '' : obj.css
+
+  if (styleElement.styleSheet) {
+    styleElement.styleSheet.cssText = replaceText(index, css)
+  } else {
+    var cssNode = document.createTextNode(css)
+    var childNodes = styleElement.childNodes
+    if (childNodes[index]) styleElement.removeChild(childNodes[index])
+    if (childNodes.length) {
+      styleElement.insertBefore(cssNode, childNodes[index])
+    } else {
+      styleElement.appendChild(cssNode)
+    }
+  }
+}
+
+function applyToTag (styleElement, obj) {
+  var css = obj.css
+  var media = obj.media
+  var sourceMap = obj.sourceMap
+
+  if (media) {
+    styleElement.setAttribute('media', media)
+  }
+
+  if (sourceMap) {
+    // https://developer.chrome.com/devtools/docs/javascript-debugging
+    // this makes source maps inside style tags work properly in Chrome
+    css += '\n/*# sourceURL=' + sourceMap.sources[0] + ' */'
+    // http://stackoverflow.com/a/26603875
+    css += '\n/*# sourceMappingURL=data:application/json;base64,' + btoa(unescape(encodeURIComponent(JSON.stringify(sourceMap)))) + ' */'
+  }
+
+  if (styleElement.styleSheet) {
+    styleElement.styleSheet.cssText = css
+  } else {
+    while (styleElement.firstChild) {
+      styleElement.removeChild(styleElement.firstChild)
+    }
+    styleElement.appendChild(document.createTextNode(css))
+  }
+}
+
+
+/***/ }),
+/* 52 */
+/***/ (function(module, exports) {
+
+/**
+ * Translates the list format produced by css-loader into something
+ * easier to manipulate.
+ */
+module.exports = function listToStyles (parentId, list) {
+  var styles = []
+  var newStyles = {}
+  for (var i = 0; i < list.length; i++) {
+    var item = list[i]
+    var id = item[0]
+    var css = item[1]
+    var media = item[2]
+    var sourceMap = item[3]
+    var part = {
+      id: parentId + ':' + i,
+      css: css,
+      media: media,
+      sourceMap: sourceMap
+    }
+    if (!newStyles[id]) {
+      styles.push(newStyles[id] = { id: id, parts: [part] })
+    } else {
+      newStyles[id].parts.push(part)
+    }
+  }
+  return styles
+}
 
 
 /***/ })
