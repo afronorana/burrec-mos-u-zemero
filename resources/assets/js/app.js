@@ -25,6 +25,9 @@ const GlobalMixin = require('./mixins/Global');
 Vue.use(GlobalMixin);
 
 window.ApplicationStore = {
+    settings: {
+     quality: 12
+    },
     homeFields: [
         {
             fields: [
@@ -62,11 +65,44 @@ window.ApplicationStore = {
             ],
             color: '#ffff00'
         },
-
-
-
-
-
+    ],
+    targetFields: [
+        {
+            fields: [
+                new THREE.Vector3(1, 0.5, 5),
+                new THREE.Vector3(2, 0.5, 5),
+                new THREE.Vector3(3, 0.5, 5),
+                new THREE.Vector3(4, 0.5, 5),
+            ],
+            color: '#ff0000'
+        },
+        {
+            fields: [
+                new THREE.Vector3(5, 0.5, 9),
+                new THREE.Vector3(5, 0.5, 8),
+                new THREE.Vector3(5, 0.5, 7),
+                new THREE.Vector3(5, 0.5, 6),
+            ],
+            color: '#00ff00'
+        },
+        {
+            fields: [
+                new THREE.Vector3(5, 0.5, 1),
+                new THREE.Vector3(5, 0.5, 2),
+                new THREE.Vector3(5, 0.5, 3),
+                new THREE.Vector3(5, 0.5, 4),
+            ],
+            color: '#0000ff'
+        },
+        {
+            fields: [
+                new THREE.Vector3(9, 0.5, 5),
+                new THREE.Vector3(8, 0.5, 5),
+                new THREE.Vector3(7, 0.5, 5),
+                new THREE.Vector3(6, 0.5, 5),
+            ],
+            color: '#ffff00'
+        },
     ],
     fields: [
         new THREE.Vector3(4, 0.5, 0),

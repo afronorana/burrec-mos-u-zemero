@@ -4,7 +4,7 @@
 
             <player-homes></player-homes>
 
-            <!-- TODO add target fields and player homes           -->
+            <!-- TODO -->
             <stepping-fields :stepping-fields="steppingFields"></stepping-fields>
 
             <!-- v-show="pawn.position != 0"-->
