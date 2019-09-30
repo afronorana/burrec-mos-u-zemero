@@ -1,5 +1,6 @@
 class Player {
-    constructor(_name, _color, _turn) {
+    constructor(_name, _color, _turn, _index) {
+        this.index = _index;
         this.turn = _turn;
         this.name = _name;
         this.isPlaying = false;

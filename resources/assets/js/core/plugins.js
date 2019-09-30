@@ -4,17 +4,20 @@ window.camera = new THREE.PerspectiveCamera(20,
     window.innerWidth / window.innerHeight, 0.1, 100);
 window.renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
-document.body.appendChild(renderer.domElement);
+// document.body.appendChild(renderer.domElement);
 
 // Controls
 require('three/examples/js/controls/OrbitControls');
+
 var controls = new THREE.OrbitControls(camera, renderer.domElement);
+console.log ( controls );
 
 // Camera
-camera.position.y = 15;
 camera.position.x = -15;
+camera.position.y = 15;
 camera.position.z = -15;
 camera.lookAt(5, 0, 5);
+
 window.addEventListener('resize', function() {
   renderer.setSize(window.innerWidth, window.innerHeight);
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -110,7 +113,7 @@ let fields = [
   new THREE.Vector3(6, 0.5, 2),
   new THREE.Vector3(6, 0.5, 1),
   new THREE.Vector3(6, 0.5, 0),
-  new THREE.Vector3(5, 0.5, 0),
+  new THREE.Vector3(5, 0.5, 0)
 ];
 
 // Board
@@ -141,11 +144,11 @@ let boardMaterials = [
     side: THREE.DoubleSide,
   }),
 ];
-let boardMaterial = new THREE.MeshFaceMaterial(boardMaterials);
-window.board = new THREE.Mesh(boardGeometry, boardMaterial);
-board.position.x = board.position.z = 5;
-board.position.y = -0.05;
-scene.add(board);
+// let boardMaterial = new THREE.MeshFaceMaterial(boardMaterials);
+// window.board = new THREE.Mesh(boardGeometry, boardMaterial);
+// board.position.x = board.position.z = 5;
+// board.position.y = -0.05;
+// scene.add(board);
 
 class Pawn {
   constructor(_startingPlace, _color, _globalPosition = 0) {
@@ -165,7 +168,6 @@ class Pawn {
     this.mesh = new THREE.Mesh(this.geometry, this.material);
     this.mesh.position.copy(fields[_globalPosition]);
     this.mesh.name = 'cube';
-
     // this.mesh.renderOrder = 1 // like z-index
   }
 
@@ -177,17 +179,25 @@ class Pawn {
 
 window.piunat = [];
 
-// Usage
-window.piunat = [
-  new Pawn(1, 0x0000FF, 0),
-  new Pawn(1, 0xFF0000, 1),
-  new Pawn(1, 0x00FF00, 2),
-  new Pawn(1, 0xFFFF00, 3)];
+EventBus.listen('game.start', function() {
+  let i = 0;
+  ApplicationStore.players.forEach(function(player) {
+    player.pawns.forEach(function(pawn) {
+      console.log ( 'player', player );
+      console.log(i);
+      piunat.push(new Pawn(pawn.startingPlace, pawn.color, pawn.global));
+      console.log(piunat);
+      scene.add(piunat[i].mesh);
+      i++;
+    });
+  });
 
-scene.add(piunat[0].mesh);
-scene.add(piunat[1].mesh);
-scene.add(piunat[2].mesh);
-scene.add(piunat[3].mesh);
+});
+
+// scene.add(piunat[0].mesh);
+// scene.add(piunat[1].mesh);
+// scene.add(piunat[2].mesh);
+// scene.add(piunat[3].mesh);
 
 let lastHoveredObject = null;
 
@@ -214,7 +224,6 @@ let render = function() {
   }
   renderer.render(scene, camera);
 };
-
 
 //game logic
 let update = function() {

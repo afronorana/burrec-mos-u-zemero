@@ -11,6 +11,10 @@
     <link href="public/assets/dist/css/app.css" rel="stylesheet">
     <script src="//cdnjs.cloudflare.com/ajax/libs/modernizr/2.8.3/modernizr.min.js"></script>
     <style>
+        #app {
+            position: absolute;
+        }
+
         canvas {
             width: 100%;
             height: 100%;
@@ -24,11 +28,59 @@
     </header>
 
     <div id="app">
+        <div class="container" style="opacity: 0; pointer-events: none; display: none;">
+            <the-game :stepping-fields="steppingFields"></the-game>
+        </div>
+
+        <vgl-renderer antialias style="height: 100vh; width: 100vw;">
+            <vgl-scene>
+
+                <!-- Board -->
+                <vgl-box-geometry name="boardGeometry" width=11 height=0.1 depth="11"></vgl-box-geometry>
+                <vgl-texture src="resources/board.png" center="0.5 0.5" name="boardTexture"></vgl-texture>
+                <vgl-mesh-lambert-material name="boardMaterial" map="boardTexture"></vgl-mesh-lambert-material>
+                <vgl-mesh geometry="boardGeometry" material="boardMaterial" :position="board.position"></vgl-mesh>
 
 
-<!--        <div class="container">-->
-<!--            <the-game :stepping-fields="steppingFields"></the-game>-->
-<!--        </div>-->
+                <!-- Stepping Fields -->
+                <vgl-cylinder-geometry name="fieldGeometry"
+                                       radius-top=0.45 radius-bottom=0.45 height=0.1
+                ></vgl-cylinder-geometry>
+
+                <vgl-mesh-lambert-material name="fieldMaterial"></vgl-mesh-lambert-material>
+                <vgl-mesh v-for="(field, index) in store.fields"
+                          :key="`field-${index}`"
+                          :position="`${field.x} 0 ${field.z}`"
+                          geometry="fieldGeometry" material="fieldMaterial"></vgl-mesh>
+
+                <span v-for="(player, playerIndex) in store.players">
+
+                    <vgl-mesh-lambert-material :name="`fieldMaterial-${playerIndex}`" :color="`${store.homeFields[playerIndex ].color}`"></vgl-mesh-lambert-material>
+                    <vgl-mesh v-for="(field, index) in store.homeFields[playerIndex ].fields"
+                              :key="`home-field-${index}`"
+                              geometry="fieldGeometry" :material="`fieldMaterial-${playerIndex}`"
+                              :position="`${field.x} 0 ${field.z}`"></vgl-mesh>
+
+                </span>
+
+
+                <!-- lighting -->
+                <vgl-ambient-light color="#ffffff" intensity="0.1"></vgl-ambient-light>
+                <vgl-point-light v-for="(light, index) in pointLights"
+                                 :key="`light-${index}`"
+                                 :color="light.color"
+                                 :intensity="light.intensity"
+                                 :distance="light.distance"
+                                 :position="light.position"
+                ></vgl-point-light>
+
+            </vgl-scene>
+
+            <vgl-perspective-camera :orbit-target="`5 0 5`" :position="`-4 8 -4`"></vgl-perspective-camera>
+
+        </vgl-renderer>
+
+
     </div>
     <footer></footer>
 </main>

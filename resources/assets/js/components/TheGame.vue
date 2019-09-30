@@ -4,15 +4,17 @@
 
             <player-homes></player-homes>
 
+            <!-- TODO add target fields and player homes           -->
             <stepping-fields :stepping-fields="steppingFields"></stepping-fields>
 
+            <!-- v-show="pawn.position != 0"-->
             <div class="player-pawns" style="color: #fff"
                  v-for="player in store.players"
             >
                 <a href="javascript:void(0);"
                    class="pawn-figure"
                    v-for="pawn in player.pawns"
-                   v-show="pawn.position != 0"
+
                    :class="pawn.classes()"
                    @click="pawn.move()"
                 ></a>
@@ -59,11 +61,16 @@
                 this.store.players[this.store.currentPlayerId].rollDice();
             },
 
-            createPlayers() {
-                this.store.players.push(new Player('Jon Doe', 'red', 1));
-                this.store.players.push(new Player('Jane Doe', 'yellow', 2));
-                this.store.players.push(new Player('Filan Fisteku', 'blue', 3));
-                this.store.players.push(new Player('Filane Fisteku', 'green', 4));
+            createPlayers() { // done
+
+              this.store.players.push(new Player('Jon Doe', 'red', 1));
+              this.store.players.push(new Player('Jane Doe', 'blue', 2));
+              this.store.players.push(new Player('Filan Fisteku', 'green', 3));
+              this.store.players.push(new Player('Filane Fisteku', 'yellow', 4));
+              // this.store.players.push(new Player('Jon Doe', 0x0000FF, 1));
+              // this.store.players.push(new Player('Jane Doe', 0xFF0000, 2));
+              // this.store.players.push(new Player('Filan Fisteku', 0x00FF00, 3));
+              // this.store.players.push(new Player('Filane Fisteku', 0xFFFF00, 4));
             },
 
             fillSteppingFields() {
@@ -77,6 +84,7 @@
             startGame() {
                 this.store.currentRound = 1;
                 this.changePlayersTurn();
+                EventBus.fire('game.start');
             },
 
             changePlayersTurn() {
@@ -98,6 +106,7 @@
 
                 this.store.players[this.store.currentPlayerId].startTurn();
             },
+
             repeatPlayersTurn() {
                 ApplicationStore.gamePlayStatus.isMoving = false;
                 let currentPlayer = this.store.players[this.store.currentPlayerId];

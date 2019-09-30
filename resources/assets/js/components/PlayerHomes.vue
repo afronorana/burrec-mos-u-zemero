@@ -1,9 +1,20 @@
 <template>
     <div>
-        <div class="player-home"
-             :class="{'is-playing' : player.isPlaying}"
-             v-for="player in store.players">
-            {{player.name}} {{player.turn}}
+<!--        <div class="player-home"-->
+<!--             :class="{'is-playing' : player.isPlaying}"-->
+<!--             v-for="player in store.players">-->
+<!--            {{player.name}} {{player.turn}}-->
+<!--            <div class="circles">-->
+<!--                    <span class="circle"-->
+<!--                          v-for="pawn in player.pawns"-->
+<!--                          :class="[player.isPlaying && pawn.isActive && pawn.position ==0 ? 'is-avaliable': '', pawn.color]"-->
+<!--                          @click="pawn.move()"-->
+<!--                    >-->
+<!--                    </span>-->
+<!--            </div>-->
+<!--        </div>-->
+
+        <div class="player-home" v-for="player in store.players">
             <div class="circles">
                     <span class="circle"
                           v-for="pawn in player.pawns"
