@@ -29,20 +29,20 @@
 
     <div id="app">
         <div class="container" style="opacity: .15; pointer-events: none; display: none;">
-<!--                    <div class="container" style="opacity: .3; position: absolute;">-->
+            <!--                    <div class="container" style="opacity: .3; position: absolute;">-->
             <the-game :stepping-fields="steppingFields"></the-game>
         </div>
 
         <vgl-renderer name="renderer" camera="cmr1" antialias style="height: 100vh; width: 100vw;">
-            <vgl-scene name="scene">
+            <vgl-scene name="scene" fog="#ffffff 10 100" backgroundColor="#ffffff">
 
                 <!-- Board -->
-                <vgl-box-geometry name="boardGeometry" width=11 height=0.1 depth="11"></vgl-box-geometry>
+                <vgl-box-geometry name="boardGeometry" width=11 height=0.1 depth="11" ></vgl-box-geometry>
                 <vgl-mesh-lambert-material name="boardMaterial"></vgl-mesh-lambert-material>
-                <vgl-mesh geometry="boardGeometry" material="boardMaterial" :position="board.position"></vgl-mesh>
+                <vgl-mesh geometry="boardGeometry" material="boardMaterial" :position="board.position" recieve-shadow></vgl-mesh>
 
                 <!-- Dice -->
-                                <the-dice></the-dice>
+                <the-dice></the-dice>
 
 
                 <!-- Stepping Fields -->
@@ -108,12 +108,16 @@
                 ></vgl-sphere-geometry>
 
 
+
+
+
                 <span v-for="(player, playerIndex) in store.players">
                     <vgl-mesh-lambert-material :name="`fieldMaterial-${playerIndex}`"
                                                :color="`${store.fields.home[playerIndex].color}`"
                     ></vgl-mesh-lambert-material>
 
-                    <vgl-group v-for="(pawn, index) in player.pawns" :key="`pawn-${playerIndex}-${index}`" :position="pawn.getPosition(0)"
+                    <vgl-group v-for="(pawn, index) in player.pawns" :key="`pawn-${playerIndex}-${index}`"
+                               :position="pawn.getPosition(0)"
                                :name="`cube-${pawn.id}`">
 
                         <vgl-mesh :material="`fieldMaterial-${playerIndex}`"
@@ -125,7 +129,8 @@
                                   geometry="pawnHeadGeometry"
                         ></vgl-mesh>
 
-                        <vgl-group position="0 0 0" :rotation="`0 ${indicator.rotation} 0`" v-if="pawn.isActive">
+                        <vgl-group position="0 0 0" :rotation="`0 ${indicator.rotation} 0`" v-if="pawn.isActive"
+                                   :name="`cube-${pawn.id}`">
                             <vgl-mesh :material="`fieldMaterial-${playerIndex}`"
                                       position="0.3 0.5 0"
                                       rotation="0 0 -1.3"
@@ -153,7 +158,10 @@
                 </span>
 
 
-                <!-- lighting -->
+
+
+
+
                 <vgl-ambient-light color="#ffffff" intensity="0.1"></vgl-ambient-light>
                 <vgl-point-light v-for="(light, index) in pointLights"
                                  :key="`light-${index}`"

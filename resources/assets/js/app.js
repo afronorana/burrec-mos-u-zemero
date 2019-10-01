@@ -21,6 +21,13 @@ require('./core/plugins');
 const GlobalMixin = require('./mixins/Global');
 Vue.use(GlobalMixin);
 
+// Components
+Vue.component('the-Scene', require('./components/TheScene'));
+Vue.component('the-game', require('./components/TheGame'));
+Vue.component('the-dice', require('./components/TheDice'));
+Vue.component('stepping-fields', require('./components/SteppingFields'));
+Vue.component('player-homes', require('./components/PlayerHomes'));
+
 window.ApplicationStore = {
   settings: {
     quality: 12,
@@ -146,19 +153,13 @@ window.ApplicationStore = {
   },
 };
 
-// Components
-Vue.component('the-Scene', require('./components/TheScene'));
-Vue.component('the-game', require('./components/TheGame'));
-Vue.component('the-dice', require('./components/TheDice'));
-Vue.component('stepping-fields', require('./components/SteppingFields'));
-Vue.component('player-homes', require('./components/PlayerHomes'));
 
 require('three/examples/js/controls/OrbitControls');
+
 window.Burrec = new Vue({
   el: '#app',
   mounted() {
     this.$nextTick(function() {
-
       setInterval(function() {
         this.indicator.rotation += 0.1;
       }.bind(this), 70);
@@ -191,19 +192,16 @@ window.Burrec = new Vue({
         raycaster.setFromCamera(mouse, camera);
         let intersects = raycaster.intersectObjects(scene.children, true);
         if (intersects.length > 0) {
-          if (intersects[0].object.parent.name === 'cube') setCursor('pointer');
-          if (intersects[0].object.parent !== lastHoveredObject) {
-            if (lastHoveredObject) {
-              // lastHoveredObject.material.color.setHex(lastHoveredObject.currentHex);
-              console.log(lastHoveredObject);
-            }
-            lastHoveredObject = intersects[0].object.parent;
-            // lastHoveredObject.currentHex = lastHoveredObject.material.color.getHex();
-            // lastHoveredObject.material.color.setHex(0xffff00);
+          console.log ( intersects);
+          if (intersects[0].object.parent.name.toString().startsWith('cube'))
+          {
+            setCursor('pointer');
+            lastHoveredObject =intersects[0].object.parent.name
           }
+
         } else {
           if (lastHoveredObject) {
-            // lastHoveredObject.material.color.setHex(lastHoveredObject.currentHex);
+            //The dice logic here
           }
           lastHoveredObject = null;
           setCursor('default');
@@ -215,11 +213,10 @@ window.Burrec = new Vue({
       window.addEventListener('click', function() {
 
         if (!lastHoveredObject ||
-            !lastHoveredObject.name.toString().startsWith('cube')) return;
-        console.log(lastHoveredObject.name);
+            !lastHoveredObject.toString().startsWith('cube')) return;
         this.store.players.forEach(function(player) {
           player.pawns.forEach(function(pawn) {
-            if ('cube-' + pawn.id === lastHoveredObject.name) {
+            if ('cube-' + pawn.id === lastHoveredObject) {
               pawn.move();
             }
           });

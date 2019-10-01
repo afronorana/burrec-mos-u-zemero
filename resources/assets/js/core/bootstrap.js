@@ -4,7 +4,8 @@ window.Promise = require('promise');
 window.Vue = require('vue');
 window.EventKeys = require('../EventKeys');
 
-import * as VueGL from "vue-gl";
+// import * as VueGL from "vue-gl";
+window.VueGL = require('vue-gl');
 Object.keys(VueGL).forEach(name => {
   Vue.component(name, VueGL[name]);
 });

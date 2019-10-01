@@ -15,32 +15,26 @@ class Pawn {
 
   // Generate target class name
   targetPositionClassName() { // TODO
-    if (this.position < 40) return ;
+    if (this.position < 40) return;
     let playerTurn = this.startingGlobalPosition / 10;
     return 'field-target-' + (this.position - 39 + (playerTurn * 4));
   }
 
-
   targetPosition() { // TODO
     let playerTurn = this.startingGlobalPosition / 10;
-    return (this.position - 39 + (playerTurn * 4) -1);
+    return (this.position - 39 + (playerTurn * 4) - 1);
   }
 
-  getPosition(height) {
+  getPosition(height = 0) {
     if (!this.position) {
       return `${ApplicationStore.fields.home[this.playerIndex].fields[this.startingPlace -
       1].x} ${height} ${ApplicationStore.fields.home[this.playerIndex].fields[this.startingPlace -
       1].z}`;
-
-    }
-    else if (this.position <= 40){
+    } else if (this.position <= 40) {
       return `${ApplicationStore.fields.path[this.globalPosition].x} ${height} ${ApplicationStore.fields.path[this.globalPosition].z}`;
-    }
-    else if (this.position > 40){
-
+    } else if (this.position > 40) {
       return `${ApplicationStore.fields.target[this.playerIndex].fields[this.targetPosition()].x} ${height} ${ApplicationStore.fields.target[this.playerIndex].fields[this.targetPosition()].z}`;
     }
-
   }
 
   // Returns pawn classes
@@ -130,9 +124,15 @@ class Pawn {
   }
 
   getOutOfHome(steps) {
+
+    let oldPosition = this.getPosition();
+
     this.globalPosition = this.startingGlobalPosition;
     this.position = 1;
+
+
     this.endOfMove(steps);
+
   }
 
   enterTargetZone(steps) {
@@ -179,12 +179,12 @@ class Pawn {
   }
 
   move() {
-    //If not active is home
+    //If not active
     if (!this.isActive) return;
-
     let steps = ApplicationStore.lastRolledDice;
 
-    if (this.position == 0) { // If pawn is home
+    // If pawn is home
+    if (this.position === 0) {
       this.getOutOfHome(steps);
     } else if (this.position + steps >= 40) { // If pawn is close to ending
       this.enterTargetZone(steps);
@@ -195,7 +195,7 @@ class Pawn {
   }
 
   endOfMove(steps) {
-    if (steps == 6) {
+    if (steps === 6) {
       EventBus.fire(EventKeys.turns.repeatTurn);
     } else {
       EventBus.fire(EventKeys.turns.endTurn);
