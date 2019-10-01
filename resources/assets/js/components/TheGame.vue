@@ -63,14 +63,10 @@
 
             createPlayers() { // done
 
-              this.store.players.push(new Player('Jon Doe', 'red', 1));
-              this.store.players.push(new Player('Jane Doe', 'blue', 2));
-              this.store.players.push(new Player('Filan Fisteku', 'green', 3));
-              this.store.players.push(new Player('Filane Fisteku', 'yellow', 4));
-              // this.store.players.push(new Player('Jon Doe', 0x0000FF, 1));
-              // this.store.players.push(new Player('Jane Doe', 0xFF0000, 2));
-              // this.store.players.push(new Player('Filan Fisteku', 0x00FF00, 3));
-              // this.store.players.push(new Player('Filane Fisteku', 0xFFFF00, 4));
+              this.store.players.push(new Player('Jane Doe', 'red', 1));
+              this.store.players.push(new Player('Filan Fisteku', 'yellow', 2));
+              this.store.players.push(new Player('Jon Doe', 'blue', 3));
+              this.store.players.push(new Player('Filane Fisteku', 'green', 4));
             },
 
             fillSteppingFields() {

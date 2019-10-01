@@ -1,22 +1,19 @@
 require('./core/bootstrap');
 
 window.EventBus = new class {
-    constructor() {
-        this.vue = new Vue();
-    }
+  constructor() {
+    this.vue = new Vue();
+  }
 
-    fire(event, data = null) {
-        this.vue.$emit(event, data);
-    }
+  fire(event, data = null) {
+    this.vue.$emit(event, data);
+  }
 
-    listen(event, callback) {
-        if (typeof callback === "function")
-            this.vue.$on(event, callback);
-    }
+  listen(event, callback) {
+    if (typeof callback === 'function')
+      this.vue.$on(event, callback);
+  }
 };
-
-
-
 
 require('./core/plugins');
 
@@ -25,136 +22,128 @@ const GlobalMixin = require('./mixins/Global');
 Vue.use(GlobalMixin);
 
 window.ApplicationStore = {
-    settings: {
-     quality: 12
-    },
-    homeFields: [
-        {
-            fields: [
-                new THREE.Vector3(0, 0.5, 0),
-                new THREE.Vector3(0, 0.5, 1),
-                new THREE.Vector3(1, 0.5, 0),
-                new THREE.Vector3(1, 0.5, 1),
-            ],
-            color: '#ff0000'
-        },
-        {
-            fields: [
-                new THREE.Vector3(0, 0.5, 9),
-                new THREE.Vector3(0, 0.5, 10),
-                new THREE.Vector3(1, 0.5, 9),
-                new THREE.Vector3(1, 0.5, 10),
-            ],
-            color: '#00ff00'
-        },
-        {
-            fields: [
-                new THREE.Vector3(9, 0.5, 0),
-                new THREE.Vector3(9, 0.5, 1),
-                new THREE.Vector3(10, 0.5, 0),
-                new THREE.Vector3(10, 0.5, 1),
-            ],
-            color: '#0000ff'
-        },
-        {
-            fields: [
-                new THREE.Vector3(9, 0.5, 9),
-                new THREE.Vector3(9, 0.5, 10),
-                new THREE.Vector3(10, 0.5, 9),
-                new THREE.Vector3(10, 0.5, 10),
-            ],
-            color: '#ffff00'
-        },
-    ],
-    targetFields: [
-        {
-            fields: [
-                new THREE.Vector3(1, 0.5, 5),
-                new THREE.Vector3(2, 0.5, 5),
-                new THREE.Vector3(3, 0.5, 5),
-                new THREE.Vector3(4, 0.5, 5),
-            ],
-            color: '#ff0000'
-        },
-        {
-            fields: [
-                new THREE.Vector3(5, 0.5, 9),
-                new THREE.Vector3(5, 0.5, 8),
-                new THREE.Vector3(5, 0.5, 7),
-                new THREE.Vector3(5, 0.5, 6),
-            ],
-            color: '#00ff00'
-        },
-        {
-            fields: [
-                new THREE.Vector3(5, 0.5, 1),
-                new THREE.Vector3(5, 0.5, 2),
-                new THREE.Vector3(5, 0.5, 3),
-                new THREE.Vector3(5, 0.5, 4),
-            ],
-            color: '#0000ff'
-        },
-        {
-            fields: [
-                new THREE.Vector3(9, 0.5, 5),
-                new THREE.Vector3(8, 0.5, 5),
-                new THREE.Vector3(7, 0.5, 5),
-                new THREE.Vector3(6, 0.5, 5),
-            ],
-            color: '#ffff00'
-        },
-    ],
-    fields: [
-        new THREE.Vector3(4, 0.5, 0),
-        new THREE.Vector3(4, 0.5, 1),
-        new THREE.Vector3(4, 0.5, 2),
-        new THREE.Vector3(4, 0.5, 3),
-        new THREE.Vector3(4, 0.5, 4),
-        new THREE.Vector3(3, 0.5, 4),
-        new THREE.Vector3(2, 0.5, 4),
-        new THREE.Vector3(1, 0.5, 4),
-        new THREE.Vector3(0, 0.5, 4),
-        new THREE.Vector3(0, 0.5, 5),
-        new THREE.Vector3(0, 0.5, 6),
-        new THREE.Vector3(1, 0.5, 6),
-        new THREE.Vector3(2, 0.5, 6),
-        new THREE.Vector3(3, 0.5, 6),
-        new THREE.Vector3(4, 0.5, 6),
-        new THREE.Vector3(4, 0.5, 7),
-        new THREE.Vector3(4, 0.5, 8),
-        new THREE.Vector3(4, 0.5, 9),
-        new THREE.Vector3(4, 0.5, 10),
-        new THREE.Vector3(5, 0.5, 10),
-        new THREE.Vector3(6, 0.5, 10),
-        new THREE.Vector3(6, 0.5, 9),
-        new THREE.Vector3(6, 0.5, 8),
-        new THREE.Vector3(6, 0.5, 7),
-        new THREE.Vector3(6, 0.5, 6),
-        new THREE.Vector3(7, 0.5, 6),
-        new THREE.Vector3(8, 0.5, 6),
-        new THREE.Vector3(9, 0.5, 6),
-        new THREE.Vector3(10, 0.5, 6),
-        new THREE.Vector3(10, 0.5, 5),
-        new THREE.Vector3(10, 0.5, 4),
-        new THREE.Vector3(9, 0.5, 4),
-        new THREE.Vector3(8, 0.5, 4),
-        new THREE.Vector3(7, 0.5, 4),
-        new THREE.Vector3(6, 0.5, 4),
-        new THREE.Vector3(6, 0.5, 3),
-        new THREE.Vector3(6, 0.5, 2),
-        new THREE.Vector3(6, 0.5, 1),
-        new THREE.Vector3(6, 0.5, 0),
-        new THREE.Vector3(5, 0.5, 0),
-    ],
-    players: [],
-    currentPlayerId: -1,
-    lastRolledDice: 'Start',
-    currentRound: 0,
+  settings: {
+    quality: 12,
+  },
+  fields: {
+    home: [
+      {
+        fields: [
+          new THREE.Vector3(0, 0.5, 0), new THREE.Vector3(0, 0.5, 1),
+          new THREE.Vector3(1, 0.5, 0), new THREE.Vector3(1, 0.5, 1),
+        ],
+        color: '#ff0000',
+      },
+      {
+        fields: [
+          new THREE.Vector3(9, 0.5, 0), new THREE.Vector3(9, 0.5, 1),
+          new THREE.Vector3(10, 0.5, 0), new THREE.Vector3(10, 0.5, 1),
+        ],
+        color: '#ffff00',
 
-    gamePlayStatus: {
-        isRolling: false,
-        isMoving: false,
-    }
+      },
+      {
+        fields: [
+          new THREE.Vector3(9, 0.5, 9), new THREE.Vector3(9, 0.5, 10),
+          new THREE.Vector3(10, 0.5, 9), new THREE.Vector3(10, 0.5, 10),
+        ],
+        color: '#00ff00',
+      },
+      {
+        fields: [
+          new THREE.Vector3(0, 0.5, 9), new THREE.Vector3(0, 0.5, 10),
+          new THREE.Vector3(1, 0.5, 9), new THREE.Vector3(1, 0.5, 10),
+        ],
+        color: '#0000ff',
+
+      },
+    ],
+    target: [
+      {
+        fields: [
+          new THREE.Vector3(1, 0.5, 5), new THREE.Vector3(2, 0.5, 5),
+          new THREE.Vector3(3, 0.5, 5), new THREE.Vector3(4, 0.5, 5),
+        ],
+        color: '#ff0000',
+      },
+      {
+        fields: [
+          new THREE.Vector3(5, 0.5, 1), new THREE.Vector3(5, 0.5, 2),
+          new THREE.Vector3(5, 0.5, 3), new THREE.Vector3(5, 0.5, 4),
+        ],
+        color: '#ffff00',
+      },
+      {
+        fields: [
+          new THREE.Vector3(9, 0.5, 5), new THREE.Vector3(8, 0.5, 5),
+          new THREE.Vector3(7, 0.5, 5), new THREE.Vector3(6, 0.5, 5),
+        ],
+        color: '#00ff00',
+      },
+      {
+        fields: [
+          new THREE.Vector3(5, 0.5, 9), new THREE.Vector3(5, 0.5, 8),
+          new THREE.Vector3(5, 0.5, 7), new THREE.Vector3(5, 0.5, 6),
+        ],
+        color: '#0000ff',
+      },
+    ],
+
+    path: [
+      new THREE.Vector3(0, 0.5, 4),
+      new THREE.Vector3(1, 0.5, 4),
+      new THREE.Vector3(2, 0.5, 4),
+      new THREE.Vector3(3, 0.5, 4),
+      new THREE.Vector3(4, 0.5, 4),
+      new THREE.Vector3(4, 0.5, 3),
+      new THREE.Vector3(4, 0.5, 2),
+      new THREE.Vector3(4, 0.5, 1),
+      new THREE.Vector3(4, 0.5, 0),
+      new THREE.Vector3(5, 0.5, 0),
+      new THREE.Vector3(6, 0.5, 0),
+      new THREE.Vector3(6, 0.5, 1),
+      new THREE.Vector3(6, 0.5, 2),
+      new THREE.Vector3(6, 0.5, 3),
+      new THREE.Vector3(6, 0.5, 4),
+      new THREE.Vector3(7, 0.5, 4),
+      new THREE.Vector3(8, 0.5, 4),
+      new THREE.Vector3(9, 0.5, 4),
+      new THREE.Vector3(10, 0.5, 4),
+      new THREE.Vector3(10, 0.5, 5),
+      new THREE.Vector3(10, 0.5, 6),
+      new THREE.Vector3(9, 0.5, 6),
+      new THREE.Vector3(8, 0.5, 6),
+      new THREE.Vector3(7, 0.5, 6),
+      new THREE.Vector3(6, 0.5, 6),
+      new THREE.Vector3(6, 0.5, 7),
+      new THREE.Vector3(6, 0.5, 8),
+      new THREE.Vector3(6, 0.5, 9),
+      new THREE.Vector3(6, 0.5, 10),
+      new THREE.Vector3(5, 0.5, 10),
+      new THREE.Vector3(4, 0.5, 10),
+      new THREE.Vector3(4, 0.5, 9),
+      new THREE.Vector3(4, 0.5, 8),
+      new THREE.Vector3(4, 0.5, 7),
+      new THREE.Vector3(4, 0.5, 6),
+      new THREE.Vector3(3, 0.5, 6),
+      new THREE.Vector3(2, 0.5, 6),
+      new THREE.Vector3(1, 0.5, 6),
+      new THREE.Vector3(0, 0.5, 6),
+      new THREE.Vector3(0, 0.5, 5),
+
+    ],
+  },
+
+  players: [],
+  currentPlayerId: -1,
+
+  lastRolledDice: 'Start',
+
+  currentRound: 0,
+  gamePlayStatus: {
+    isRolling: false,
+    isMoving: false,
+  },
 };
 
 // Components
@@ -164,44 +153,117 @@ Vue.component('the-dice', require('./components/TheDice'));
 Vue.component('stepping-fields', require('./components/SteppingFields'));
 Vue.component('player-homes', require('./components/PlayerHomes'));
 
+require('three/examples/js/controls/OrbitControls');
 window.Burrec = new Vue({
-    el: '#app',
-    mounted() {
-        this.$nextTick(function () {
-            EventBus.listen(EventKeys.pawn.move, function (fieldIndex) {
-                // this.steppingFields[fieldIndex]
-            }.bind(this));
+  el: '#app',
+  mounted() {
+    this.$nextTick(function() {
 
-            console.log ( this.data );
-        });
-    },
+      setInterval(function() {
+        this.indicator.rotation += 0.1;
+      }.bind(this), 70);
 
+      let scene = this.$children[1].vglNamespace.scenes['scene'];
+      let camera = this.$children[1].vglNamespace.cameras['cmr1'];
+      let renderer = this.$children[1].vglNamespace.renderers[0];
+      const controls = new THREE.OrbitControls(
+          this.$children[1].vglNamespace.cameras['cmr1'], renderer.$el);
+      controls.addEventListener('change', () => {
+        this.$children[1].vglNamespace.update();
+        render();
+      });
 
-    data: {
-store: ApplicationStore,
-        steppingFields: [],
+      let lastHoveredObject = null;
 
-        board:{position:  `5 -0.05 5`},
-        cameraDeets: `-15 15 -15`,
+      // Mouse events
+      var raycaster = new THREE.Raycaster();
+      var mouse = new THREE.Vector2();
 
+      function onMouseMove(event) {
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        render();
+      }
 
-        pointLights: [
-            {color: '#ffffff', intensity: 1, distance: 20, position: `-2, 10, -2`},
-            {color: '#ffffff', intensity: 1, distance: 20, position: `-2, 10, 13`},
-            {color: '#ffffff', intensity: 1, distance: 20, position: `13, 10, -2`},
-            {color: '#ffffff', intensity: 1, distance: 20, position: `13, 10, 13`}
-            ]
-    },
+      let self = this;
 
-    watch: {
-        steppingFields: {
-            handler(val) {
-                // console.log(val);
-                // console.log ( 'adsa' );
-            },
-            deep: true
+      var render = function() {
+        raycaster.setFromCamera(mouse, camera);
+        let intersects = raycaster.intersectObjects(scene.children, true);
+        if (intersects.length > 0) {
+          if (intersects[0].object.parent.name === 'cube') setCursor('pointer');
+          if (intersects[0].object.parent !== lastHoveredObject) {
+            if (lastHoveredObject) {
+              // lastHoveredObject.material.color.setHex(lastHoveredObject.currentHex);
+              console.log(lastHoveredObject);
+            }
+            lastHoveredObject = intersects[0].object.parent;
+            // lastHoveredObject.currentHex = lastHoveredObject.material.color.getHex();
+            // lastHoveredObject.material.color.setHex(0xffff00);
+          }
+        } else {
+          if (lastHoveredObject) {
+            // lastHoveredObject.material.color.setHex(lastHoveredObject.currentHex);
+          }
+          lastHoveredObject = null;
+          setCursor('default');
         }
+        self.$children[1].vglNamespace.renderers[0].render(scene, camera);
+      };
+      window.addEventListener('mousemove', onMouseMove, false);
+
+      window.addEventListener('click', function() {
+
+        if (!lastHoveredObject ||
+            !lastHoveredObject.name.toString().startsWith('cube')) return;
+        console.log(lastHoveredObject.name);
+        this.store.players.forEach(function(player) {
+          player.pawns.forEach(function(pawn) {
+            if ('cube-' + pawn.id === lastHoveredObject.name) {
+              pawn.move();
+            }
+          });
+
+        });
+
+      }.bind(this), false);
+
+    });
+  },
+
+  data: {
+    store: ApplicationStore,
+
+    steppingFields: [],
+
+    board: {position: `5 -0.05 5`},
+    cameraDeets: `-15 15 -15`,
+
+    pointLights: [
+      {color: '#ffffff', intensity: 1, distance: 20, position: `-2, 10, -2`},
+      {color: '#ffffff', intensity: 1, distance: 20, position: `-2, 10, 13`},
+      {color: '#ffffff', intensity: 1, distance: 20, position: `13, 10, -2`},
+      {color: '#ffffff', intensity: 1, distance: 20, position: `13, 10, 13`},
+    ],
+
+    indicator: {
+      rotation: 0,
     },
-    events: {},
-    methods: {}
+  },
+
+  watch: {
+    steppingFields: {
+      handler(val) {
+        // console.log(val);
+        // console.log ( 'adsa' );
+      },
+      deep: true,
+    },
+
+  },
+
+  events: {},
+  methods: {
+    rotate() {},
+  },
 });

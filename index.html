@@ -28,18 +28,22 @@
     </header>
 
     <div id="app">
-        <div class="container" style="opacity: 0; pointer-events: none; display: none;">
+        <div class="container" style="opacity: .15; pointer-events: none; display: none;">
+<!--                    <div class="container" style="opacity: .3; position: absolute;">-->
             <the-game :stepping-fields="steppingFields"></the-game>
         </div>
 
-        <vgl-renderer antialias style="height: 100vh; width: 100vw;">
-            <vgl-scene>
+        <vgl-renderer name="renderer" camera="cmr1" antialias style="height: 100vh; width: 100vw;">
+            <vgl-scene name="scene">
 
                 <!-- Board -->
                 <vgl-box-geometry name="boardGeometry" width=11 height=0.1 depth="11"></vgl-box-geometry>
-                <vgl-texture src="resources/board.png" center="0.5 0.5" name="boardTexture"></vgl-texture>
-                <vgl-mesh-lambert-material name="boardMaterial" map="boardTexture"></vgl-mesh-lambert-material>
+                <vgl-mesh-lambert-material name="boardMaterial"></vgl-mesh-lambert-material>
                 <vgl-mesh geometry="boardGeometry" material="boardMaterial" :position="board.position"></vgl-mesh>
+
+                <!-- Dice -->
+                                <the-dice></the-dice>
+
 
                 <!-- Stepping Fields -->
                 <vgl-cylinder-geometry name="fieldGeometry"
@@ -49,19 +53,21 @@
                                        :radial-segments=store.settings.quality
                 ></vgl-cylinder-geometry>
                 <vgl-mesh-lambert-material name="fieldMaterial"></vgl-mesh-lambert-material>
-                <vgl-mesh v-for="(field, index) in store.fields"
+                <vgl-mesh v-for="(field, index) in store.fields.path"
                           :key="`field-${index}`"
                           :position="`${field.x} 0 ${field.z}`"
                           geometry="fieldGeometry" material="fieldMaterial"
                 ></vgl-mesh>
 
+
                 <!-- Home Fields -->
                 <span v-for="(player, playerIndex) in store.players">
+
                     <vgl-mesh-lambert-material :name="`fieldMaterial-${playerIndex}`"
-                                               :color="`${store.homeFields[playerIndex ].color}`"
+                                               :color="`${store.fields.home[playerIndex].color}`"
                     ></vgl-mesh-lambert-material>
 
-                    <vgl-mesh v-for="(field, index) in store.homeFields[playerIndex ].fields"
+                    <vgl-mesh v-for="(field, index) in store.fields.home[playerIndex].fields"
                               :key="`home-field-${index}`"
                               :material="`fieldMaterial-${playerIndex}`"
                               :position="`${field.x} 0 ${field.z}`"
@@ -69,13 +75,12 @@
                     ></vgl-mesh>
                 </span>
 
-
-                <!-- Home Fields -->
+                <!-- Target Fields -->
                 <span v-for="(player, playerIndex) in store.players">
                     <vgl-mesh-lambert-material :name="`fieldMaterial-${playerIndex}`"
-                                               :color="`${store.homeFields[playerIndex ].color}`"
+                                               :color="`${store.fields.home[playerIndex ].color}`"
                     ></vgl-mesh-lambert-material>
-                    <vgl-mesh v-for="(field, index) in store.targetFields[playerIndex ].fields"
+                    <vgl-mesh v-for="(field, index) in store.fields.target[playerIndex].fields"
                               :key="`home-field-${index}`"
                               :material="`fieldMaterial-${playerIndex}`"
                               :position="`${field.x} 0.0${index} ${field.z}`"
@@ -85,6 +90,10 @@
 
 
                 <!-- Pawns -->
+                <vgl-cylinder-geometry name="pawnIndicatorGeometry" radius-top=0.08 height="0.15"
+                                       radius-bottom=0.12></vgl-cylinder-geometry>
+
+
                 <vgl-cylinder-geometry name="pawnBodyGeometry"
                                        radius-top=0
                                        radius-bottom=0.3
@@ -93,30 +102,55 @@
                 ></vgl-cylinder-geometry>
 
                 <vgl-sphere-geometry name="pawnHeadGeometry"
-                                       radius=0.2
+                                     radius=0.2
                                      :width-segments=store.settings.quality
                                      :height-segments=store.settings.quality
                 ></vgl-sphere-geometry>
 
+
                 <span v-for="(player, playerIndex) in store.players">
                     <vgl-mesh-lambert-material :name="`fieldMaterial-${playerIndex}`"
-                                               :color="`${store.homeFields[playerIndex ].color}`"
+                                               :color="`${store.fields.home[playerIndex].color}`"
                     ></vgl-mesh-lambert-material>
 
-                    <vgl-mesh v-for="(field, index) in store.homeFields[playerIndex ].fields"
-                              :key="`home-field-${index}`"
-                              :material="`fieldMaterial-${playerIndex}`"
-                              :position="`${field.x} 0.6 ${field.z}`"
-                              geometry="pawnBodyGeometry"
-                    ></vgl-mesh>
-                    <vgl-mesh v-for="(field, index) in store.homeFields[playerIndex ].fields"
-                              :key="`home-field-1-${index}`"
-                              :material="`fieldMaterial-${playerIndex}`"
-                              :position="`${field.x} 1 ${field.z}`"
-                              geometry="pawnHeadGeometry"
-                    ></vgl-mesh>
-                </span>
+                    <vgl-group v-for="(pawn, index) in player.pawns" :key="`pawn-${playerIndex}-${index}`" :position="pawn.getPosition(0)"
+                               :name="`cube-${pawn.id}`">
 
+                        <vgl-mesh :material="`fieldMaterial-${playerIndex}`"
+                                  position="0 0.6 0"
+                                  geometry="pawnBodyGeometry"
+                        ></vgl-mesh>
+                        <vgl-mesh :material="`fieldMaterial-${playerIndex}`"
+                                  position="0 1 0"
+                                  geometry="pawnHeadGeometry"
+                        ></vgl-mesh>
+
+                        <vgl-group position="0 0 0" :rotation="`0 ${indicator.rotation} 0`" v-if="pawn.isActive">
+                            <vgl-mesh :material="`fieldMaterial-${playerIndex}`"
+                                      position="0.3 0.5 0"
+                                      rotation="0 0 -1.3"
+                                      geometry="pawnIndicatorGeometry"
+                            ></vgl-mesh>
+                            <vgl-mesh :material="`fieldMaterial-${playerIndex}`"
+                                      position="-0.3 0.5 0"
+                                      rotation="0 0 1.3"
+                                      geometry="pawnIndicatorGeometry"
+                            ></vgl-mesh>
+                            <vgl-mesh :material="`fieldMaterial-${playerIndex}`"
+                                      position="0 0.5 0.3"
+                                      rotation="1.3 0 0"
+                                      geometry="pawnIndicatorGeometry"
+                            ></vgl-mesh>
+
+                            <vgl-mesh :material="`fieldMaterial-${playerIndex}`"
+                                      position="0 0.5 -0.3"
+                                      rotation="-1.3 0 0"
+                                      geometry="pawnIndicatorGeometry"
+                            ></vgl-mesh>
+                        </vgl-group>
+                    </vgl-group>
+
+                </span>
 
 
                 <!-- lighting -->
@@ -131,17 +165,19 @@
 
             </vgl-scene>
 
-            <vgl-perspective-camera :orbit-target="`5 0 5`" :position="`-4 8 -4`"></vgl-perspective-camera>
+            <vgl-perspective-camera name="cmr1" :position="`-4 8 -4`"></vgl-perspective-camera>
 
         </vgl-renderer>
 
 
-        <aside class="control-panel" style="position: absolute; top:0; z-index: 9; background-color: white;">
-            <label>Quality: <input type="range" v-model="store.settings.quality"> {{store.settings.quality}}</label>
-            <label>X: <input type="range" v-model="store.homeFields[0].fields[0].x"> {{store.homeFields[0].fields[0].x}}</label>
-            <label>Y: <input type="range" v-model="store.homeFields[0].fields[0].y"> {{store.homeFields[0].fields[0].y}}</label>
-            <label>Z: <input type="range" v-model="store.homeFields[0].fields[0].z"> {{store.homeFields[0].fields[0].z}}</label>
-        </aside>
+        <!--        <aside class="control-panel" style="width: 100%;position: absolute; top:0; z-index: 9; background-color: white;">-->
+        <!--            <label>Quality: <input type="range" v-model="store.settings.quality"> {{store.settings.quality}}</label>-->
+        <!--            <button @click="rotate">Rotate</button>-->
+        <!--            time: {{time}}-->
+        <!--            <label style="width: 100%; display: block;">X: <input style="width: 100%;" type="range" step="0.1" v-model="x"> {{x}}</label>-->
+        <!--            <label style="width: 100%; display: block;">Y: <input style="width: 100%;" type="range" step="0.1" v-model="y"> {{y}}</label>-->
+        <!--            <label style="width: 100%; display: block;">Z: <input style="width: 100%;" type="range" step="0.1" v-model="z"> {{z}}</label>-->
+        <!--        </aside>-->
 
 
     </div>

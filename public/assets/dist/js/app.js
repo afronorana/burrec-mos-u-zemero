@@ -612,27 +612,27 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
 __webpack_require__(15);
 
 window.EventBus = new (function () {
-    function _class() {
-        _classCallCheck(this, _class);
+  function _class() {
+    _classCallCheck(this, _class);
 
-        this.vue = new Vue();
+    this.vue = new Vue();
+  }
+
+  _createClass(_class, [{
+    key: 'fire',
+    value: function fire(event) {
+      var data = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : null;
+
+      this.vue.$emit(event, data);
     }
+  }, {
+    key: 'listen',
+    value: function listen(event, callback) {
+      if (typeof callback === 'function') this.vue.$on(event, callback);
+    }
+  }]);
 
-    _createClass(_class, [{
-        key: 'fire',
-        value: function fire(event) {
-            var data = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : null;
-
-            this.vue.$emit(event, data);
-        }
-    }, {
-        key: 'listen',
-        value: function listen(event, callback) {
-            if (typeof callback === "function") this.vue.$on(event, callback);
-        }
-    }]);
-
-    return _class;
+  return _class;
 }())();
 
 __webpack_require__(16);
@@ -642,45 +642,52 @@ var GlobalMixin = __webpack_require__(17);
 Vue.use(GlobalMixin);
 
 window.ApplicationStore = {
-    settings: {
-        quality: 12
-    },
-    homeFields: [{
-        fields: [new THREE.Vector3(0, 0.5, 0), new THREE.Vector3(0, 0.5, 1), new THREE.Vector3(1, 0.5, 0), new THREE.Vector3(1, 0.5, 1)],
-        color: '#ff0000'
+  settings: {
+    quality: 12
+  },
+  fields: {
+    home: [{
+      fields: [new THREE.Vector3(0, 0.5, 0), new THREE.Vector3(0, 0.5, 1), new THREE.Vector3(1, 0.5, 0), new THREE.Vector3(1, 0.5, 1)],
+      color: '#ff0000'
     }, {
-        fields: [new THREE.Vector3(0, 0.5, 9), new THREE.Vector3(0, 0.5, 10), new THREE.Vector3(1, 0.5, 9), new THREE.Vector3(1, 0.5, 10)],
-        color: '#00ff00'
-    }, {
-        fields: [new THREE.Vector3(9, 0.5, 0), new THREE.Vector3(9, 0.5, 1), new THREE.Vector3(10, 0.5, 0), new THREE.Vector3(10, 0.5, 1)],
-        color: '#0000ff'
-    }, {
-        fields: [new THREE.Vector3(9, 0.5, 9), new THREE.Vector3(9, 0.5, 10), new THREE.Vector3(10, 0.5, 9), new THREE.Vector3(10, 0.5, 10)],
-        color: '#ffff00'
-    }],
-    targetFields: [{
-        fields: [new THREE.Vector3(1, 0.5, 5), new THREE.Vector3(2, 0.5, 5), new THREE.Vector3(3, 0.5, 5), new THREE.Vector3(4, 0.5, 5)],
-        color: '#ff0000'
-    }, {
-        fields: [new THREE.Vector3(5, 0.5, 9), new THREE.Vector3(5, 0.5, 8), new THREE.Vector3(5, 0.5, 7), new THREE.Vector3(5, 0.5, 6)],
-        color: '#00ff00'
-    }, {
-        fields: [new THREE.Vector3(5, 0.5, 1), new THREE.Vector3(5, 0.5, 2), new THREE.Vector3(5, 0.5, 3), new THREE.Vector3(5, 0.5, 4)],
-        color: '#0000ff'
-    }, {
-        fields: [new THREE.Vector3(9, 0.5, 5), new THREE.Vector3(8, 0.5, 5), new THREE.Vector3(7, 0.5, 5), new THREE.Vector3(6, 0.5, 5)],
-        color: '#ffff00'
-    }],
-    fields: [new THREE.Vector3(4, 0.5, 0), new THREE.Vector3(4, 0.5, 1), new THREE.Vector3(4, 0.5, 2), new THREE.Vector3(4, 0.5, 3), new THREE.Vector3(4, 0.5, 4), new THREE.Vector3(3, 0.5, 4), new THREE.Vector3(2, 0.5, 4), new THREE.Vector3(1, 0.5, 4), new THREE.Vector3(0, 0.5, 4), new THREE.Vector3(0, 0.5, 5), new THREE.Vector3(0, 0.5, 6), new THREE.Vector3(1, 0.5, 6), new THREE.Vector3(2, 0.5, 6), new THREE.Vector3(3, 0.5, 6), new THREE.Vector3(4, 0.5, 6), new THREE.Vector3(4, 0.5, 7), new THREE.Vector3(4, 0.5, 8), new THREE.Vector3(4, 0.5, 9), new THREE.Vector3(4, 0.5, 10), new THREE.Vector3(5, 0.5, 10), new THREE.Vector3(6, 0.5, 10), new THREE.Vector3(6, 0.5, 9), new THREE.Vector3(6, 0.5, 8), new THREE.Vector3(6, 0.5, 7), new THREE.Vector3(6, 0.5, 6), new THREE.Vector3(7, 0.5, 6), new THREE.Vector3(8, 0.5, 6), new THREE.Vector3(9, 0.5, 6), new THREE.Vector3(10, 0.5, 6), new THREE.Vector3(10, 0.5, 5), new THREE.Vector3(10, 0.5, 4), new THREE.Vector3(9, 0.5, 4), new THREE.Vector3(8, 0.5, 4), new THREE.Vector3(7, 0.5, 4), new THREE.Vector3(6, 0.5, 4), new THREE.Vector3(6, 0.5, 3), new THREE.Vector3(6, 0.5, 2), new THREE.Vector3(6, 0.5, 1), new THREE.Vector3(6, 0.5, 0), new THREE.Vector3(5, 0.5, 0)],
-    players: [],
-    currentPlayerId: -1,
-    lastRolledDice: 'Start',
-    currentRound: 0,
+      fields: [new THREE.Vector3(9, 0.5, 0), new THREE.Vector3(9, 0.5, 1), new THREE.Vector3(10, 0.5, 0), new THREE.Vector3(10, 0.5, 1)],
+      color: '#ffff00'
 
-    gamePlayStatus: {
-        isRolling: false,
-        isMoving: false
-    }
+    }, {
+      fields: [new THREE.Vector3(9, 0.5, 9), new THREE.Vector3(9, 0.5, 10), new THREE.Vector3(10, 0.5, 9), new THREE.Vector3(10, 0.5, 10)],
+      color: '#00ff00'
+    }, {
+      fields: [new THREE.Vector3(0, 0.5, 9), new THREE.Vector3(0, 0.5, 10), new THREE.Vector3(1, 0.5, 9), new THREE.Vector3(1, 0.5, 10)],
+      color: '#0000ff'
+
+    }],
+    target: [{
+      fields: [new THREE.Vector3(1, 0.5, 5), new THREE.Vector3(2, 0.5, 5), new THREE.Vector3(3, 0.5, 5), new THREE.Vector3(4, 0.5, 5)],
+      color: '#ff0000'
+    }, {
+      fields: [new THREE.Vector3(5, 0.5, 1), new THREE.Vector3(5, 0.5, 2), new THREE.Vector3(5, 0.5, 3), new THREE.Vector3(5, 0.5, 4)],
+      color: '#ffff00'
+    }, {
+      fields: [new THREE.Vector3(9, 0.5, 5), new THREE.Vector3(8, 0.5, 5), new THREE.Vector3(7, 0.5, 5), new THREE.Vector3(6, 0.5, 5)],
+      color: '#00ff00'
+    }, {
+      fields: [new THREE.Vector3(5, 0.5, 9), new THREE.Vector3(5, 0.5, 8), new THREE.Vector3(5, 0.5, 7), new THREE.Vector3(5, 0.5, 6)],
+      color: '#0000ff'
+    }],
+
+    path: [new THREE.Vector3(0, 0.5, 4), new THREE.Vector3(1, 0.5, 4), new THREE.Vector3(2, 0.5, 4), new THREE.Vector3(3, 0.5, 4), new THREE.Vector3(4, 0.5, 4), new THREE.Vector3(4, 0.5, 3), new THREE.Vector3(4, 0.5, 2), new THREE.Vector3(4, 0.5, 1), new THREE.Vector3(4, 0.5, 0), new THREE.Vector3(5, 0.5, 0), new THREE.Vector3(6, 0.5, 0), new THREE.Vector3(6, 0.5, 1), new THREE.Vector3(6, 0.5, 2), new THREE.Vector3(6, 0.5, 3), new THREE.Vector3(6, 0.5, 4), new THREE.Vector3(7, 0.5, 4), new THREE.Vector3(8, 0.5, 4), new THREE.Vector3(9, 0.5, 4), new THREE.Vector3(10, 0.5, 4), new THREE.Vector3(10, 0.5, 5), new THREE.Vector3(10, 0.5, 6), new THREE.Vector3(9, 0.5, 6), new THREE.Vector3(8, 0.5, 6), new THREE.Vector3(7, 0.5, 6), new THREE.Vector3(6, 0.5, 6), new THREE.Vector3(6, 0.5, 7), new THREE.Vector3(6, 0.5, 8), new THREE.Vector3(6, 0.5, 9), new THREE.Vector3(6, 0.5, 10), new THREE.Vector3(5, 0.5, 10), new THREE.Vector3(4, 0.5, 10), new THREE.Vector3(4, 0.5, 9), new THREE.Vector3(4, 0.5, 8), new THREE.Vector3(4, 0.5, 7), new THREE.Vector3(4, 0.5, 6), new THREE.Vector3(3, 0.5, 6), new THREE.Vector3(2, 0.5, 6), new THREE.Vector3(1, 0.5, 6), new THREE.Vector3(0, 0.5, 6), new THREE.Vector3(0, 0.5, 5)]
+  },
+
+  players: [],
+  currentPlayerId: -1,
+
+  lastRolledDice: 'Start',
+
+  currentRound: 0,
+  gamePlayStatus: {
+    isRolling: false,
+    isMoving: false
+  }
 };
 
 // Components
@@ -690,41 +697,112 @@ Vue.component('the-dice', __webpack_require__(38));
 Vue.component('stepping-fields', __webpack_require__(37));
 Vue.component('player-homes', __webpack_require__(36));
 
+__webpack_require__(32);
 window.Burrec = new Vue({
-    el: '#app',
-    mounted: function mounted() {
-        this.$nextTick(function () {
-            EventBus.listen(EventKeys.pawn.move, function (fieldIndex) {
-                // this.steppingFields[fieldIndex]
-            }.bind(this));
+  el: '#app',
+  mounted: function mounted() {
+    this.$nextTick(function () {
+      var _this = this;
 
-            console.log(this.data);
-        });
-    },
+      setInterval(function () {
+        this.indicator.rotation += 0.1;
+      }.bind(this), 70);
 
+      var scene = this.$children[1].vglNamespace.scenes['scene'];
+      var camera = this.$children[1].vglNamespace.cameras['cmr1'];
+      var renderer = this.$children[1].vglNamespace.renderers[0];
+      var controls = new THREE.OrbitControls(this.$children[1].vglNamespace.cameras['cmr1'], renderer.$el);
+      controls.addEventListener('change', function () {
+        _this.$children[1].vglNamespace.update();
+        render();
+      });
 
-    data: {
-        store: ApplicationStore,
-        steppingFields: [],
+      var lastHoveredObject = null;
 
-        board: { position: '5 -0.05 5' },
-        cameraDeets: '-15 15 -15',
+      // Mouse events
+      var raycaster = new THREE.Raycaster();
+      var mouse = new THREE.Vector2();
 
-        pointLights: [{ color: '#ffffff', intensity: 1, distance: 20, position: '-2, 10, -2' }, { color: '#ffffff', intensity: 1, distance: 20, position: '-2, 10, 13' }, { color: '#ffffff', intensity: 1, distance: 20, position: '13, 10, -2' }, { color: '#ffffff', intensity: 1, distance: 20, position: '13, 10, 13' }]
-    },
+      function onMouseMove(event) {
+        mouse.x = event.clientX / window.innerWidth * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        render();
+      }
 
-    watch: {
-        steppingFields: {
-            handler: function handler(val) {
-                // console.log(val);
-                // console.log ( 'adsa' );
-            },
+      var self = this;
 
-            deep: true
+      var render = function render() {
+        raycaster.setFromCamera(mouse, camera);
+        var intersects = raycaster.intersectObjects(scene.children, true);
+        if (intersects.length > 0) {
+          if (intersects[0].object.parent.name === 'cube') setCursor('pointer');
+          if (intersects[0].object.parent !== lastHoveredObject) {
+            if (lastHoveredObject) {
+              // lastHoveredObject.material.color.setHex(lastHoveredObject.currentHex);
+              console.log(lastHoveredObject);
+            }
+            lastHoveredObject = intersects[0].object.parent;
+            // lastHoveredObject.currentHex = lastHoveredObject.material.color.getHex();
+            // lastHoveredObject.material.color.setHex(0xffff00);
+          }
+        } else {
+          if (lastHoveredObject) {
+            // lastHoveredObject.material.color.setHex(lastHoveredObject.currentHex);
+          }
+          lastHoveredObject = null;
+          setCursor('default');
         }
-    },
-    events: {},
-    methods: {}
+        self.$children[1].vglNamespace.renderers[0].render(scene, camera);
+      };
+      window.addEventListener('mousemove', onMouseMove, false);
+
+      window.addEventListener('click', function () {
+
+        if (!lastHoveredObject || !lastHoveredObject.name.toString().startsWith('cube')) return;
+        console.log(lastHoveredObject.name);
+        this.store.players.forEach(function (player) {
+          player.pawns.forEach(function (pawn) {
+            if ('cube-' + pawn.id === lastHoveredObject.name) {
+              pawn.move();
+            }
+          });
+        });
+      }.bind(this), false);
+    });
+  },
+
+
+  data: {
+    store: ApplicationStore,
+
+    steppingFields: [],
+
+    board: { position: '5 -0.05 5' },
+    cameraDeets: '-15 15 -15',
+
+    pointLights: [{ color: '#ffffff', intensity: 1, distance: 20, position: '-2, 10, -2' }, { color: '#ffffff', intensity: 1, distance: 20, position: '-2, 10, 13' }, { color: '#ffffff', intensity: 1, distance: 20, position: '13, 10, -2' }, { color: '#ffffff', intensity: 1, distance: 20, position: '13, 10, 13' }],
+
+    indicator: {
+      rotation: 0
+    }
+  },
+
+  watch: {
+    steppingFields: {
+      handler: function handler(val) {
+        // console.log(val);
+        // console.log ( 'adsa' );
+      },
+
+      deep: true
+    }
+
+  },
+
+  events: {},
+  methods: {
+    rotate: function rotate() {}
+  }
 });
 
 /***/ }),
@@ -908,46 +986,184 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
 //
 //
 //
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
 
 /* harmony default export */ __webpack_exports__["default"] = ({
-    components: {},
-    mounted: function mounted() {
-        this.$nextTick(function () {
-            window.addEventListener("keypress", function (e) {
-                if (e.keyCode == 32) {
-                    this.rollDice();
-                }
-            }.bind(this));
-        });
-    },
-    data: function data() {
-        return {
-            store: window.ApplicationStore,
-            currentFace: 'one',
-            cubeFaces: [{ face: 'one', number: 1 }, { face: 'two', number: 2 }, { face: 'three', number: 3 }, { face: 'four', number: 4 }, { face: 'five', number: 5 }, { face: 'six', number: 6 }]
-        };
-    },
-
-    events: {},
-    methods: {
-        showFace: function showFace(face) {
-            this.currentFace = face;
-        },
-        rollDice: function rollDice() {
-            if (!this.store.gamePlayStatus.isRolling) return;
-            var diceResult = 1 + Math.floor(Math.random() * 6);
-            //                let diceResult = 5 + Math.floor(Math.random() * 2);
-            //                let diceResult = 5;
-
-            this.cubeFaces.forEach(function (cubeFace) {
-                if (cubeFace.number == diceResult) {
-                    this.showFace(cubeFace.face);
-                }
-            }.bind(this));
-
-            this.store.players[this.store.currentPlayerId].rollDice(diceResult);
+  mounted: function mounted() {
+    this.$nextTick(function () {
+      window.addEventListener('keypress', function (e) {
+        if (e.keyCode === 32) {
+          this.rollDice();
         }
+      }.bind(this));
+    });
+  },
+  data: function data() {
+    return {
+      store: window.ApplicationStore,
+      interval: [null, null, null],
+      allDone: [false, false, false],
+      diceCalc: {
+        x: 0,
+        y: 0,
+        z: 0
+      },
+      time: 300,
+      x: 0,
+      y: 0,
+      z: 0
+    };
+  },
+
+  methods: {
+    rollDice: function rollDice() {
+      if (!this.store.gamePlayStatus.isRolling) return;
+
+      var diceResult = 1 + Math.floor(Math.random() * 6);
+
+      this.store.players[this.store.currentPlayerId].rollDice(diceResult);
+
+      switch (diceResult) {
+        case 1:
+          this.x = Math.PI / 2;
+          this.y = Math.PI / 2;
+          this.z = Math.PI / 2;
+          break;
+        case 2:
+          this.x = Math.PI * 2;
+          this.y = Math.PI * 2;
+          this.z = Math.PI * 2;
+          break;
+        case 3:
+          this.x = Math.PI / 2;
+          this.y = Math.PI;
+          this.z = Math.PI / 2 * (Math.floor(Math.random() * 6) + 1);
+          break;
+        case 4:
+          this.x = Math.PI / 2 * 3;
+          this.y = Math.PI * 2;
+          this.z = Math.PI / 2 * (Math.floor(Math.random() * 6) + 1);
+          break;
+        case 5:
+          this.x = Math.PI / 2 * 5;
+          this.y = Math.PI / 2;
+          this.z = Math.PI * 2;
+          break;
+        case 6:
+          this.x = Math.PI / 2 * 6;
+          this.y = Math.PI / 2 * (Math.floor(Math.random() * 6) + 1);
+          this.z = Math.PI / 2;
+          break;
+      }
+      //
+      // this.interval[0] = window.setInterval(function() {
+      //
+      //   if (parseFloat(this.diceCalc.x).toFixed(1) >
+      //       parseFloat(this.x).toFixed(1)) {
+      //     let diff = (this.diceCalc.x - this.x) / 10;
+      //     this.x += diff;
+      //   } else if (parseFloat(this.diceCalc.x).toFixed(1) <
+      //       parseFloat(this.x).toFixed(1)) {
+      //     let diff = (this.x - this.diceCalc.x) / 10;
+      //     this.x -= diff;
+      //   } else {
+      //     this.x = this.diceCalc.x;
+      //     this.allDone[0] = true;
+      //     console.log('done x');
+      //     if (this.allDone[0] && this.allDone[1] && this.allDone[2]) {
+      //       clearInterval(this.interval[0]);
+      //       this.allDone = [false, false, false];
+      //       return;
+      //     }
+      //   }
+      //   if (parseFloat(this.diceCalc.y).toFixed(1) >
+      //       parseFloat(this.y).toFixed(1)) {
+      //     let diff = (this.diceCalc.y - this.y) / 10;
+      //     this.y += diff;
+      //   } else if (parseFloat(this.diceCalc.y).toFixed(1) <
+      //       parseFloat(this.y).toFixed(1)) {
+      //     let diff = (this.y - this.diceCalc.y) / 10;
+      //     this.y -= diff;
+      //   } else {
+      //     this.y = this.diceCalc.y;
+      //     this.allDone[1] = true;
+      //     console.log('done y');
+      //     if (this.allDone[0] && this.allDone[1] && this.allDone[2]) {
+      //       clearInterval(this.interval[0]);
+      //       this.allDone = [false, false, false];
+      //       return;
+      //     }
+      //   }
+      //
+      //   if (parseFloat(this.diceCalc.z).toFixed(1) >
+      //       parseFloat(this.z).toFixed(1)) {
+      //     let diff = (this.diceCalc.z - this.z) / 10;
+      //     this.z += diff;
+      //   } else if (parseFloat(this.diceCalc.z).toFixed(1) <
+      //       parseFloat(this.z).toFixed(1)) {
+      //     let diff = (this.z - this.diceCalc.z) / 10;
+      //     this.z -= diff;
+      //   } else {
+      //     this.z = this.diceCalc.z;
+      //     this.allDone[2] = true;
+      //     console.log('done z');
+      //     if (this.allDone[0] && this.allDone[1] && this.allDone[2]) {
+      //       clearInterval(this.interval[0]);
+      //       this.allDone = [false, false, false];
+      //       return;
+      //     }
+      //   }
+      //
+      // }.bind(this), 40);
     }
+  }
 });
 
 /***/ }),
@@ -1020,14 +1236,10 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
         createPlayers: function createPlayers() {
             // done
 
-            this.store.players.push(new Player('Jon Doe', 'red', 1));
-            this.store.players.push(new Player('Jane Doe', 'blue', 2));
-            this.store.players.push(new Player('Filan Fisteku', 'green', 3));
-            this.store.players.push(new Player('Filane Fisteku', 'yellow', 4));
-            // this.store.players.push(new Player('Jon Doe', 0x0000FF, 1));
-            // this.store.players.push(new Player('Jane Doe', 0xFF0000, 2));
-            // this.store.players.push(new Player('Filan Fisteku', 0x00FF00, 3));
-            // this.store.players.push(new Player('Filane Fisteku', 0xFFFF00, 4));
+            this.store.players.push(new Player('Jane Doe', 'red', 1));
+            this.store.players.push(new Player('Filan Fisteku', 'yellow', 2));
+            this.store.players.push(new Player('Jon Doe', 'blue', 3));
+            this.store.players.push(new Player('Filane Fisteku', 'green', 4));
         },
         fillSteppingFields: function fillSteppingFields() {
             for (var field = 1; field <= 40; field++) {
@@ -1106,208 +1318,233 @@ var _createClass = function () { function defineProperties(target, props) { for 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
 var Pawn = function () {
-    function Pawn(_startingPlace, _color) {
-        var _globalPosition = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 0;
+  function Pawn(_startingPlace, _color) {
+    var _globalPosition = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 0;
 
-        _classCallCheck(this, Pawn);
+    var _playerIndex = arguments[3];
 
-        this.position = 0;
-        this.globalPosition = _globalPosition;
-        this.startingGlobalPosition = _globalPosition;
-        this.color = _color;
-        this.isActive = false;
-        this.startingPlace = _startingPlace;
-        this.isInTargetField = false;
-        this.isSkipping = false;
+    _classCallCheck(this, Pawn);
+
+    this.id = 'id-' + _startingPlace + _playerIndex;
+    this.position = 0;
+    this.playerIndex = _playerIndex;
+    this.globalPosition = _globalPosition;
+    this.startingGlobalPosition = _globalPosition;
+    this.color = _color;
+    this.isActive = false;
+    this.isInTargetField = false;
+    this.isSkipping = false;
+    this.startingPlace = _startingPlace;
+  }
+
+  // Generate target class name
+
+
+  _createClass(Pawn, [{
+    key: 'targetPositionClassName',
+    value: function targetPositionClassName() {
+      // TODO
+      if (this.position < 40) return;
+      var playerTurn = this.startingGlobalPosition / 10;
+      return 'field-target-' + (this.position - 39 + playerTurn * 4);
+    }
+  }, {
+    key: 'targetPosition',
+    value: function targetPosition() {
+      // TODO
+      var playerTurn = this.startingGlobalPosition / 10;
+      return this.position - 39 + playerTurn * 4 - 1;
+    }
+  }, {
+    key: 'getPosition',
+    value: function getPosition(height) {
+      if (!this.position) {
+        return ApplicationStore.fields.home[this.playerIndex].fields[this.startingPlace - 1].x + ' ' + height + ' ' + ApplicationStore.fields.home[this.playerIndex].fields[this.startingPlace - 1].z;
+      } else if (this.position <= 40) {
+        return ApplicationStore.fields.path[this.globalPosition].x + ' ' + height + ' ' + ApplicationStore.fields.path[this.globalPosition].z;
+      } else if (this.position > 40) {
+
+        return ApplicationStore.fields.target[this.playerIndex].fields[this.targetPosition()].x + ' ' + height + ' ' + ApplicationStore.fields.target[this.playerIndex].fields[this.targetPosition()].z;
+      }
     }
 
-    // Generate target class name
+    // Returns pawn classes
 
+  }, {
+    key: 'classes',
+    value: function classes() {
+      return [this.globalPosition >= 0 ? 'field-' + this.globalPosition : '', // Position on playing fields
+      this.targetPositionClassName(), // TODO Position on target
+      this.isActive ? 'is-avaliable' : '', // Availability
+      this.color, // Color
+      this.isSkipping ? 'is-skipping' : ''];
+    }
 
-    _createClass(Pawn, [{
-        key: 'targetPositionClassName',
-        value: function targetPositionClassName() {
-            if (this.position < 40) return '';
-            var playerTurn = this.startingGlobalPosition / 10;
-            return 'field-target-' + (this.position - 39 + playerTurn * 4);
-        }
+    // Returns pawn home (Triggered by other players)
 
-        // Returns pawn classes
+  }, {
+    key: 'returnHome',
+    value: function returnHome() {
+      this.position = 0;
+      this.globalPosition = this.startingGlobalPosition;
+    }
+  }, {
+    key: 'canLeaveHome',
+    value: function canLeaveHome(steps) {
+      var canLeave = true;
 
-    }, {
-        key: 'classes',
-        value: function classes() {
-            return [this.globalPosition >= 0 ? 'field-' + this.globalPosition : '', // Position on playing fields
-            this.targetPositionClassName(), // Position on target
-            this.isActive ? 'is-avaliable' : '', // Availability
-            this.color, // Color
-            this.isSkipping ? 'is-skipping' : '' // Skip animation
-            ];
-        }
+      ApplicationStore.players.forEach(function (player) {
 
-        // Returns pawn home (Triggered by other players)
-
-    }, {
-        key: 'returnHome',
-        value: function returnHome() {
-            this.position = 0;
-            this.globalPosition = this.startingGlobalPosition;
-        }
-    }, {
-        key: 'canLeaveHome',
-        value: function canLeaveHome(steps) {
-            var canLeave = true;
-
-            ApplicationStore.players.forEach(function (player) {
-                if (player.isPlaying) {
-                    player.pawns.forEach(function (pawn) {
-                        if (pawn.globalPosition == this.startingGlobalPosition + 1) {
-                            canLeave = false;
-                        }
-                    }.bind(this));
-                }
-            }.bind(this));
-            return this.position == 0 && steps == 6 && canLeave;
-        }
-    }, {
-        key: 'pathEnds',
-        value: function pathEnds(steps) {
-            return this.position + steps >= 44;
-        }
-    }, {
-        key: 'targetFieldIsEmpty',
-        value: function targetFieldIsEmpty(steps) {
-            if (this.position == 0) return false;
-
-            var targetFieldId = this.position + steps;
-            var targetFieldIsFree = true;
-
-            ApplicationStore.players.forEach(function (player) {
-                if (player.isPlaying) {
-                    player.pawns.forEach(function (pawn) {
-                        if (pawn.position == targetFieldId) {
-                            targetFieldIsFree = false;
-                        }
-                    });
-                }
-            });
-            return targetFieldIsFree;
-        }
-    }, {
-        key: 'isAvaliable',
-        value: function isAvaliable(steps) {
-            var self = this;
-            return (self.canLeaveHome(steps) || this.targetFieldIsEmpty(steps)) && !self.pathEnds(steps);
-        }
-
-        // Adds and removes skipping state
-
-    }, {
-        key: 'skippingAnimation',
-        value: function skippingAnimation() {
-            this.isSkipping = true;
-            setTimeout(function () {
-                this.isSkipping = false;
-            }.bind(this), 100);
-        }
-
-        // Checks if an opponents pawn is on the target, if so removes it.
-
-    }, {
-        key: 'checkIfTargetfieldEmpty',
-        value: function checkIfTargetfieldEmpty(targetField) {
-            ApplicationStore.players.forEach(function (player) {
-                if (!player.isPlaying) {
-                    player.pawns.forEach(function (pawn) {
-                        if (pawn.globalPosition == targetField && !pawn.isInTargetField) {
-                            pawn.returnHome();
-                        }
-                    });
-                } else if (player.wonGame()) {
-                    alert('congrats:' + player.name + '! You WON!!!');
-                }
-            });
-        }
-    }, {
-        key: 'getOutOfHome',
-        value: function getOutOfHome(steps) {
-            this.globalPosition = this.startingGlobalPosition + 1;
-            this.position = 1;
-            this.endOfMove(steps);
-        }
-    }, {
-        key: 'enterTargetZone',
-        value: function enterTargetZone(steps) {
-            this.isInTargetField = true;
-            this.position += steps;
-            this.globalPosition = -13 * this.startingGlobalPosition;
-            this.endOfMove(steps);
-        }
-    }, {
-        key: 'moveToPosition',
-        value: function moveToPosition(steps) {
-
-            var targetSum = this.globalPosition + steps;
-            var targetField = targetSum <= 39 ? targetSum : targetSum - 40;
-
-            this.checkIfTargetfieldEmpty(targetField);
-
-            var steppingIndex = this.globalPosition;
-
-            var skippingInterval = setInterval(function () {
-
-                this.skippingAnimation();
-
-                if (steppingIndex < targetField && steppingIndex <= 39 || targetSum > 40 && steppingIndex < 40 || targetSum == 40 && steppingIndex <= 39) {
-                    steppingIndex++;
-                    this.globalPosition = steppingIndex;
-                    if (steppingIndex == targetField) {
-                        this.endOfMove(steps);
-                        clearInterval(skippingInterval);
-                    }
-                } else if (targetSum >= 40 && steppingIndex == 40) {
-                    steppingIndex = 0;
-                    this.globalPosition = steppingIndex;
-                    if (targetSum == 40) clearInterval(skippingInterval);
-                } else {
-                    console.log('Guess I missed something here!');
-                    this.endOfMove(steps);
-                    clearInterval(skippingInterval);
-                }
-            }.bind(this), 200);
-            this.position += steps;
-        }
-    }, {
-        key: 'move',
-        value: function move() {
-            //If not active is home
-            if (!this.isActive) return;
-
-            var steps = ApplicationStore.lastRolledDice;
-
-            if (this.position == 0) {
-                // If pawn is home
-                this.getOutOfHome(steps);
-            } else if (this.position + steps >= 40) {
-                // If pawn is close to ending
-                this.enterTargetZone(steps);
-            } else {
-
-                this.moveToPosition(steps);
+        if (player.isPlaying) {
+          player.pawns.forEach(function (pawn) {
+            if (pawn.globalPosition === this.startingGlobalPosition + 1) {
+              canLeave = false;
             }
+          }.bind(this));
         }
-    }, {
-        key: 'endOfMove',
-        value: function endOfMove(steps) {
-            if (steps == 6) {
-                EventBus.fire(EventKeys.turns.repeatTurn);
-            } else {
-                EventBus.fire(EventKeys.turns.endTurn);
-            }
-        }
-    }]);
+      }.bind(this));
+      return this.position === 0 && steps === 6 && canLeave;
+    }
+  }, {
+    key: 'pathEnds',
+    value: function pathEnds(steps) {
+      return this.position + steps >= 44;
+    }
+  }, {
+    key: 'targetFieldIsEmpty',
+    value: function targetFieldIsEmpty(steps) {
 
-    return Pawn;
+      if (this.position === 0) return false;
+
+      var targetFieldId = this.position + steps;
+      var targetFieldIsFree = true;
+
+      ApplicationStore.players.forEach(function (player) {
+        if (player.isPlaying) {
+          player.pawns.forEach(function (pawn) {
+            if (pawn.position === targetFieldId) {
+              targetFieldIsFree = false;
+            }
+          });
+        }
+      });
+      return targetFieldIsFree;
+    }
+  }, {
+    key: 'isAvaliable',
+    value: function isAvaliable(steps) {
+      var self = this;
+      return (self.canLeaveHome(steps) || this.targetFieldIsEmpty(steps)) && !self.pathEnds(steps);
+    }
+
+    // Adds and removes skipping state
+
+  }, {
+    key: 'skippingAnimation',
+    value: function skippingAnimation() {
+      this.isSkipping = true;
+      setTimeout(function () {
+        this.isSkipping = false;
+      }.bind(this), 100);
+    }
+
+    // Checks if an opponents pawn is on the target, if so removes it.
+
+  }, {
+    key: 'checkIfTargetfieldEmpty',
+    value: function checkIfTargetfieldEmpty(targetField) {
+      ApplicationStore.players.forEach(function (player) {
+        if (!player.isPlaying) {
+          player.pawns.forEach(function (pawn) {
+            if (pawn.globalPosition === targetField && !pawn.isInTargetField) {
+              pawn.returnHome();
+            }
+          });
+        } else if (player.wonGame()) {
+          alert('congrats:' + player.name + '! You WON!!!');
+        }
+      });
+    }
+  }, {
+    key: 'getOutOfHome',
+    value: function getOutOfHome(steps) {
+      this.globalPosition = this.startingGlobalPosition;
+      this.position = 1;
+      this.endOfMove(steps);
+    }
+  }, {
+    key: 'enterTargetZone',
+    value: function enterTargetZone(steps) {
+      this.isInTargetField = true;
+      this.position += steps;
+      this.globalPosition = -13 * this.startingGlobalPosition;
+      this.endOfMove(steps);
+    }
+  }, {
+    key: 'moveToPosition',
+    value: function moveToPosition(steps) {
+
+      var targetSum = this.globalPosition + steps;
+      var targetField = targetSum <= 39 ? targetSum : targetSum - 40;
+
+      this.checkIfTargetfieldEmpty(targetField);
+
+      var steppingIndex = this.globalPosition;
+
+      var skippingInterval = setInterval(function () {
+
+        this.skippingAnimation();
+
+        if (steppingIndex < targetField && steppingIndex <= 39 || targetSum > 40 && steppingIndex < 40 || targetSum == 40 && steppingIndex <= 39) {
+          steppingIndex++;
+          this.globalPosition = steppingIndex;
+          if (steppingIndex == targetField) {
+            this.endOfMove(steps);
+            clearInterval(skippingInterval);
+          }
+        } else if (targetSum >= 40 && steppingIndex == 40) {
+          steppingIndex = 0;
+          this.globalPosition = steppingIndex;
+          if (targetSum == 40) clearInterval(skippingInterval);
+        } else {
+          console.log('Guess I missed something here!');
+          this.endOfMove(steps);
+          clearInterval(skippingInterval);
+        }
+      }.bind(this), 200);
+      this.position += steps;
+    }
+  }, {
+    key: 'move',
+    value: function move() {
+      //If not active is home
+      if (!this.isActive) return;
+
+      var steps = ApplicationStore.lastRolledDice;
+
+      if (this.position == 0) {
+        // If pawn is home
+        this.getOutOfHome(steps);
+      } else if (this.position + steps >= 40) {
+        // If pawn is close to ending
+        this.enterTargetZone(steps);
+      } else {
+
+        this.moveToPosition(steps);
+      }
+    }
+  }, {
+    key: 'endOfMove',
+    value: function endOfMove(steps) {
+      if (steps == 6) {
+        EventBus.fire(EventKeys.turns.repeatTurn);
+      } else {
+        EventBus.fire(EventKeys.turns.endTurn);
+      }
+    }
+  }]);
+
+  return Pawn;
 }();
 
 module.exports = Pawn;
@@ -1329,7 +1566,7 @@ var Player = function () {
         this.name = _name;
         this.isPlaying = false;
         this.avaliablePawnsIndexes = [];
-        this.pawns = [new Pawn(1, _color, (_turn - 1) * 10), new Pawn(2, _color, (_turn - 1) * 10), new Pawn(3, _color, (_turn - 1) * 10), new Pawn(4, _color, (_turn - 1) * 10)];
+        this.pawns = [new Pawn(1, _color, (_turn - 1) * 10, _turn - 1), new Pawn(2, _color, (_turn - 1) * 10, _turn - 1), new Pawn(3, _color, (_turn - 1) * 10, _turn - 1), new Pawn(4, _color, (_turn - 1) * 10, _turn - 1)];
 
         this.stillHome = true;
         this.stillHomeCounter = 0;
@@ -1461,49 +1698,45 @@ window.Promise = __webpack_require__(23);
 window.Vue = __webpack_require__(50);
 window.EventKeys = __webpack_require__(12);
 
-window.Pawn = __webpack_require__(13);
-window.Player = __webpack_require__(14);
-
-window.THREE = __webpack_require__(31);
-
-
 
 Object.keys(__WEBPACK_IMPORTED_MODULE_0_vue_gl__).forEach(function (name) {
   Vue.component(name, __WEBPACK_IMPORTED_MODULE_0_vue_gl__[name]);
 });
 
+window.Pawn = __webpack_require__(13);
+window.Player = __webpack_require__(14);
+
+window.THREE = __webpack_require__(31);
+
 /***/ }),
 /* 16 */
-/***/ (function(module, exports, __webpack_require__) {
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+/***/ (function(module, exports) {
 
 // Set scene
-window.scene = new THREE.Scene();
-window.camera = new THREE.PerspectiveCamera(20, window.innerWidth / window.innerHeight, 0.1, 100);
-window.renderer = new THREE.WebGLRenderer();
-renderer.setSize(window.innerWidth, window.innerHeight);
+// window.scene = new THREE.Scene();
+// window.camera = new THREE.PerspectiveCamera(20,
+//     window.innerWidth / window.innerHeight, 0.1, 100);
+// window.renderer = new THREE.WebGLRenderer();
+// renderer.setSize(window.innerWidth, window.innerHeight);
 // document.body.appendChild(renderer.domElement);
 
-// Controls
-__webpack_require__(32);
-
-var controls = new THREE.OrbitControls(camera, renderer.domElement);
-console.log(controls);
+// // Controls
+// require('three/examples/js/controls/OrbitControls');
+//
+// var controls = new THREE.OrbitControls(camera, renderer.domElement);
+// console.log ( controls );
 
 // Camera
-camera.position.x = -15;
-camera.position.y = 15;
-camera.position.z = -15;
-camera.lookAt(5, 0, 5);
-
-window.addEventListener('resize', function () {
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-});
+// camera.position.x = -15;
+// camera.position.y = 15;
+// camera.position.z = -15;
+// camera.lookAt(5, 0, 5);
+//
+// window.addEventListener('resize', function() {
+//   renderer.setSize(window.innerWidth, window.innerHeight);
+//   camera.aspect = window.innerWidth / window.innerHeight;
+//   camera.updateProjectionMatrix();
+// });
 
 // Mouse interaction
 var body = document.getElementsByTagName('body')[0];
@@ -1511,173 +1744,202 @@ window.setCursor = function (cursor) {
   if (body.style.cursor !== cursor) body.style.cursor = cursor;
 };
 
-// Mouse events
-var raycaster = new THREE.Raycaster();
-var mouse = new THREE.Vector2();
+//
+// // Lighting
+// let ambientLight = new THREE.AmbientLight(0xFFFFFF, 0.1);
+// let lights = [
+//   new THREE.PointLight(0xFFFFFF, 1, 20),
+//   new THREE.PointLight(0xFFFFFF, 1, 20),
+//   new THREE.PointLight(0xFFFFFF, 1, 20),
+//   new THREE.PointLight(0xFFFFFF, 1, 20),
+// ];
+// lights[0].position.set(-2, 10, -2);
+// lights[1].position.set(-2, 10, 13);
+// lights[2].position.set(13, 10, -2);
+// lights[3].position.set(13, 10, 13);
+// // light1.castShadow = true;
+// scene.add(ambientLight);
+// scene.add(lights[0]);
+// scene.add(lights[1]);
+// scene.add(lights[2]);
+// scene.add(lights[3]);
+//
+// var pointLightHelpers = [
+//   new THREE.PointLightHelper(lights[0], 1),
+//   new THREE.PointLightHelper(lights[1], 1),
+//   new THREE.PointLightHelper(lights[2], 1),
+//   new THREE.PointLightHelper(lights[3], 1),
+// ];
+// scene.add(pointLightHelpers[0]);
+// scene.add(pointLightHelpers[1]);
+// scene.add(pointLightHelpers[2]);
+// scene.add(pointLightHelpers[3]);
+//
+// /**
+//  *  Create objects
+//  **/
+// let fields = [
+//   new THREE.Vector3(4, 0.5, 0),
+//   new THREE.Vector3(4, 0.5, 1),
+//   new THREE.Vector3(4, 0.5, 2),
+//   new THREE.Vector3(4, 0.5, 3),
+//   new THREE.Vector3(4, 0.5, 4),
+//   new THREE.Vector3(3, 0.5, 4),
+//   new THREE.Vector3(2, 0.5, 4),
+//   new THREE.Vector3(1, 0.5, 4),
+//   new THREE.Vector3(0, 0.5, 4),
+//   new THREE.Vector3(0, 0.5, 5),
+//   new THREE.Vector3(0, 0.5, 6),
+//   new THREE.Vector3(1, 0.5, 6),
+//   new THREE.Vector3(2, 0.5, 6),
+//   new THREE.Vector3(3, 0.5, 6),
+//   new THREE.Vector3(4, 0.5, 6),
+//   new THREE.Vector3(4, 0.5, 7),
+//   new THREE.Vector3(4, 0.5, 8),
+//   new THREE.Vector3(4, 0.5, 9),
+//   new THREE.Vector3(4, 0.5, 10),
+//   new THREE.Vector3(5, 0.5, 10),
+//   new THREE.Vector3(6, 0.5, 10),
+//   new THREE.Vector3(6, 0.5, 9),
+//   new THREE.Vector3(6, 0.5, 8),
+//   new THREE.Vector3(6, 0.5, 7),
+//   new THREE.Vector3(6, 0.5, 6),
+//   new THREE.Vector3(7, 0.5, 6),
+//   new THREE.Vector3(8, 0.5, 6),
+//   new THREE.Vector3(9, 0.5, 6),
+//   new THREE.Vector3(10, 0.5, 6),
+//   new THREE.Vector3(10, 0.5, 5),
+//   new THREE.Vector3(10, 0.5, 4),
+//   new THREE.Vector3(9, 0.5, 4),
+//   new THREE.Vector3(8, 0.5, 4),
+//   new THREE.Vector3(7, 0.5, 4),
+//   new THREE.Vector3(6, 0.5, 4),
+//   new THREE.Vector3(6, 0.5, 3),
+//   new THREE.Vector3(6, 0.5, 2),
+//   new THREE.Vector3(6, 0.5, 1),
+//   new THREE.Vector3(6, 0.5, 0),
+//   new THREE.Vector3(5, 0.5, 0)
+// ];
+//
+// // Board
+// let boardGeometry = new THREE.BoxGeometry(11, 0.1, 11);
+// let boardMaterials = [
+//   new THREE.MeshLambertMaterial({
+//     map: new THREE.TextureLoader().load('resources/board.png'),
+//     side: THREE.DoubleSide,
+//   }),
+//   new THREE.MeshLambertMaterial({
+//     map: new THREE.TextureLoader().load('resources/board.png'),
+//     side: THREE.DoubleSide,
+//   }),
+//   new THREE.MeshLambertMaterial({
+//     map: new THREE.TextureLoader().load('resources/board.png'),
+//     side: THREE.DoubleSide,
+//   }),
+//   new THREE.MeshLambertMaterial({
+//     map: new THREE.TextureLoader().load('resources/board.png'),
+//     side: THREE.DoubleSide,
+//   }),
+//   new THREE.MeshLambertMaterial({
+//     map: new THREE.TextureLoader().load('resources/board.png'),
+//     side: THREE.DoubleSide,
+//   }),
+//   new THREE.MeshLambertMaterial({
+//     map: new THREE.TextureLoader().load('resources/board.png'),
+//     side: THREE.DoubleSide,
+//   }),
+// ];
 
-function onMouseMove(event) {
-  mouse.x = event.clientX / window.innerWidth * 2 - 1;
-  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-}
-
-// Lighting
-var ambientLight = new THREE.AmbientLight(0xFFFFFF, 0.1);
-var lights = [new THREE.PointLight(0xFFFFFF, 1, 20), new THREE.PointLight(0xFFFFFF, 1, 20), new THREE.PointLight(0xFFFFFF, 1, 20), new THREE.PointLight(0xFFFFFF, 1, 20)];
-lights[0].position.set(-2, 10, -2);
-lights[1].position.set(-2, 10, 13);
-lights[2].position.set(13, 10, -2);
-lights[3].position.set(13, 10, 13);
-// light1.castShadow = true;
-scene.add(ambientLight);
-scene.add(lights[0]);
-scene.add(lights[1]);
-scene.add(lights[2]);
-scene.add(lights[3]);
-
-var pointLightHelpers = [new THREE.PointLightHelper(lights[0], 1), new THREE.PointLightHelper(lights[1], 1), new THREE.PointLightHelper(lights[2], 1), new THREE.PointLightHelper(lights[3], 1)];
-scene.add(pointLightHelpers[0]);
-scene.add(pointLightHelpers[1]);
-scene.add(pointLightHelpers[2]);
-scene.add(pointLightHelpers[3]);
-
-/**
- *  Create objects
- **/
-var fields = [new THREE.Vector3(4, 0.5, 0), new THREE.Vector3(4, 0.5, 1), new THREE.Vector3(4, 0.5, 2), new THREE.Vector3(4, 0.5, 3), new THREE.Vector3(4, 0.5, 4), new THREE.Vector3(3, 0.5, 4), new THREE.Vector3(2, 0.5, 4), new THREE.Vector3(1, 0.5, 4), new THREE.Vector3(0, 0.5, 4), new THREE.Vector3(0, 0.5, 5), new THREE.Vector3(0, 0.5, 6), new THREE.Vector3(1, 0.5, 6), new THREE.Vector3(2, 0.5, 6), new THREE.Vector3(3, 0.5, 6), new THREE.Vector3(4, 0.5, 6), new THREE.Vector3(4, 0.5, 7), new THREE.Vector3(4, 0.5, 8), new THREE.Vector3(4, 0.5, 9), new THREE.Vector3(4, 0.5, 10), new THREE.Vector3(5, 0.5, 10), new THREE.Vector3(6, 0.5, 10), new THREE.Vector3(6, 0.5, 9), new THREE.Vector3(6, 0.5, 8), new THREE.Vector3(6, 0.5, 7), new THREE.Vector3(6, 0.5, 6), new THREE.Vector3(7, 0.5, 6), new THREE.Vector3(8, 0.5, 6), new THREE.Vector3(9, 0.5, 6), new THREE.Vector3(10, 0.5, 6), new THREE.Vector3(10, 0.5, 5), new THREE.Vector3(10, 0.5, 4), new THREE.Vector3(9, 0.5, 4), new THREE.Vector3(8, 0.5, 4), new THREE.Vector3(7, 0.5, 4), new THREE.Vector3(6, 0.5, 4), new THREE.Vector3(6, 0.5, 3), new THREE.Vector3(6, 0.5, 2), new THREE.Vector3(6, 0.5, 1), new THREE.Vector3(6, 0.5, 0), new THREE.Vector3(5, 0.5, 0)];
-
-// Board
-var boardGeometry = new THREE.BoxGeometry(11, 0.1, 11);
-var boardMaterials = [new THREE.MeshLambertMaterial({
-  map: new THREE.TextureLoader().load('resources/board.png'),
-  side: THREE.DoubleSide
-}), new THREE.MeshLambertMaterial({
-  map: new THREE.TextureLoader().load('resources/board.png'),
-  side: THREE.DoubleSide
-}), new THREE.MeshLambertMaterial({
-  map: new THREE.TextureLoader().load('resources/board.png'),
-  side: THREE.DoubleSide
-}), new THREE.MeshLambertMaterial({
-  map: new THREE.TextureLoader().load('resources/board.png'),
-  side: THREE.DoubleSide
-}), new THREE.MeshLambertMaterial({
-  map: new THREE.TextureLoader().load('resources/board.png'),
-  side: THREE.DoubleSide
-}), new THREE.MeshLambertMaterial({
-  map: new THREE.TextureLoader().load('resources/board.png'),
-  side: THREE.DoubleSide
-})];
 // let boardMaterial = new THREE.MeshFaceMaterial(boardMaterials);
 // window.board = new THREE.Mesh(boardGeometry, boardMaterial);
 // board.position.x = board.position.z = 5;
 // board.position.y = -0.05;
 // scene.add(board);
 
-var Pawn = function () {
-  function Pawn(_startingPlace, _color) {
-    var _globalPosition = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 0;
+// class Pawn {
+//   constructor(_startingPlace, _color, _globalPosition = 0) {
+//     //old
+//     this.position = 0;
+//     this.globalPosition = _globalPosition;
+//     this.startingGlobalPosition = _globalPosition;
+//     this.color = _color;
+//     this.isActive = false;
+//     this.startingPlace = _startingPlace;
+//     this.isInTargetField = false;
+//     this.isSkipping = false;
+//     // 3d
+//     this.height = 1;
+//     this.geometry = new THREE.BoxGeometry(.3, 1, .3);
+//     this.material = new THREE.MeshLambertMaterial({color: _color});
+//     this.mesh = new THREE.Mesh(this.geometry, this.material);
+//     this.mesh.position.copy(fields[_globalPosition]);
+//     this.mesh.name = 'cube';
+//     // this.mesh.renderOrder = 1 // like z-index
+//   }
+//
+//   moveTo(_position) {
+//     this.mesh.position.copy(fields[_position]);
+//     this.globalPosition++;
+//   }
+// }
+//
+// window.piunat = [];
+//
+// // EventBus.listen('game.start', function() {
+// //   let i = 0;
+// //   ApplicationStore.players.forEach(function(player) {
+// //     player.pawns.forEach(function(pawn) {
+// //       console.log ( 'player', player );
+// //       console.log(i);
+// //       piunat.push(new Pawn(pawn.startingPlace, pawn.color, pawn.global));
+// //       console.log(piunat);
+// //       scene.add(piunat[i].mesh);
+// //       i++;
+// //     });
+// //   });
+// //
+// // });
+//
+// // scene.add(piunat[0].mesh);
+// // scene.add(piunat[1].mesh);
+// // scene.add(piunat[2].mesh);
+// // scene.add(piunat[3].mesh);
+//
+// let lastHoveredObject = null;
+//
 
-    _classCallCheck(this, Pawn);
 
-    //old
-    this.position = 0;
-    this.globalPosition = _globalPosition;
-    this.startingGlobalPosition = _globalPosition;
-    this.color = _color;
-    this.isActive = false;
-    this.startingPlace = _startingPlace;
-    this.isInTargetField = false;
-    this.isSkipping = false;
-    // 3d
-    this.height = 1;
-    this.geometry = new THREE.BoxGeometry(.3, 1, .3);
-    this.material = new THREE.MeshLambertMaterial({ color: _color });
-    this.mesh = new THREE.Mesh(this.geometry, this.material);
-    this.mesh.position.copy(fields[_globalPosition]);
-    this.mesh.name = 'cube';
-    // this.mesh.renderOrder = 1 // like z-index
-  }
-
-  _createClass(Pawn, [{
-    key: 'moveTo',
-    value: function moveTo(_position) {
-      this.mesh.position.copy(fields[_position]);
-      this.globalPosition++;
-    }
-  }]);
-
-  return Pawn;
-}();
-
-window.piunat = [];
-
-EventBus.listen('game.start', function () {
-  var i = 0;
-  ApplicationStore.players.forEach(function (player) {
-    player.pawns.forEach(function (pawn) {
-      console.log('player', player);
-      console.log(i);
-      piunat.push(new Pawn(pawn.startingPlace, pawn.color, pawn.global));
-      console.log(piunat);
-      scene.add(piunat[i].mesh);
-      i++;
-    });
-  });
-});
-
-// scene.add(piunat[0].mesh);
-// scene.add(piunat[1].mesh);
-// scene.add(piunat[2].mesh);
-// scene.add(piunat[3].mesh);
-
-var lastHoveredObject = null;
-
-// draw Scene
-var render = function render() {
-  raycaster.setFromCamera(mouse, camera);
-  var intersects = raycaster.intersectObjects(scene.children);
-  if (intersects.length > 0) {
-    if (intersects[0].object.name === 'cube') setCursor('pointer');
-    if (intersects[0].object !== lastHoveredObject) {
-      if (lastHoveredObject) {
-        // lastHoveredObject.material.color.setHex(lastHoveredObject.currentHex);
-      }
-      lastHoveredObject = intersects[0].object;
-      // lastHoveredObject.currentHex = lastHoveredObject.material.color.getHex();
-      // lastHoveredObject.material.color.setHex(0xffff00);
-    }
-  } else {
-    if (lastHoveredObject) {
-      // lastHoveredObject.material.color.setHex(lastHoveredObject.currentHex);
-    }
-    lastHoveredObject = null;
-    setCursor('default');
-  }
-  renderer.render(scene, camera);
-};
-
-//game logic
-var update = function update() {};
-
-window.addEventListener('mousemove', onMouseMove, false);
-
-window.addEventListener('click', function () {
-  if (!lastHoveredObject || lastHoveredObject.name !== 'cube') return;
-
-  piunat.forEach(function (piun) {
-    if (piun.mesh.uuid === lastHoveredObject.uuid) {
-      piun.moveTo(piun.globalPosition + 1);
-    }
-  });
-}, false);
-
-// run game loop
-var GameLoop = function GameLoop() {
-  requestAnimationFrame(GameLoop);
-  update();
-  render();
-};
-
-GameLoop();
+// // draw Scene
+var render = function render() {};
+//
+// //game logic
+// let update = function() {
+//
+// };
+//
+// window.addEventListener('mousemove', onMouseMove, false);
+//
+// window.addEventListener('click', function() {
+//   if (!lastHoveredObject || lastHoveredObject.name !== 'cube') return;
+//
+//   piunat.forEach(function(piun) {
+//     if (piun.mesh.uuid === lastHoveredObject.uuid) {
+//       piun.moveTo(piun.globalPosition + 1);
+//     }
+//   });
+//
+// }, false);
+//
+// // run game loop
+// let GameLoop = function() {
+//   requestAnimationFrame(GameLoop);
+//   update();
+//   render();
+// };
+//
+// GameLoop();
+//
+//
 
 /***/ }),
 /* 17 */
@@ -129798,28 +130060,7 @@ if (false) {
 /***/ (function(module, exports, __webpack_require__) {
 
 module.exports={render:function (){var _vm=this;var _h=_vm.$createElement;var _c=_vm._self._c||_h;
-  return _c('div', [_c('h3', {
-    on: {
-      "click": _vm.rollDice
-    }
-  }, [_vm._v(_vm._s(_vm.currentFace))]), _vm._v(" "), _c('div', {
-    staticClass: "scene"
-  }, [_c('div', {
-    staticClass: "cube",
-    class: ['show-' + _vm.currentFace, _vm.store.gamePlayStatus.isRolling ? 'is-active' : ''],
-    on: {
-      "click": _vm.rollDice
-    }
-  }, _vm._l((_vm.cubeFaces), function(cubeFace) {
-    return _c('div', {
-      staticClass: "cube__face",
-      class: ['cube__face--' + cubeFace.face]
-    }, _vm._l((cubeFace.number), function(dot) {
-      return _c('div', {
-        staticClass: "dot"
-      })
-    }), 0)
-  }), 0)])])
+  return _c("div")
 },staticRenderFns: []}
 module.exports.render._withStripped = true
 if (false) {
@@ -129836,8 +130077,11 @@ if (false) {
 module.exports={render:function (){var _vm=this;var _h=_vm.$createElement;var _c=_vm._self._c||_h;
   return _c('div', _vm._l((_vm.store.players), function(player) {
     return _c('div', {
-      staticClass: "player-home"
-    }, [_c('div', {
+      staticClass: "player-home",
+      class: {
+        'is-playing': player.isPlaying
+      }
+    }, [_vm._v("\n            " + _vm._s(player.name) + " " + _vm._s(player.turn) + "\n            "), _c('div', {
       staticClass: "circles"
     }, _vm._l((player.pawns), function(pawn) {
       return _c('span', {

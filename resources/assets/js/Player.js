@@ -6,10 +6,10 @@ class Player {
         this.isPlaying = false;
         this.avaliablePawnsIndexes = [];
         this.pawns = [
-            new Pawn(1, _color, (_turn - 1) * 10),
-            new Pawn(2, _color, (_turn - 1) * 10),
-            new Pawn(3, _color, (_turn - 1) * 10),
-            new Pawn(4, _color, (_turn - 1) * 10)
+            new Pawn(1, _color, (_turn - 1) * 10, _turn - 1),
+            new Pawn(2, _color, (_turn - 1) * 10, _turn - 1),
+            new Pawn(3, _color, (_turn - 1) * 10, _turn - 1),
+            new Pawn(4, _color, (_turn - 1) * 10, _turn - 1)
         ];
 
         this.stillHome = true;
