@@ -1,119 +1,143 @@
 class Player {
-    constructor(_name, _color, _turn, _index) {
-        this.index = _index;
-        this.turn = _turn;
-        this.name = _name;
-        this.isPlaying = false;
-        this.avaliablePawnsIndexes = [];
-        this.pawns = [
-            new Pawn(1, _color, (_turn - 1) * 10, _turn - 1),
-            new Pawn(2, _color, (_turn - 1) * 10, _turn - 1),
-            new Pawn(3, _color, (_turn - 1) * 10, _turn - 1),
-            new Pawn(4, _color, (_turn - 1) * 10, _turn - 1)
-        ];
+  constructor(_name, _color, _turn, _isComputer = true) {
+    this.index = _turn - 1;
+    this.isComputer = _isComputer;
+    this.turn = _turn;
+    this.name = _name;
+    this.isPlaying = false;
+    this.avaliablePawnsIndexes = [];
+    this.pawns = [
+      new Pawn(1, _color, (_turn - 1) * 10, _turn - 1),
+      new Pawn(2, _color, (_turn - 1) * 10, _turn - 1),
+      new Pawn(3, _color, (_turn - 1) * 10, _turn - 1),
+      new Pawn(4, _color, (_turn - 1) * 10, _turn - 1),
+    ];
 
-        this.stillHome = true;
-        this.stillHomeCounter = 0;
+    this.stillHome = true;
+    this.stillHomeCounter = 0;
+  }
+
+  startTurn() {
+    ApplicationStore.gamePlayStatus.isRolling = true;
+    this.isPlaying = true;
+console.log ( 'startit' );
+    if (this.isComputer) {
+      setTimeout(function() {
+        EventBus.fire('EventKeys.rollDice');
+      }.bind(this), 1000);
     }
+  }
 
-    startTurn() {
-        ApplicationStore.gamePlayStatus.isRolling = true;
-        this.isPlaying = true;
-    }
+  endTurn() {
+    this.isPlaying = false;
+    this.pawns.forEach(function(pawn) {
+      pawn.isActive = false;
+    });
+  }
 
-    endTurn() {
-        this.isPlaying = false;
-        this.pawns.forEach(function (pawn) {
-            pawn.isActive = false;
-        });
-    }
+  pawnsAvailable() {
+    return this.avaliablePawnsIndexes.length;
+  }
 
-    pawnsAvailable() {
-        return this.avaliablePawnsIndexes.length;
-    }
+  rollDice(diceResult) {
+    ApplicationStore.lastRolledDice = diceResult;
+    this.setAvaliablePawns(diceResult);
 
-    rollDice(diceResult) {
-        ApplicationStore.lastRolledDice = diceResult;
+    console.log(this.name, ' rolled ', diceResult);
 
-        this.setAvaliablePawns(diceResult);
+    /** Check if player has available pawns **/
+    if (this.pawnsAvailable() !== 0 || this.stillHome) {
 
-        /** Check if player has available pawns **/
-        if (this.pawnsAvailable() != 0 || this.stillHome ) {
+      /** If all pawns home, roll dice 3 times **/
+      if (this.stillHome && diceResult !== 6) {
 
-            if (this.stillHome && diceResult != 6) {
-                /** If all pawns home, roll dice 3 times **/
+        this.stillHomeCounter++;
 
-                this.stillHomeCounter++;
-                if (this.stillHomeCounter >= 3) {
-                    EventBus.fire(EventKeys.turns.endTurn);
-                    this.stillHomeCounter = 0;
-                }
-            } else {
-                ApplicationStore.gamePlayStatus.isRolling = false;
-                ApplicationStore.gamePlayStatus.isMoving = true;
-                this.stillHome = false;
-
-                if (this.pawnsAvailable() == 1) {
-                    this.movePawnAutomatically();
-                }
-            }
-        } else {
-            /** If no pawns available **/
-            EventBus.fire(EventKeys.turns.endTurn);
+        if (this.stillHomeCounter >= 3) {
+          EventBus.fire(EventKeys.turns.endTurn);
+          this.stillHomeCounter = 0;
+        } else if (this.isComputer) {
+          console.log ( 'Rollin again, still home' );
+          setTimeout(function() {
+            EventBus.fire('EventKeys.rollDice');
+          }.bind(this), 2000);
         }
+
+
+      } else if (this.stillHome && diceResult === 6 && this.isComputer) {
+console.log ( '6qe' );
+        ApplicationStore.gamePlayStatus.isRolling = false;
+        ApplicationStore.gamePlayStatus.isMoving = true;
+        this.stillHome = false;
+        this.movePawnAutomatically();
+
+      } else {
+        ApplicationStore.gamePlayStatus.isRolling = false;
+        ApplicationStore.gamePlayStatus.isMoving = true;
+        this.stillHome = false;
+
+        this.movePawnAutomatically();
+
+        // if (this.isComputer) {
+        //     this.movePawnAutomatically();
+        // }
+      }
+    } else if (!this.pawnsAvailable()) {
+      /** If no pawns available **/
+      EventBus.fire(EventKeys.turns.endTurn);
     }
+  }
 
-    movePawnAutomatically() {
-        this.pawns.forEach(function (pawn) {
-
-             if(pawn.isActive) {
-                 pawn.move();
-             }
-        });
+  movePawnAutomatically() {
+    if (this.pawnsAvailable() == 1 || this.isComputer) {
+      let pawnMoved = false;
+      this.pawns.forEach(function(pawn) {
+        if (pawn.isActive && !pawnMoved) {
+          pawn.move();
+          pawnMoved = true;
+        }
+      });
     }
+  }
 
-    hasAllPawnsHome() {
-        this.pawns.every(function (pawn) {
-            pawn.position = 0;
-        })
-    }
+  hasAllPawnsHome() {
+    this.pawns.every(function(pawn) {
+      pawn.position = 0;
+    });
+  }
 
+  /** Returns array of all avaliable pawns. */
+  setAvaliablePawns(steps) {
+    this.avaliablePawnsIndexes = [];
 
-    /** Returns array of all avaliable pawns. */
-    setAvaliablePawns(steps) {
-        this.avaliablePawnsIndexes = [];
+    this.pawns.forEach(function(pawn, index) {
+      if (pawn.isAvaliable(steps)) {
+        this.avaliablePawnsIndexes.push(index);
+        pawn.isActive = true;
+      }
+    }.bind(this));
+  }
 
-        this.pawns.forEach(function (pawn, index) {
-            if (pawn.isAvaliable(steps)) {
-                this.avaliablePawnsIndexes.push(index);
-                pawn.isActive = true;
-            }
-        }.bind(this));
-    }
+  pawnPositions() {
+    let pawnGlobalPositions = [];
+    this.pawns.forEach(function(pawn) {
+      pawnGlobalPositions.push(pawn.globalPosition);
+    });
+    return pawnGlobalPositions;
+  }
 
-    pawnPositions() {
-        let pawnGlobalPositions = [];
-        this.pawns.forEach(function (pawn) {
-            pawnGlobalPositions.push(pawn.globalPosition);
-        });
-        return pawnGlobalPositions;
-    }
+  wonGame() {
+    let pawnsInTarget = [];
 
-    wonGame() {
-        let pawnsInTarget = [];
+    this.pawns.forEach(function(pawn, index) {
+      if (pawn.isInTargetField) {
+        pawnsInTarget.push(index);
+      }
+    }.bind(this));
 
-
-        this.pawns.forEach(function (pawn, index) {
-            if (pawn.isInTargetField) {
-                pawnsInTarget.push(index);
-            }
-        }.bind(this));
-
-        return pawnsInTarget.length == 4;
-    }
-
+    return pawnsInTarget.length == 4;
+  }
 
 }
-
 
 module.exports = Player;

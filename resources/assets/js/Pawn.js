@@ -10,40 +10,45 @@ class Pawn {
     this.isActive = false;
     this.isInTargetField = false;
     this.isSkipping = false;
+    this.isSkippingTo = 0;
     this.startingPlace = _startingPlace;
   }
 
-  // Generate target class name
-  targetPositionClassName() { // TODO
-    if (this.position < 40) return;
-    let playerTurn = this.startingGlobalPosition / 10;
-    return 'field-target-' + (this.position - 39 + (playerTurn * 4));
-  }
-
-  targetPosition() { // TODO
-    let playerTurn = this.startingGlobalPosition / 10;
-    return (this.position - 39 + (playerTurn * 4) - 1);
-  }
-
   getPosition(height = 0) {
+    let x, y, z;
+    let fields = ApplicationStore.fields;
     if (!this.position) {
-      return `${ApplicationStore.fields.home[this.playerIndex].fields[this.startingPlace -
-      1].x} ${height} ${ApplicationStore.fields.home[this.playerIndex].fields[this.startingPlace -
-      1].z}`;
-    } else if (this.position <= 40) {
-      return `${ApplicationStore.fields.path[this.globalPosition].x} ${height} ${ApplicationStore.fields.path[this.globalPosition].z}`;
-    } else if (this.position > 40) {
-      return `${ApplicationStore.fields.target[this.playerIndex].fields[this.targetPosition()].x} ${height} ${ApplicationStore.fields.target[this.playerIndex].fields[this.targetPosition()].z}`;
+
+      x = fields.home[this.playerIndex].fields[this.startingPlace - 1].x;
+      y = height;
+      z = fields.home[this.playerIndex].fields[this.startingPlace - 1].z;
+
+    } else if (this.position <= 39) {
+
+      if (this.globalPosition > 39){
+        x = fields.path[0].x;
+        y = height;
+        z = fields.path[0].z;
+
+        console.log(`%c Lepuri: ${this.globalPosition}`, `color: ${this.color}`);
+      } else {
+        x = fields.path[this.globalPosition].x;
+        y = height;
+        z = fields.path[this.globalPosition].z;
+      }
+
+
+    } else if (this.position > 39) {
+      x = fields.target[this.playerIndex].fields[this.position - 41].x;
+      y = height;
+      z = fields.target[this.playerIndex].fields[this.position - 41].z;
     }
+    return `${x} ${y} ${z}`
   }
 
   // Returns pawn classes
   classes() {
     return [
-      this.globalPosition >= 0 ? 'field-' + this.globalPosition : '',  // Position on playing fields
-      this.targetPositionClassName(),                                  // TODO Position on target
-      this.isActive ? 'is-avaliable' : '',                             // Availability
-      this.color,                                                      // Color
       this.isSkipping ? 'is-skipping' : '',                            // TODO Skip animation
     ];
   }
@@ -101,7 +106,8 @@ class Pawn {
   }
 
   // Adds and removes skipping state
-  skippingAnimation() {
+  skippingAnimation(targetIndex) {
+    this.isSkippingTo = targetIndex;
     this.isSkipping = true;
     setTimeout(function() {
       this.isSkipping = false;
@@ -124,15 +130,10 @@ class Pawn {
   }
 
   getOutOfHome(steps) {
-
-    let oldPosition = this.getPosition();
-
     this.globalPosition = this.startingGlobalPosition;
     this.position = 1;
 
-
     this.endOfMove(steps);
-
   }
 
   enterTargetZone(steps) {
@@ -145,7 +146,7 @@ class Pawn {
   moveToPosition(steps) {
 
     let targetSum = this.globalPosition + steps;
-    let targetField = targetSum <= 39 ? targetSum : targetSum - 40;
+    let targetField = targetSum <= 40 ? targetSum : targetSum - 40;
 
     this.checkIfTargetfieldEmpty(targetField);
 
@@ -155,19 +156,21 @@ class Pawn {
 
       this.skippingAnimation();
 
-      if ((steppingIndex < targetField && steppingIndex <= 39) ||
+      if ((steppingIndex < targetField && steppingIndex <= 40) ||
           (targetSum > 40 && steppingIndex < 40) ||
-          (targetSum == 40 && steppingIndex <= 39)) {
+          (targetSum === 40 && steppingIndex <= 39)) {
+
         steppingIndex++;
+
         this.globalPosition = steppingIndex;
-        if (steppingIndex == targetField) {
+        if (steppingIndex === targetField) {
           this.endOfMove(steps);
           clearInterval(skippingInterval);
         }
-      } else if (targetSum >= 40 && steppingIndex == 40) {
+      } else if (targetSum >= 40 && steppingIndex === 40) {
         steppingIndex = 0;
         this.globalPosition = steppingIndex;
-        if (targetSum == 40)
+        if (targetSum === 40)
           clearInterval(skippingInterval);
       } else {
         console.log('Guess I missed something here!');

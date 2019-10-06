@@ -10,16 +10,7 @@
 
     <link href="public/assets/dist/css/app.css" rel="stylesheet">
     <script src="//cdnjs.cloudflare.com/ajax/libs/modernizr/2.8.3/modernizr.min.js"></script>
-    <style>
-        #app {
-            position: absolute;
-        }
 
-        canvas {
-            width: 100%;
-            height: 100%;
-        }
-    </style>
 </head>
 <body>
 <main>
@@ -27,23 +18,96 @@
         <nav></nav>
     </header>
 
-    <div id="app">
+    <div id="app" :class="{'cursor-pointer' : store.cursorPointer}">
         <div class="container" style="opacity: .15; pointer-events: none; display: none;">
             <!--                    <div class="container" style="opacity: .3; position: absolute;">-->
             <the-game :stepping-fields="steppingFields"></the-game>
         </div>
 
+        <pre style="position: absolute; top:0;left: 0;z-index: 100; color:white" >
+            <span v-for="player in store.players">
+                <span style="width: 15px;height: 15px; display: inline-block;"
+                      :style="{backgroundColor: player.pawns[0].color}">
+                </span>{{player.pawns[0].globalPosition}}
+            </span>
+        </pre>
+
         <vgl-renderer name="renderer" camera="cmr1" antialias style="height: 100vh; width: 100vw;">
-            <vgl-scene name="scene" fog="#ffffff 10 100" backgroundColor="#ffffff">
+            <vgl-scene name="scene" background-color="#222222">
 
                 <!-- Board -->
                 <vgl-box-geometry name="boardGeometry" width=11 height=0.1 depth="11" ></vgl-box-geometry>
-                <vgl-mesh-lambert-material name="boardMaterial"></vgl-mesh-lambert-material>
+                <vgl-mesh-phong-material name="boardMaterial"></vgl-mesh-phong-material>
                 <vgl-mesh geometry="boardGeometry" material="boardMaterial" :position="board.position" recieve-shadow></vgl-mesh>
 
                 <!-- Dice -->
-                <the-dice></the-dice>
+                <vgl-group>
 
+
+                    <vgl-box-geometry name="diceGeometry" width=0.8 height=0.8 depth=0.8></vgl-box-geometry>
+                    <vgl-mesh-lambert-material name="diceMaterial" color="#ffffff"></vgl-mesh-lambert-material>
+                    <vgl-cylinder-geometry name="diceDotGeometry"
+                                           radius-top=0.08
+                                           radius-bottom=0.08
+                                           height=0.05
+                                           :radial-segments=6
+                    ></vgl-cylinder-geometry>
+                    <vgl-mesh-basic-material name="diceDotMaterial" color="#000000"></vgl-mesh-basic-material>
+
+
+                    <vgl-group :rotation="`${store.diceData.x} ${store.diceData.y} ${store.diceData.z}`" position="5 0.7 5" name="dice">
+                        <!--I-->
+                        <vgl-mesh geometry="diceDotGeometry" material="diceDotMaterial" position="0 -0.4 0"></vgl-mesh>
+                        <!--II-->
+                        <vgl-mesh geometry="diceDotGeometry" material="diceDotMaterial" position="0.15 0.4 0.15"></vgl-mesh>
+                        <vgl-mesh geometry="diceDotGeometry" material="diceDotMaterial" position="-0.15 0.4 -0.15"></vgl-mesh>
+
+                        <!--III-->
+                        <vgl-mesh geometry="diceDotGeometry" material="diceDotMaterial" rotation="1.57 0 0"
+                                  position="0.175 0.175 0.4"></vgl-mesh>
+                        <vgl-mesh geometry="diceDotGeometry" material="diceDotMaterial" rotation="1.57 0 0"
+                                  position="0 0 0.4"></vgl-mesh>
+                        <vgl-mesh geometry="diceDotGeometry" material="diceDotMaterial" rotation="1.57 0 0"
+                                  position="-0.175 -0.175 0.4"></vgl-mesh>
+
+                        <!--IV-->
+                        <vgl-mesh geometry="diceDotGeometry" material="diceDotMaterial" rotation="1.57 0 0"
+                                  position="0.15 0.15 -0.4"></vgl-mesh>
+                        <vgl-mesh geometry="diceDotGeometry" material="diceDotMaterial" rotation="1.57 0 0"
+                                  position="0.15 -0.15 -0.4"></vgl-mesh>
+                        <vgl-mesh geometry="diceDotGeometry" material="diceDotMaterial" rotation="1.57 0 0"
+                                  position="-0.15 -0.15 -0.4"></vgl-mesh>
+                        <vgl-mesh geometry="diceDotGeometry" material="diceDotMaterial" rotation="1.57 0 0"
+                                  position="-0.15 0.15 -0.4"></vgl-mesh>
+
+                        <!--V-->
+                        <vgl-mesh geometry="diceDotGeometry" material="diceDotMaterial" rotation="0 0 1.57"
+                                  position="0.4 0.175 0.175"></vgl-mesh>
+                        <vgl-mesh geometry="diceDotGeometry" material="diceDotMaterial" rotation="0 0 1.57"
+                                  position="0.4 0.175 -0.175"></vgl-mesh>
+                        <vgl-mesh geometry="diceDotGeometry" material="diceDotMaterial" rotation="0 0 1.57"
+                                  position="0.4 -0.175 -0.175"></vgl-mesh>
+                        <vgl-mesh geometry="diceDotGeometry" material="diceDotMaterial" rotation="0 0 1.57"
+                                  position="0.4 -0.175 0.175"></vgl-mesh>
+                        <vgl-mesh geometry="diceDotGeometry" material="diceDotMaterial" rotation="0 0 1.57"
+                                  position="0.4 0 0"></vgl-mesh>
+                        <!--V-->
+                        <vgl-mesh geometry="diceDotGeometry" material="diceDotMaterial" rotation="0 0 1.57"
+                                  position="-0.4 0.175 0.15"></vgl-mesh>
+                        <vgl-mesh geometry="diceDotGeometry" material="diceDotMaterial" rotation="0 0 1.57"
+                                  position="-0.4 0.175 -0.15"></vgl-mesh>
+                        <vgl-mesh geometry="diceDotGeometry" material="diceDotMaterial" rotation="0 0 1.57"
+                                  position="-0.4 0 -0.15"></vgl-mesh>
+                        <vgl-mesh geometry="diceDotGeometry" material="diceDotMaterial" rotation="0 0 1.57"
+                                  position="-0.4 0 0.15"></vgl-mesh>
+                        <vgl-mesh geometry="diceDotGeometry" material="diceDotMaterial" rotation="0 0 1.57"
+                                  position="-0.4 -0.175 0.15"></vgl-mesh>
+                        <vgl-mesh geometry="diceDotGeometry" material="diceDotMaterial" rotation="0 0 1.57"
+                                  position="-0.4 -0.175 -0.15"></vgl-mesh>
+
+                        <vgl-mesh geometry="diceGeometry" material="diceMaterial"></vgl-mesh>
+                    </vgl-group>
+                </vgl-group>
 
                 <!-- Stepping Fields -->
                 <vgl-cylinder-geometry name="fieldGeometry"
@@ -53,11 +117,15 @@
                                        :radial-segments=store.settings.quality
                 ></vgl-cylinder-geometry>
                 <vgl-mesh-lambert-material name="fieldMaterial"></vgl-mesh-lambert-material>
+
+
+
                 <vgl-mesh v-for="(field, index) in store.fields.path"
                           :key="`field-${index}`"
                           :position="`${field.x} 0 ${field.z}`"
                           geometry="fieldGeometry" material="fieldMaterial"
-                ></vgl-mesh>
+                >
+                </vgl-mesh>
 
 
                 <!-- Home Fields -->
@@ -93,6 +161,11 @@
                 <vgl-cylinder-geometry name="pawnIndicatorGeometry" radius-top=0.08 height="0.15"
                                        radius-bottom=0.12></vgl-cylinder-geometry>
 
+                <vgl-mesh-basic-material name="indicatorMaterial"
+                                           color="#ffffff"
+                                           opacity='0.1'
+                                           transparent='true'
+                ></vgl-mesh-basic-material>
 
                 <vgl-cylinder-geometry name="pawnBodyGeometry"
                                        radius-top=0
@@ -108,46 +181,57 @@
                 ></vgl-sphere-geometry>
 
 
+<!--                font-->
+<!--                <vgl-mesh-basic-material name="std"></vgl-mesh-basic-material>-->
+<!--                <vgl-text-geometry size="0.3" height="0.01" font="https://api.myjson.com/bins/11zmm7" name="text" :text="`${getPawnPosition(pawn)}`"></vgl-text-geometry>-->
+<!--                <vgl-mesh geometry="text" material="std" position="0 2 0"></vgl-mesh>-->
 
 
 
                 <span v-for="(player, playerIndex) in store.players">
+                    <vgl-mesh-phong-material :name="`pawnMaterial-${playerIndex}`"
+                                               :color="`${store.fields.home[playerIndex].color}`"
+                    ></vgl-mesh-phong-material>
+
                     <vgl-mesh-lambert-material :name="`fieldMaterial-${playerIndex}`"
                                                :color="`${store.fields.home[playerIndex].color}`"
                     ></vgl-mesh-lambert-material>
 
                     <vgl-group v-for="(pawn, index) in player.pawns" :key="`pawn-${playerIndex}-${index}`"
-                               :position="pawn.getPosition(0)"
+                               :position="getPawnPosition(pawn)"
                                :name="`cube-${pawn.id}`">
 
-                        <vgl-mesh :material="`fieldMaterial-${playerIndex}`"
+
+
+
+                        <vgl-mesh :material="`pawnMaterial-${playerIndex}`"
                                   position="0 0.6 0"
                                   geometry="pawnBodyGeometry"
                         ></vgl-mesh>
-                        <vgl-mesh :material="`fieldMaterial-${playerIndex}`"
+                        <vgl-mesh :material="`pawnMaterial-${playerIndex}`"
                                   position="0 1 0"
                                   geometry="pawnHeadGeometry"
                         ></vgl-mesh>
 
                         <vgl-group position="0 0 0" :rotation="`0 ${indicator.rotation} 0`" v-if="pawn.isActive"
                                    :name="`cube-${pawn.id}`">
-                            <vgl-mesh :material="`fieldMaterial-${playerIndex}`"
+                            <vgl-mesh material="indicatorMaterial"
                                       position="0.3 0.5 0"
                                       rotation="0 0 -1.3"
                                       geometry="pawnIndicatorGeometry"
                             ></vgl-mesh>
-                            <vgl-mesh :material="`fieldMaterial-${playerIndex}`"
+                            <vgl-mesh material="indicatorMaterial"
                                       position="-0.3 0.5 0"
                                       rotation="0 0 1.3"
                                       geometry="pawnIndicatorGeometry"
                             ></vgl-mesh>
-                            <vgl-mesh :material="`fieldMaterial-${playerIndex}`"
+                            <vgl-mesh material="indicatorMaterial"
                                       position="0 0.5 0.3"
                                       rotation="1.3 0 0"
                                       geometry="pawnIndicatorGeometry"
                             ></vgl-mesh>
 
-                            <vgl-mesh :material="`fieldMaterial-${playerIndex}`"
+                            <vgl-mesh material="indicatorMaterial"
                                       position="0 0.5 -0.3"
                                       rotation="-1.3 0 0"
                                       geometry="pawnIndicatorGeometry"
@@ -162,7 +246,7 @@
 
 
 
-                <vgl-ambient-light color="#ffffff" intensity="0.1"></vgl-ambient-light>
+                <vgl-ambient-light color="#ffffff" intensity="0.13"></vgl-ambient-light>
                 <vgl-point-light v-for="(light, index) in pointLights"
                                  :key="`light-${index}`"
                                  :color="light.color"
@@ -178,14 +262,14 @@
         </vgl-renderer>
 
 
-        <!--        <aside class="control-panel" style="width: 100%;position: absolute; top:0; z-index: 9; background-color: white;">-->
-        <!--            <label>Quality: <input type="range" v-model="store.settings.quality"> {{store.settings.quality}}</label>-->
-        <!--            <button @click="rotate">Rotate</button>-->
-        <!--            time: {{time}}-->
-        <!--            <label style="width: 100%; display: block;">X: <input style="width: 100%;" type="range" step="0.1" v-model="x"> {{x}}</label>-->
-        <!--            <label style="width: 100%; display: block;">Y: <input style="width: 100%;" type="range" step="0.1" v-model="y"> {{y}}</label>-->
-        <!--            <label style="width: 100%; display: block;">Z: <input style="width: 100%;" type="range" step="0.1" v-model="z"> {{z}}</label>-->
-        <!--        </aside>-->
+<!--                <aside class="control-panel" style="width: 100%;position: absolute; top:0; z-index: 9; background-color: white;">-->
+<!--                    <label>Quality: <input type="range" v-model="store.settings.quality"> {{store.settings.quality}}</label>-->
+<!--                    <button @click="rotate">Rotate</button>-->
+<!--                    time: {{time}}-->
+<!--                    <label style="width: 100%; display: block;">X: <input style="width: 100%;" type="range" step="0.1" v-model="store.diceData.x"> {{store.diceData.x}}</label>-->
+<!--                    <label style="width: 100%; display: block;">Y: <input style="width: 100%;" type="range" step="0.1" v-model="store.diceData.y"> {{store.diceData.y}}</label>-->
+<!--                    <label style="width: 100%; display: block;">Z: <input style="width: 100%;" type="range" step="0.1" v-model="store.diceData.z"> {{store.diceData.z}}</label>-->
+<!--                </aside>-->
 
 
     </div>

@@ -22,13 +22,34 @@ const GlobalMixin = require('./mixins/Global');
 Vue.use(GlobalMixin);
 
 // Components
-Vue.component('the-Scene', require('./components/TheScene'));
+// Vue.component('the-Scene', require('./components/TheScene'));
 Vue.component('the-game', require('./components/TheGame'));
-Vue.component('the-dice', require('./components/TheDice'));
-Vue.component('stepping-fields', require('./components/SteppingFields'));
-Vue.component('player-homes', require('./components/PlayerHomes'));
+// Vue.component('the-dice', require('./components/TheDice'));
+// Vue.component('stepping-fields', require('./components/SteppingFields'));
+// Vue.component('player-homes', require('./components/PlayerHomes'));
 
 window.ApplicationStore = {
+
+  x: 0,
+  y: 0,
+  z: 0,
+
+  cursorPointer: false,
+
+  diceData: {
+    interval: [null, null, null],
+    allDone: [false, false, false],
+    diceCalc: {
+      x: 0,
+      y: 0,
+      z: 0,
+    },
+    time: 300,
+    x: 0,
+    y: 0,
+    z: 0,
+  },
+
   settings: {
     quality: 12,
   },
@@ -39,14 +60,14 @@ window.ApplicationStore = {
           new THREE.Vector3(0, 0.5, 0), new THREE.Vector3(0, 0.5, 1),
           new THREE.Vector3(1, 0.5, 0), new THREE.Vector3(1, 0.5, 1),
         ],
-        color: '#ff0000',
+        color: '#CE0000',
       },
       {
         fields: [
           new THREE.Vector3(9, 0.5, 0), new THREE.Vector3(9, 0.5, 1),
           new THREE.Vector3(10, 0.5, 0), new THREE.Vector3(10, 0.5, 1),
         ],
-        color: '#ffff00',
+        color: '#F7D708',
 
       },
       {
@@ -54,14 +75,14 @@ window.ApplicationStore = {
           new THREE.Vector3(9, 0.5, 9), new THREE.Vector3(9, 0.5, 10),
           new THREE.Vector3(10, 0.5, 9), new THREE.Vector3(10, 0.5, 10),
         ],
-        color: '#00ff00',
+        color: '#9CCF31',
       },
       {
         fields: [
           new THREE.Vector3(0, 0.5, 9), new THREE.Vector3(0, 0.5, 10),
           new THREE.Vector3(1, 0.5, 9), new THREE.Vector3(1, 0.5, 10),
         ],
-        color: '#0000ff',
+        color: '#009ECE',
 
       },
     ],
@@ -71,34 +92,33 @@ window.ApplicationStore = {
           new THREE.Vector3(1, 0.5, 5), new THREE.Vector3(2, 0.5, 5),
           new THREE.Vector3(3, 0.5, 5), new THREE.Vector3(4, 0.5, 5),
         ],
-        color: '#ff0000',
+        color: '#CE0000',
       },
       {
         fields: [
           new THREE.Vector3(5, 0.5, 1), new THREE.Vector3(5, 0.5, 2),
           new THREE.Vector3(5, 0.5, 3), new THREE.Vector3(5, 0.5, 4),
         ],
-        color: '#ffff00',
+        color: '#F7D708',
       },
       {
         fields: [
           new THREE.Vector3(9, 0.5, 5), new THREE.Vector3(8, 0.5, 5),
           new THREE.Vector3(7, 0.5, 5), new THREE.Vector3(6, 0.5, 5),
         ],
-        color: '#00ff00',
+        color: '#9CCF31',
       },
       {
         fields: [
           new THREE.Vector3(5, 0.5, 9), new THREE.Vector3(5, 0.5, 8),
           new THREE.Vector3(5, 0.5, 7), new THREE.Vector3(5, 0.5, 6),
         ],
-        color: '#0000ff',
+        color: '#009ECE',
       },
     ],
-
     path: [
-      new THREE.Vector3(0, 0.5, 4),
-      new THREE.Vector3(1, 0.5, 4),
+      new THREE.Vector3(0, 0.5, 4), // 0
+      new THREE.Vector3(1, 0.5, 4), // 1
       new THREE.Vector3(2, 0.5, 4),
       new THREE.Vector3(3, 0.5, 4),
       new THREE.Vector3(4, 0.5, 4),
@@ -151,8 +171,8 @@ window.ApplicationStore = {
     isRolling: false,
     isMoving: false,
   },
+  controls: null,
 };
-
 
 require('three/examples/js/controls/OrbitControls');
 
@@ -160,16 +180,35 @@ window.Burrec = new Vue({
   el: '#app',
   mounted() {
     this.$nextTick(function() {
-      setInterval(function() {
-        this.indicator.rotation += 0.1;
-      }.bind(this), 70);
+
+
+
+      window.addEventListener('keypress', function(e) {
+        if (e.keyCode === 32) {
+          this.rollDice();
+        }
+      }.bind(this));
+      EventBus.listen('EventKeys.rollDice', function(amount) {
+        this.rollDice(amount);
+      }.bind(this));
 
       let scene = this.$children[1].vglNamespace.scenes['scene'];
       let camera = this.$children[1].vglNamespace.cameras['cmr1'];
       let renderer = this.$children[1].vglNamespace.renderers[0];
-      const controls = new THREE.OrbitControls(
-          this.$children[1].vglNamespace.cameras['cmr1'], renderer.$el);
-      controls.addEventListener('change', () => {
+
+      this.controls = new THREE.OrbitControls(
+          this.$children[1].vglNamespace.cameras['cmr1'],
+          renderer.$el,
+      );
+
+      this.controls.minPolarAngle = Math.PI / 5;
+      this.controls.maxPolarAngle = Math.PI / 3;
+      this.controls.target = new THREE.Vector3(5, 0, 5);
+      this.controls.maxDistance = 30;
+      this.controls.minDistance = 15;
+      this.controls.enablePan = false;
+
+      this.controls.addEventListener('change', () => {
         this.$children[1].vglNamespace.update();
         render();
       });
@@ -192,19 +231,17 @@ window.Burrec = new Vue({
         raycaster.setFromCamera(mouse, camera);
         let intersects = raycaster.intersectObjects(scene.children, true);
         if (intersects.length > 0) {
-          console.log ( intersects);
-          if (intersects[0].object.parent.name.toString().startsWith('cube'))
-          {
-            setCursor('pointer');
-            lastHoveredObject =intersects[0].object.parent.name
+          let intersectedObjectName = intersects[0].object.parent.name.toString();
+          if (intersectedObjectName.startsWith('cube') ||
+              intersectedObjectName === 'dice') {
+            self.store.cursorPointer = true;
+            lastHoveredObject = intersectedObjectName;
+          } else {
+            self.store.cursorPointer = false;
           }
-
         } else {
-          if (lastHoveredObject) {
-            //The dice logic here
-          }
           lastHoveredObject = null;
-          setCursor('default');
+          self.store.cursorPointer = false;
         }
         self.$children[1].vglNamespace.renderers[0].render(scene, camera);
       };
@@ -212,16 +249,18 @@ window.Burrec = new Vue({
 
       window.addEventListener('click', function() {
 
-        if (!lastHoveredObject ||
-            !lastHoveredObject.toString().startsWith('cube')) return;
-        this.store.players.forEach(function(player) {
-          player.pawns.forEach(function(pawn) {
-            if ('cube-' + pawn.id === lastHoveredObject) {
-              pawn.move();
-            }
+        if (!lastHoveredObject) return;
+        if (lastHoveredObject.toString().startsWith('cube')) {
+          this.store.players.forEach(function(player) {
+            player.pawns.forEach(function(pawn) {
+              if ('cube-' + pawn.id === lastHoveredObject) {
+                pawn.move();
+              }
+            });
           });
-
-        });
+        } else if (lastHoveredObject.toString() === 'dice') {
+          EventBus.fire('EventKeys.rollDice');
+        }
 
       }.bind(this), false);
 
@@ -244,7 +283,11 @@ window.Burrec = new Vue({
     ],
 
     indicator: {
-      rotation: 0,
+      position: {
+        x: 0,
+        y: 0,
+        z: 0
+      },
     },
   },
 
@@ -261,6 +304,39 @@ window.Burrec = new Vue({
 
   events: {},
   methods: {
-    rotate() {},
+    getPawnPosition(pawn) {
+      return pawn.getPosition();
+    },
+    rollDice(amount) {
+
+      if (!this.store.gamePlayStatus.isRolling) return;
+
+      let diceResult = amount || 1 + Math.floor(Math.random() * 6);
+
+
+
+      let diceAngles = [
+        [Math.PI / 2, Math.PI / 2, Math.PI / 2],
+        [Math.PI * 2, Math.PI * 2, Math.PI * 2],
+        [Math.PI / 2, Math.PI, Math.PI / 2 * (Math.floor(Math.random() * 6) + 1)],
+        [Math.PI / 2 * 3, Math.PI, Math.PI / 2 * (Math.floor(Math.random() * 6) + 1)],
+        [Math.PI / 2 * 6, Math.PI / 2, Math.PI / 2 * 3],
+        [Math.PI / 2 * 6, Math.PI / 2, Math.PI / 2]];
+
+      this.store.diceData.x=0;
+      this.store.diceData.y=0;
+      this.store.diceData.z=0;
+
+      setTimeout(function () {
+        this.store.diceData.x = diceAngles[diceResult - 1][0];
+        this.store.diceData.y = diceAngles[diceResult - 1][1];
+        this.store.diceData.z = diceAngles[diceResult - 1][2];
+
+        this.store.players[this.store.currentPlayerId].rollDice(diceResult);
+      }.bind(this), 20);
+
+
+
+    },
   },
 });
