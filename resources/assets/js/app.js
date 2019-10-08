@@ -22,7 +22,6 @@ window.Burrec = new Vue({
       }.bind(this));
 
 
-
       window.addEventListener('keypress', function(e) {
         if (e.keyCode === 32) {this.rollDice();}
       }.bind(this));

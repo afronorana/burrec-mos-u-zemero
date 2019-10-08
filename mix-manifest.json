@@ -1,4 +1,6 @@
 {
-  "/public/assets/dist/js/app.js": "/public/assets/dist/js/app.js",
-  "/public/assets/dist/css/app.css": "/public/assets/dist/css/app.css"
+    "/public/assets/dist/js/app.js": "/public/assets/dist/js/app.js",
+    "/public/assets/dist/css/app.css": "/public/assets/dist/css/app.css",
+    "/public/assets/dist/js/app.js.map": "/public/assets/dist/js/app.js.map",
+    "/public/assets/dist/css/app.css.map": "/public/assets/dist/css/app.css.map"
 }
