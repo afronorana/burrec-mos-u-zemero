@@ -131,7 +131,7 @@
                 </vgl-group>
 
                 <!-- Home Fields -->
-                <vgl-group v-for="(player, playerIndex) in store.players">
+                <vgl-group v-for="(player, playerIndex) in store.players" :key="`home-${playerIndex}`">
                                         <vgl-spot-light
                                                 v-if="player.isPlaying"
                                                 :name="`spotlight-${playerIndex}`"
@@ -163,7 +163,7 @@
                 </vgl-group>
 
                 <!-- Target Fields -->
-                <vgl-group v-for="(player, playerIndex) in store.players">
+                <vgl-group v-for="(player, playerIndex) in store.players"  :key="`target-${playerIndex}`">
                     <vgl-mesh-lambert-material :name="`fieldMaterial-${playerIndex}`"
                                                :color="`${store.fields.home[playerIndex ].color}`"
                     ></vgl-mesh-lambert-material>

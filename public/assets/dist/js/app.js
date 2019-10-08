@@ -141678,13 +141678,12 @@ function () {
           this.globalPosition = steppingIndex;
           if (finalPosition === 40) clearInterval(skippingInterval);
         } else {
-          console.log('Guess I missed something here!');
+          // console.log('Guess I missed something here!');
           this.endOfMove();
           clearInterval(skippingInterval);
         }
       }.bind(this), 200);
-      this.position += steps;
-      console.log(this.position, 'toGlobalPosition', this.toGlobalPosition());
+      this.position += steps; // console.log(this.position, 'toGlobalPosition', this.toGlobalPosition());
     }
   }, {
     key: "toGlobalPosition",
@@ -141713,7 +141712,6 @@ function () {
           x = fields.path[0].x;
           y = height;
           z = fields.path[0].z;
-          console.log("%c Lepuri: ".concat(this.globalPosition), "color: ".concat(this.color));
         } else {
           x = fields.path[this.globalPosition].x;
           y = height;
@@ -141791,8 +141789,6 @@ function () {
       ApplicationStore.players.forEach(function (player) {
         if (!player.isPlaying) {
           player.pawns.forEach(function (pawn) {
-            if (pawn.globalPosition === 0) console.log(pawn);
-
             if (pawn.globalPosition === targetField && !pawn.isInDestinationField) {
               pawn.returnHome();
             }
@@ -141882,8 +141878,8 @@ function () {
     key: "rollDice",
     value: function rollDice(diceResult) {
       ApplicationStore.lastRolledDice = diceResult;
-      this.setAvaliablePawns(diceResult);
-      console.log(this.name, ' rolled ', diceResult);
+      this.setAvaliablePawns(diceResult); // console.log(this.name, ' rolled ', diceResult);
+
       /** Check if player has available pawns **/
 
       if (this.pawnsAvailable() !== 0 || this.stillHome) {
@@ -141895,7 +141891,7 @@ function () {
             EventBus.fire(EventKeys.turns.endTurn);
             this.stillHomeCounter = 0;
           } else if (this.isComputer) {
-            console.log('Rollin again, still home');
+            // console.log ( 'Rollin again, still home' );
             setTimeout(function () {
               EventBus.fire('EventKeys.rollDice');
             }.bind(this), 2000);

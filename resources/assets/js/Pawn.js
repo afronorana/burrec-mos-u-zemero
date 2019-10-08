@@ -78,14 +78,14 @@ class Pawn {
           clearInterval(skippingInterval);
       } else {
 
-        console.log('Guess I missed something here!');
+        // console.log('Guess I missed something here!');
         this.endOfMove();
         clearInterval(skippingInterval);
       }
     }.bind(this), 200);
     this.position += steps;
 
-    console.log(this.position, 'toGlobalPosition', this.toGlobalPosition());
+    // console.log(this.position, 'toGlobalPosition', this.toGlobalPosition());
   }
 
   toGlobalPosition() {
@@ -121,8 +121,6 @@ class Pawn {
         y = height;
         z = fields.path[0].z;
 
-        console.log(`%c Lepuri: ${this.globalPosition}`,
-            `color: ${this.color}`);
       } else {
         x = fields.path[this.globalPosition].x;
         y = height;
@@ -203,7 +201,6 @@ class Pawn {
     ApplicationStore.players.forEach(function(player) {
       if (!player.isPlaying) {
         player.pawns.forEach(function(pawn) {
-          if (pawn.globalPosition === 0) console.log ( pawn );
           if (pawn.globalPosition === targetField && !pawn.isInDestinationField) {
             pawn.returnHome();
           }

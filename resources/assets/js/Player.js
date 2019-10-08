@@ -46,7 +46,7 @@ class Player {
 
     this.setAvaliablePawns(diceResult);
 
-    console.log(this.name, ' rolled ', diceResult);
+    // console.log(this.name, ' rolled ', diceResult);
 
     /** Check if player has available pawns **/
     if (this.pawnsAvailable() !== 0 || this.stillHome) {
@@ -60,7 +60,7 @@ class Player {
           EventBus.fire(EventKeys.turns.endTurn);
           this.stillHomeCounter = 0;
         } else if (this.isComputer) {
-          console.log ( 'Rollin again, still home' );
+          // console.log ( 'Rollin again, still home' );
           setTimeout(function() {
             EventBus.fire('EventKeys.rollDice');
           }.bind(this), 2000);
