@@ -121,6 +121,7 @@
 
 
                 <vgl-mesh v-for="(field, index) in store.fields.path"
+                          v-if="index%10"
                           :key="`field-${index}`"
                           :position="`${field.x} 0 ${field.z}`"
                           geometry="fieldGeometry" material="fieldMaterial"
@@ -141,6 +142,15 @@
                               :position="`${field.x} 0 ${field.z}`"
                               geometry="fieldGeometry"
                     ></vgl-mesh>
+
+                    <vgl-mesh v-for="(field, index) in store.fields.path"
+                              v-if="index%10"
+                              :key="`field-start-${playerIndex}`"
+                              :position="`${store.fields.path[playerIndex*10].x} 0 ${store.fields.path[playerIndex*10].z}`"
+                              geometry="fieldGeometry" :material="`fieldMaterial-${playerIndex}`"
+                    >
+                    </vgl-mesh>
+
                 </span>
 
                 <!-- Target Fields -->
@@ -181,13 +191,6 @@
                 ></vgl-sphere-geometry>
 
 
-<!--                font-->
-<!--                <vgl-mesh-basic-material name="std"></vgl-mesh-basic-material>-->
-<!--                <vgl-text-geometry size="0.3" height="0.01" font="https://api.myjson.com/bins/11zmm7" name="text" :text="`${getPawnPosition(pawn)}`"></vgl-text-geometry>-->
-<!--                <vgl-mesh geometry="text" material="std" position="0 2 0"></vgl-mesh>-->
-
-
-
                 <span v-for="(player, playerIndex) in store.players">
                     <vgl-mesh-phong-material :name="`pawnMaterial-${playerIndex}`"
                                                :color="`${store.fields.home[playerIndex].color}`"
@@ -208,28 +211,28 @@
                                   position="0 0.6 0"
                                   geometry="pawnBodyGeometry"
                         ></vgl-mesh>
-                        <vgl-mesh :material="`pawnMaterial-${playerIndex}`"
-                                  position="0 1 0"
-                                  geometry="pawnHeadGeometry"
-                        ></vgl-mesh>
+<!--                        <vgl-mesh :material="`pawnMaterial-${playerIndex}`"-->
+<!--                                  position="0 1 0"-->
+<!--                                  geometry="pawnHeadGeometry"-->
+<!--                        ></vgl-mesh>-->
 
                         <vgl-group position="0 0 0" :rotation="`0 ${indicator.rotation} 0`" v-if="pawn.isActive"
                                    :name="`cube-${pawn.id}`">
-                            <vgl-mesh material="indicatorMaterial"
-                                      position="0.3 0.5 0"
-                                      rotation="0 0 -1.3"
-                                      geometry="pawnIndicatorGeometry"
-                            ></vgl-mesh>
-                            <vgl-mesh material="indicatorMaterial"
-                                      position="-0.3 0.5 0"
-                                      rotation="0 0 1.3"
-                                      geometry="pawnIndicatorGeometry"
-                            ></vgl-mesh>
-                            <vgl-mesh material="indicatorMaterial"
-                                      position="0 0.5 0.3"
-                                      rotation="1.3 0 0"
-                                      geometry="pawnIndicatorGeometry"
-                            ></vgl-mesh>
+<!--                            <vgl-mesh material="indicatorMaterial"-->
+<!--                                      position="0.3 0.5 0"-->
+<!--                                      rotation="0 0 -1.3"-->
+<!--                                      geometry="pawnIndicatorGeometry"-->
+<!--                            ></vgl-mesh>-->
+<!--                            <vgl-mesh material="indicatorMaterial"-->
+<!--                                      position="-0.3 0.5 0"-->
+<!--                                      rotation="0 0 1.3"-->
+<!--                                      geometry="pawnIndicatorGeometry"-->
+<!--                            ></vgl-mesh>-->
+<!--                            <vgl-mesh material="indicatorMaterial"-->
+<!--                                      position="0 0.5 0.3"-->
+<!--                                      rotation="1.3 0 0"-->
+<!--                                      geometry="pawnIndicatorGeometry"-->
+<!--                            ></vgl-mesh>-->
 
                             <vgl-mesh material="indicatorMaterial"
                                       position="0 0.5 -0.3"

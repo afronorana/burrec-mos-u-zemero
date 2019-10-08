@@ -19,8 +19,9 @@ class Player {
 
   startTurn() {
     ApplicationStore.gamePlayStatus.isRolling = true;
+    ApplicationStore.playingPlayerIndex = this.index;
     this.isPlaying = true;
-console.log ( 'startit' );
+
     if (this.isComputer) {
       setTimeout(function() {
         EventBus.fire('EventKeys.rollDice');
@@ -30,6 +31,7 @@ console.log ( 'startit' );
 
   endTurn() {
     this.isPlaying = false;
+    ApplicationStore.playingPlayerIndex = null;
     this.pawns.forEach(function(pawn) {
       pawn.isActive = false;
     });
@@ -41,6 +43,7 @@ console.log ( 'startit' );
 
   rollDice(diceResult) {
     ApplicationStore.lastRolledDice = diceResult;
+
     this.setAvaliablePawns(diceResult);
 
     console.log(this.name, ' rolled ', diceResult);
@@ -65,7 +68,7 @@ console.log ( 'startit' );
 
 
       } else if (this.stillHome && diceResult === 6 && this.isComputer) {
-console.log ( '6qe' );
+
         ApplicationStore.gamePlayStatus.isRolling = false;
         ApplicationStore.gamePlayStatus.isMoving = true;
         this.stillHome = false;
@@ -102,7 +105,7 @@ console.log ( '6qe' );
 
   hasAllPawnsHome() {
     this.pawns.every(function(pawn) {
-      pawn.position = 0;
+      return pawn.position === 0;
     });
   }
 

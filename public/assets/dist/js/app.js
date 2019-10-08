@@ -63,7 +63,7 @@
 /******/ 	__webpack_require__.p = "";
 /******/
 /******/ 	// Load entry module and return exports
-/******/ 	return __webpack_require__(__webpack_require__.s = 52);
+/******/ 	return __webpack_require__(__webpack_require__.s = 35);
 /******/ })
 /************************************************************************/
 /******/ ([
@@ -73,7 +73,7 @@
 "use strict";
 
 
-var asap = __webpack_require__(3);
+var asap = __webpack_require__(2);
 
 function noop() {}
 
@@ -290,63 +290,6 @@ function doResolve(fn, promise) {
 /* 1 */
 /***/ (function(module, exports) {
 
-// this module is a runtime utility for cleaner component module output and will
-// be included in the final webpack user bundle
-
-module.exports = function normalizeComponent (
-  rawScriptExports,
-  compiledTemplate,
-  scopeId,
-  cssModules
-) {
-  var esModule
-  var scriptExports = rawScriptExports = rawScriptExports || {}
-
-  // ES6 modules interop
-  var type = typeof rawScriptExports.default
-  if (type === 'object' || type === 'function') {
-    esModule = rawScriptExports
-    scriptExports = rawScriptExports.default
-  }
-
-  // Vue.extend constructor export interop
-  var options = typeof scriptExports === 'function'
-    ? scriptExports.options
-    : scriptExports
-
-  // render functions
-  if (compiledTemplate) {
-    options.render = compiledTemplate.render
-    options.staticRenderFns = compiledTemplate.staticRenderFns
-  }
-
-  // scopedId
-  if (scopeId) {
-    options._scopeId = scopeId
-  }
-
-  // inject cssModules
-  if (cssModules) {
-    var computed = Object.create(options.computed || null)
-    Object.keys(cssModules).forEach(function (key) {
-      var module = cssModules[key]
-      computed[key] = function () { return module }
-    })
-    options.computed = computed
-  }
-
-  return {
-    esModule: esModule,
-    exports: scriptExports,
-    options: options
-  }
-}
-
-
-/***/ }),
-/* 2 */
-/***/ (function(module, exports) {
-
 var g;
 
 // This works in non-strict mode
@@ -371,7 +314,7 @@ module.exports = g;
 
 
 /***/ }),
-/* 3 */
+/* 2 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -599,17 +542,17 @@ rawAsap.makeRequestCallFromTimer = makeRequestCallFromTimer;
 // back into ASAP proper.
 // https://github.com/tildeio/rsvp.js/blob/cddf7232546a9cf858524b75cde6f9edf72620a7/lib/rsvp/asap.js
 
-/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(2)))
+/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(1)))
 
 /***/ }),
-/* 4 */
+/* 3 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
-__webpack_require__(15);
+__webpack_require__(10);
 
 window.EventBus = new (function () {
   function _class() {
@@ -635,15 +578,15 @@ window.EventBus = new (function () {
   return _class;
 }())();
 
-__webpack_require__(16);
+__webpack_require__(11);
 
 // Mixins
-var GlobalMixin = __webpack_require__(17);
+var GlobalMixin = __webpack_require__(12);
 Vue.use(GlobalMixin);
 
 // Components
 // Vue.component('the-Scene', require('./components/TheScene'));
-Vue.component('the-game', __webpack_require__(39));
+Vue.component('the-game', __webpack_require__(29));
 // Vue.component('the-dice', require('./components/TheDice'));
 // Vue.component('stepping-fields', require('./components/SteppingFields'));
 // Vue.component('player-homes', require('./components/PlayerHomes'));
@@ -720,7 +663,7 @@ window.ApplicationStore = {
   controls: null
 };
 
-__webpack_require__(32);
+__webpack_require__(25);
 
 window.Burrec = new Vue({
   el: '#app',
@@ -867,20 +810,20 @@ window.Burrec = new Vue({
 });
 
 /***/ }),
-/* 5 */
+/* 4 */
 /***/ (function(module, exports) {
 
 // removed by extract-text-webpack-plugin
 
 /***/ }),
-/* 6 */
+/* 5 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 
 // rawAsap provides everything we need except exception management.
-var rawAsap = __webpack_require__(3);
+var rawAsap = __webpack_require__(2);
 // RawTasks are recycled to reduce GC churn.
 var freeTasks = [];
 // We queue errors to ensure they are thrown in right order (FIFO).
@@ -946,10 +889,7 @@ RawTask.prototype.call = function () {
 
 
 /***/ }),
-/* 7 */,
-/* 8 */,
-/* 9 */,
-/* 10 */
+/* 6 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
@@ -986,10 +926,14 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
 
   methods: {
     createPlayers: function createPlayers() {
-      this.store.players.push(new Player('Player 1', '#CE0000', 1, true));
-      this.store.players.push(new Player('Player 2', '#F7D708', 2, true));
-      this.store.players.push(new Player('Player 3', '#009ECE', 3, true));
-      this.store.players.push(new Player('Player 4', '#9CCF31', 4, true));
+      this.store.players.push(new Player('Player 1', '#CE0000', 1, false));
+      this.store.players.push(new Player('Player 2', '#F7D708', 2, false));
+      this.store.players.push(new Player('Player 3', '#009ECE', 3, false));
+      this.store.players.push(new Player('Player 4', '#9CCF31', 4, false));
+      // this.store.players.push(new Player('Player 1', '#CE0000', 1, true));
+      // this.store.players.push(new Player('Player 2', '#F7D708', 2, true));
+      // this.store.players.push(new Player('Player 3', '#009ECE', 3, true));
+      // this.store.players.push(new Player('Player 4', '#9CCF31', 4, true));
     },
     startGame: function startGame() {
       this.store.currentRound = 1;
@@ -1024,8 +968,7 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
 });
 
 /***/ }),
-/* 11 */,
-/* 12 */
+/* 7 */
 /***/ (function(module, exports) {
 
 module.exports = {
@@ -1039,7 +982,7 @@ module.exports = {
 };
 
 /***/ }),
-/* 13 */
+/* 8 */
 /***/ (function(module, exports) {
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -1067,7 +1010,95 @@ var Pawn = function () {
     this.startingPlace = _startingPlace;
   }
 
+  /**
+   * Attempt to move pawn
+   */
+
+
   _createClass(Pawn, [{
+    key: 'move',
+    value: function move() {
+      if (this.isActive) {
+        this.position ? this.moveToPosition() : this.getOutOfHome();
+      }
+    }
+  }, {
+    key: 'getOutOfHome',
+    value: function getOutOfHome() {
+      this.globalPosition = this.startingGlobalPosition;
+      this.position = 1;
+
+      this.removeOpponentPawns(this.globalPosition);
+
+      this.endOfMove();
+    }
+  }, {
+    key: 'endOfMove',
+    value: function endOfMove() {
+      if (ApplicationStore.lastRolledDice === 6) EventBus.fire(EventKeys.turns.repeatTurn);else EventBus.fire(EventKeys.turns.endTurn);
+    }
+  }, {
+    key: 'moveToPosition',
+    value: function moveToPosition() {
+      var steps = ApplicationStore.lastRolledDice;
+
+      //  TODO
+      var willEnterTarget = this.position + steps >= 40;
+      if (willEnterTarget) {
+        this.enterTargetZone(steps);
+        return;
+      }
+
+      var finalPosition = this.globalPosition + steps;
+      var targetField = finalPosition <= 40 ? finalPosition : finalPosition - 40; // 8
+
+      this.removeOpponentPawns(targetField);
+
+      var steppingIndex = this.globalPosition;
+
+      var skippingInterval = setInterval(function () {
+
+        this.skippingAnimation();
+
+        if (steppingIndex < targetField && steppingIndex <= 40 || finalPosition > 40 && steppingIndex < 40 || finalPosition === 40 && steppingIndex <= 39) {
+
+          steppingIndex++;
+
+          this.globalPosition = steppingIndex;
+          if (steppingIndex === targetField) {
+            this.endOfMove();
+            clearInterval(skippingInterval);
+          }
+        } else if (finalPosition >= 40 && steppingIndex === 40) {
+          steppingIndex = 0;
+          this.globalPosition = steppingIndex;
+          if (finalPosition === 40) clearInterval(skippingInterval);
+        } else {
+
+          console.log('Guess I missed something here!');
+          this.endOfMove();
+          clearInterval(skippingInterval);
+        }
+      }.bind(this), 200);
+      this.position += steps;
+
+      console.log(this.position, 'toGlobalPosition', this.toGlobalPosition());
+    }
+  }, {
+    key: 'toGlobalPosition',
+    value: function toGlobalPosition() {
+      if (!this.position) return this.startingGlobalPosition;
+
+      if (this.position + this.startingGlobalPosition <= 39) return this.position + this.startingGlobalPosition - 1;else {
+        return this.startingGlobalPosition ? this.position + this.startingGlobalPosition - 41 : this.position - 1;
+      }
+    }
+
+    //
+    //  Non-refractored below
+    //
+
+  }, {
     key: 'getPosition',
     value: function getPosition() {
       var height = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 0;
@@ -1121,19 +1152,14 @@ var Pawn = function () {
   }, {
     key: 'canLeaveHome',
     value: function canLeaveHome(steps) {
-      var canLeave = true;
+      var doorIsFree = true;
+      var player = ApplicationStore.players[ApplicationStore.playingPlayerIndex];
 
-      ApplicationStore.players.forEach(function (player) {
+      player.pawns.forEach(function (pawn) {
+        if (pawn.position === 1) doorIsFree = false;
+      });
 
-        if (player.isPlaying) {
-          player.pawns.forEach(function (pawn) {
-            if (pawn.globalPosition === this.startingGlobalPosition + 1) {
-              canLeave = false;
-            }
-          }.bind(this));
-        }
-      }.bind(this));
-      return this.position === 0 && steps === 6 && canLeave;
+      return this.position === 0 && steps === 6 && doorIsFree;
     }
   }, {
     key: 'pathEnds',
@@ -1147,24 +1173,22 @@ var Pawn = function () {
       if (this.position === 0) return false;
 
       var targetFieldId = this.position + steps;
-      var targetFieldIsFree = true;
+      var targetFieldIsEmpty = true;
 
-      ApplicationStore.players.forEach(function (player) {
-        if (player.isPlaying) {
-          player.pawns.forEach(function (pawn) {
-            if (pawn.position === targetFieldId) {
-              targetFieldIsFree = false;
-            }
-          });
-        }
+      var player = ApplicationStore.players[ApplicationStore.playingPlayerIndex];
+
+      player.pawns.forEach(function (pawn) {
+        if (pawn.position === targetFieldId) targetFieldIsEmpty = false;
+        if (pawn.position === 0 && this.startingGlobalPosition + 1) targetFieldIsEmpty = false;
       });
-      return targetFieldIsFree;
+
+      return targetFieldIsEmpty;
     }
   }, {
     key: 'isAvaliable',
     value: function isAvaliable(steps) {
-      var self = this;
-      return (self.canLeaveHome(steps) || this.targetFieldIsEmpty(steps)) && !self.pathEnds(steps);
+
+      return (this.canLeaveHome(steps) || this.targetFieldIsEmpty(steps)) && !this.pathEnds(steps);
     }
 
     // Adds and removes skipping state
@@ -1182,27 +1206,22 @@ var Pawn = function () {
     // Checks if an opponents pawn is on the target, if so removes it.
 
   }, {
-    key: 'checkIfTargetfieldEmpty',
-    value: function checkIfTargetfieldEmpty(targetField) {
+    key: 'removeOpponentPawns',
+    value: function removeOpponentPawns(targetField) {
       ApplicationStore.players.forEach(function (player) {
         if (!player.isPlaying) {
           player.pawns.forEach(function (pawn) {
+            if (pawn.globalPosition === 0) console.log(pawn);
             if (pawn.globalPosition === targetField && !pawn.isInTargetField) {
               pawn.returnHome();
             }
           });
+
+          //   TODO Check if my own pawn is here
         } else if (player.wonGame()) {
           alert('congrats:' + player.name + '! You WON!!!');
         }
       });
-    }
-  }, {
-    key: 'getOutOfHome',
-    value: function getOutOfHome(steps) {
-      this.globalPosition = this.startingGlobalPosition;
-      this.position = 1;
-
-      this.endOfMove(steps);
     }
   }, {
     key: 'enterTargetZone',
@@ -1210,70 +1229,7 @@ var Pawn = function () {
       this.isInTargetField = true;
       this.position += steps;
       this.globalPosition = -13 * this.startingGlobalPosition;
-      this.endOfMove(steps);
-    }
-  }, {
-    key: 'moveToPosition',
-    value: function moveToPosition(steps) {
-
-      var targetSum = this.globalPosition + steps;
-      var targetField = targetSum <= 40 ? targetSum : targetSum - 40;
-
-      this.checkIfTargetfieldEmpty(targetField);
-
-      var steppingIndex = this.globalPosition;
-
-      var skippingInterval = setInterval(function () {
-
-        this.skippingAnimation();
-
-        if (steppingIndex < targetField && steppingIndex <= 40 || targetSum > 40 && steppingIndex < 40 || targetSum === 40 && steppingIndex <= 39) {
-
-          steppingIndex++;
-
-          this.globalPosition = steppingIndex;
-          if (steppingIndex === targetField) {
-            this.endOfMove(steps);
-            clearInterval(skippingInterval);
-          }
-        } else if (targetSum >= 40 && steppingIndex === 40) {
-          steppingIndex = 0;
-          this.globalPosition = steppingIndex;
-          if (targetSum === 40) clearInterval(skippingInterval);
-        } else {
-          console.log('Guess I missed something here!');
-          this.endOfMove(steps);
-          clearInterval(skippingInterval);
-        }
-      }.bind(this), 200);
-      this.position += steps;
-    }
-  }, {
-    key: 'move',
-    value: function move() {
-      //If not active
-      if (!this.isActive) return;
-      var steps = ApplicationStore.lastRolledDice;
-
-      // If pawn is home
-      if (this.position === 0) {
-        this.getOutOfHome(steps);
-      } else if (this.position + steps >= 40) {
-        // If pawn is close to ending
-        this.enterTargetZone(steps);
-      } else {
-
-        this.moveToPosition(steps);
-      }
-    }
-  }, {
-    key: 'endOfMove',
-    value: function endOfMove(steps) {
-      if (steps === 6) {
-        EventBus.fire(EventKeys.turns.repeatTurn);
-      } else {
-        EventBus.fire(EventKeys.turns.endTurn);
-      }
+      this.endOfMove();
     }
   }]);
 
@@ -1283,7 +1239,7 @@ var Pawn = function () {
 module.exports = Pawn;
 
 /***/ }),
-/* 14 */
+/* 9 */
 /***/ (function(module, exports) {
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -1312,8 +1268,9 @@ var Player = function () {
     key: 'startTurn',
     value: function startTurn() {
       ApplicationStore.gamePlayStatus.isRolling = true;
+      ApplicationStore.playingPlayerIndex = this.index;
       this.isPlaying = true;
-      console.log('startit');
+
       if (this.isComputer) {
         setTimeout(function () {
           EventBus.fire('EventKeys.rollDice');
@@ -1324,6 +1281,7 @@ var Player = function () {
     key: 'endTurn',
     value: function endTurn() {
       this.isPlaying = false;
+      ApplicationStore.playingPlayerIndex = null;
       this.pawns.forEach(function (pawn) {
         pawn.isActive = false;
       });
@@ -1337,6 +1295,7 @@ var Player = function () {
     key: 'rollDice',
     value: function rollDice(diceResult) {
       ApplicationStore.lastRolledDice = diceResult;
+
       this.setAvaliablePawns(diceResult);
 
       console.log(this.name, ' rolled ', diceResult);
@@ -1359,7 +1318,7 @@ var Player = function () {
             }.bind(this), 2000);
           }
         } else if (this.stillHome && diceResult === 6 && this.isComputer) {
-          console.log('6qe');
+
           ApplicationStore.gamePlayStatus.isRolling = false;
           ApplicationStore.gamePlayStatus.isMoving = true;
           this.stillHome = false;
@@ -1397,7 +1356,7 @@ var Player = function () {
     key: 'hasAllPawnsHome',
     value: function hasAllPawnsHome() {
       this.pawns.every(function (pawn) {
-        pawn.position = 0;
+        return pawn.position === 0;
       });
     }
 
@@ -1445,34 +1404,34 @@ var Player = function () {
 module.exports = Player;
 
 /***/ }),
-/* 15 */
+/* 10 */
 /***/ (function(module, exports, __webpack_require__) {
 
-window._ = __webpack_require__(21);
-window.$ = window.jQuery = __webpack_require__(20);
-window.Promise = __webpack_require__(23);
-window.Vue = __webpack_require__(50);
-window.EventKeys = __webpack_require__(12);
+window._ = __webpack_require__(14);
+window.$ = window.jQuery = __webpack_require__(13);
+window.Promise = __webpack_require__(16);
+window.Vue = __webpack_require__(33);
+window.EventKeys = __webpack_require__(7);
 
 // import * as VueGL from "vue-gl";
-window.VueGL = __webpack_require__(34);
+window.VueGL = __webpack_require__(27);
 Object.keys(VueGL).forEach(function (name) {
   Vue.component(name, VueGL[name]);
 });
 
-window.Pawn = __webpack_require__(13);
-window.Player = __webpack_require__(14);
+window.Pawn = __webpack_require__(8);
+window.Player = __webpack_require__(9);
 
-window.THREE = __webpack_require__(31);
+window.THREE = __webpack_require__(24);
 
 /***/ }),
-/* 16 */
+/* 11 */
 /***/ (function(module, exports) {
 
 
 
 /***/ }),
-/* 17 */
+/* 12 */
 /***/ (function(module, exports) {
 
 module.exports = {
@@ -1489,9 +1448,7 @@ module.exports = {
 };
 
 /***/ }),
-/* 18 */,
-/* 19 */,
-/* 20 */
+/* 13 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;/*!
@@ -11862,7 +11819,7 @@ return jQuery;
 
 
 /***/ }),
-/* 21 */
+/* 14 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /* WEBPACK VAR INJECTION */(function(global, module) {var __WEBPACK_AMD_DEFINE_RESULT__;/**
@@ -28972,10 +28929,10 @@ return jQuery;
   }
 }.call(this));
 
-/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(2), __webpack_require__(51)(module)))
+/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(1), __webpack_require__(34)(module)))
 
 /***/ }),
-/* 22 */
+/* 15 */
 /***/ (function(module, exports) {
 
 // shim for using process in browser
@@ -29165,17 +29122,17 @@ process.umask = function() { return 0; };
 
 
 /***/ }),
-/* 23 */
+/* 16 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 
-module.exports = __webpack_require__(27)
+module.exports = __webpack_require__(20)
 
 
 /***/ }),
-/* 24 */
+/* 17 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -29195,7 +29152,7 @@ Promise.prototype.done = function (onFulfilled, onRejected) {
 
 
 /***/ }),
-/* 25 */
+/* 18 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -29309,7 +29266,7 @@ Promise.prototype['catch'] = function (onRejected) {
 
 
 /***/ }),
-/* 26 */
+/* 19 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -29332,22 +29289,22 @@ Promise.prototype['finally'] = function (f) {
 
 
 /***/ }),
-/* 27 */
+/* 20 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 
 module.exports = __webpack_require__(0);
-__webpack_require__(24);
-__webpack_require__(26);
-__webpack_require__(25);
-__webpack_require__(28);
-__webpack_require__(29);
+__webpack_require__(17);
+__webpack_require__(19);
+__webpack_require__(18);
+__webpack_require__(21);
+__webpack_require__(22);
 
 
 /***/ }),
-/* 28 */
+/* 21 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -29357,7 +29314,7 @@ __webpack_require__(29);
 // for node.js interop
 
 var Promise = __webpack_require__(0);
-var asap = __webpack_require__(6);
+var asap = __webpack_require__(5);
 
 module.exports = Promise;
 
@@ -29484,7 +29441,7 @@ Promise.prototype.nodeify = function (callback, ctx) {
 
 
 /***/ }),
-/* 29 */
+/* 22 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -29553,7 +29510,7 @@ Promise.disableSynchronous = function() {
 
 
 /***/ }),
-/* 30 */
+/* 23 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /* WEBPACK VAR INJECTION */(function(global, process) {(function (global, undefined) {
@@ -29743,10 +29700,10 @@ Promise.disableSynchronous = function() {
     attachTo.clearImmediate = clearImmediate;
 }(typeof self === "undefined" ? typeof global === "undefined" ? this : global : self));
 
-/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(2), __webpack_require__(22)))
+/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(1), __webpack_require__(15)))
 
 /***/ }),
-/* 31 */
+/* 24 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
@@ -78672,7 +78629,7 @@ function LensFlare() {
 
 
 /***/ }),
-/* 32 */
+/* 25 */
 /***/ (function(module, exports) {
 
 /**
@@ -79848,7 +79805,7 @@ THREE.MapControls.prototype.constructor = THREE.MapControls;
 
 
 /***/ }),
-/* 33 */
+/* 26 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /* WEBPACK VAR INJECTION */(function(global) {var scope = (typeof global !== "undefined" && global) ||
@@ -79904,7 +79861,7 @@ exports._unrefActive = exports.active = function(item) {
 };
 
 // setimmediate attaches itself to the global object
-__webpack_require__(30);
+__webpack_require__(23);
 // On some exotic environments, it's not clear which object `setimmediate` was
 // able to install onto.  Search each possibility in the same order as the
 // `setimmediate` library.
@@ -79915,13 +79872,13 @@ exports.clearImmediate = (typeof self !== "undefined" && self.clearImmediate) ||
                          (typeof global !== "undefined" && global.clearImmediate) ||
                          (this && this.clearImmediate);
 
-/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(2)))
+/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(1)))
 
 /***/ }),
-/* 34 */
+/* 27 */
 /***/ (function(module, exports, __webpack_require__) {
 
-(function(e,t){ true?t(exports,__webpack_require__(35)):"function"==typeof define&&define.amd?define(["exports","three"],t):(e=e||self,t(e.VueGL={},e.THREE))})(this,function(e,t){'use strict';var w=Math.PI;function i(e,t){return i=Object.setPrototypeOf||function(e,t){return e.__proto__=t,e},i(e,t)}function a(){if("undefined"==typeof Reflect||!Reflect.construct)return!1;if(Reflect.construct.sham)return!1;if("function"==typeof Proxy)return!0;try{return Date.prototype.toString.call(Reflect.construct(Date,[],function(){})),!0}catch(t){return!1}}function r(){return r=a()?Reflect.construct:function(e,t,r){var n=[null];n.push.apply(n,t);var a=Function.bind.apply(e,n),s=new a;return r&&i(s,r.prototype),s},r.apply(null,arguments)}function n(e,t){return l(e)||p(e,t)||m()}function s(e){return o(e)||d(e)||c()}function o(e){if(Array.isArray(e)){for(var t=0,a=Array(e.length);t<e.length;t++)a[t]=e[t];return a}}function l(e){if(Array.isArray(e))return e}function d(e){if(Symbol.iterator in Object(e)||"[object Arguments]"===Object.prototype.toString.call(e))return Array.from(e)}function p(e,t){var i=[],a=!0,r=!1,n=void 0;try{for(var s,o=e[Symbol.iterator]();!(a=(s=o.next()).done)&&(i.push(s.value),!(t&&i.length===t));a=!0);}catch(e){r=!0,n=e}finally{try{a||null==o["return"]||o["return"]()}finally{if(r)throw n}}return i}function c(){throw new TypeError("Invalid attempt to spread non-iterable instance")}function m(){throw new TypeError("Invalid attempt to destructure non-iterable instance")}/**
+(function(e,t){ true?t(exports,__webpack_require__(28)):"function"==typeof define&&define.amd?define(["exports","three"],t):(e=e||self,t(e.VueGL={},e.THREE))})(this,function(e,t){'use strict';var w=Math.PI;function i(e,t){return i=Object.setPrototypeOf||function(e,t){return e.__proto__=t,e},i(e,t)}function a(){if("undefined"==typeof Reflect||!Reflect.construct)return!1;if(Reflect.construct.sham)return!1;if("function"==typeof Proxy)return!0;try{return Date.prototype.toString.call(Reflect.construct(Date,[],function(){})),!0}catch(t){return!1}}function r(){return r=a()?Reflect.construct:function(e,t,r){var n=[null];n.push.apply(n,t);var a=Function.bind.apply(e,n),s=new a;return r&&i(s,r.prototype),s},r.apply(null,arguments)}function n(e,t){return l(e)||p(e,t)||m()}function s(e){return o(e)||d(e)||c()}function o(e){if(Array.isArray(e)){for(var t=0,a=Array(e.length);t<e.length;t++)a[t]=e[t];return a}}function l(e){if(Array.isArray(e))return e}function d(e){if(Symbol.iterator in Object(e)||"[object Arguments]"===Object.prototype.toString.call(e))return Array.from(e)}function p(e,t){var i=[],a=!0,r=!1,n=void 0;try{for(var s,o=e[Symbol.iterator]();!(a=(s=o.next()).done)&&(i.push(s.value),!(t&&i.length===t));a=!0);}catch(e){r=!0,n=e}finally{try{a||null==o["return"]||o["return"]()}finally{if(r)throw n}}return i}function c(){throw new TypeError("Invalid attempt to spread non-iterable instance")}function m(){throw new TypeError("Invalid attempt to destructure non-iterable instance")}/**
    * Returns a parsed quaternion object.
    */function u(e){return e.isQuaternion?e:r(t.Quaternion,s(e.trim().split(/\s+/).map(function(e){return parseFloat(e)})))}/**
    * Returns a parsed vector3 object.
@@ -80060,7 +80017,7 @@ for(var t in this.vglNamespace.scenes){if(e)throw new ReferenceError("Cannot ide
 
 
 /***/ }),
-/* 35 */
+/* 28 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
@@ -129328,17 +129285,14 @@ function LensFlare() {
 
 
 /***/ }),
-/* 36 */,
-/* 37 */,
-/* 38 */,
-/* 39 */
+/* 29 */
 /***/ (function(module, exports, __webpack_require__) {
 
-var Component = __webpack_require__(1)(
+var Component = __webpack_require__(30)(
   /* script */
-  __webpack_require__(10),
+  __webpack_require__(6),
   /* template */
-  __webpack_require__(44),
+  __webpack_require__(31),
   /* scopeId */
   null,
   /* cssModules */
@@ -129365,11 +129319,64 @@ module.exports = Component.exports
 
 
 /***/ }),
-/* 40 */,
-/* 41 */,
-/* 42 */,
-/* 43 */,
-/* 44 */
+/* 30 */
+/***/ (function(module, exports) {
+
+// this module is a runtime utility for cleaner component module output and will
+// be included in the final webpack user bundle
+
+module.exports = function normalizeComponent (
+  rawScriptExports,
+  compiledTemplate,
+  scopeId,
+  cssModules
+) {
+  var esModule
+  var scriptExports = rawScriptExports = rawScriptExports || {}
+
+  // ES6 modules interop
+  var type = typeof rawScriptExports.default
+  if (type === 'object' || type === 'function') {
+    esModule = rawScriptExports
+    scriptExports = rawScriptExports.default
+  }
+
+  // Vue.extend constructor export interop
+  var options = typeof scriptExports === 'function'
+    ? scriptExports.options
+    : scriptExports
+
+  // render functions
+  if (compiledTemplate) {
+    options.render = compiledTemplate.render
+    options.staticRenderFns = compiledTemplate.staticRenderFns
+  }
+
+  // scopedId
+  if (scopeId) {
+    options._scopeId = scopeId
+  }
+
+  // inject cssModules
+  if (cssModules) {
+    var computed = Object.create(options.computed || null)
+    Object.keys(cssModules).forEach(function (key) {
+      var module = cssModules[key]
+      computed[key] = function () { return module }
+    })
+    options.computed = computed
+  }
+
+  return {
+    esModule: esModule,
+    exports: scriptExports,
+    options: options
+  }
+}
+
+
+/***/ }),
+/* 31 */
 /***/ (function(module, exports, __webpack_require__) {
 
 module.exports={render:function (){var _vm=this;var _h=_vm.$createElement;var _c=_vm._self._c||_h;
@@ -129384,11 +129391,7 @@ if (false) {
 }
 
 /***/ }),
-/* 45 */,
-/* 46 */,
-/* 47 */,
-/* 48 */,
-/* 49 */
+/* 32 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -141331,21 +141334,21 @@ Vue.compile = compileToFunctions;
 
 module.exports = Vue;
 
-/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(2), __webpack_require__(33).setImmediate))
+/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(1), __webpack_require__(26).setImmediate))
 
 /***/ }),
-/* 50 */
+/* 33 */
 /***/ (function(module, exports, __webpack_require__) {
 
 if (false) {
   module.exports = require('./vue.common.prod.js')
 } else {
-  module.exports = __webpack_require__(49)
+  module.exports = __webpack_require__(32)
 }
 
 
 /***/ }),
-/* 51 */
+/* 34 */
 /***/ (function(module, exports) {
 
 module.exports = function(module) {
@@ -141373,11 +141376,11 @@ module.exports = function(module) {
 
 
 /***/ }),
-/* 52 */
+/* 35 */
 /***/ (function(module, exports, __webpack_require__) {
 
-__webpack_require__(4);
-module.exports = __webpack_require__(5);
+__webpack_require__(3);
+module.exports = __webpack_require__(4);
 
 
 /***/ })
