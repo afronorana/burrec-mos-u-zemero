@@ -130,15 +130,15 @@ class Player {
   }
 
   wonGame() {
-    let pawnsInTarget = [];
+    let pawnsInDestination = [];
 
     this.pawns.forEach(function(pawn, index) {
-      if (pawn.isInTargetField) {
-        pawnsInTarget.push(index);
+      if (pawn.isInDestinationField) {
+        pawnsInDestination.push(index);
       }
     }.bind(this));
 
-    return pawnsInTarget.length == 4;
+    return pawnsInDestination.length == 4;
   }
 
 }

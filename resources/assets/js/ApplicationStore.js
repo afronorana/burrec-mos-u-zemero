@@ -28,30 +28,38 @@ window.ApplicationStore = {
     home: [
       {
         fields: [
-          new THREE.Vector3(0, 0.5, 0), new THREE.Vector3(0, 0.5, 1),
-          new THREE.Vector3(1, 0.5, 0), new THREE.Vector3(1, 0.5, 1),
+          new THREE.Vector3(0, 0.5, 0),
+          new THREE.Vector3(0, 0.5, 1),
+          new THREE.Vector3(1, 0.5, 0),
+          new THREE.Vector3(1, 0.5, 1),
         ],
         color: '#CE0000',
       },
       {
         fields: [
-          new THREE.Vector3(9, 0.5, 0), new THREE.Vector3(9, 0.5, 1),
-          new THREE.Vector3(10, 0.5, 0), new THREE.Vector3(10, 0.5, 1),
+          new THREE.Vector3(10, 0.5, 0),
+          new THREE.Vector3(9, 0.5, 0),
+          new THREE.Vector3(9, 0.5, 1),
+          new THREE.Vector3(10, 0.5, 1),
         ],
         color: '#F7D708',
 
       },
       {
         fields: [
-          new THREE.Vector3(9, 0.5, 9), new THREE.Vector3(9, 0.5, 10),
-          new THREE.Vector3(10, 0.5, 9), new THREE.Vector3(10, 0.5, 10),
+          new THREE.Vector3(10, 0.5, 10),
+          new THREE.Vector3(9, 0.5, 9),
+          new THREE.Vector3(9, 0.5, 10),
+          new THREE.Vector3(10, 0.5, 9),
         ],
         color: '#9CCF31',
       },
       {
         fields: [
-          new THREE.Vector3(0, 0.5, 9), new THREE.Vector3(0, 0.5, 10),
-          new THREE.Vector3(1, 0.5, 9), new THREE.Vector3(1, 0.5, 10),
+          new THREE.Vector3(0, 0.5, 10),
+          new THREE.Vector3(0, 0.5, 9),
+          new THREE.Vector3(1, 0.5, 9),
+          new THREE.Vector3(1, 0.5, 10),
         ],
         color: '#009ECE',
 

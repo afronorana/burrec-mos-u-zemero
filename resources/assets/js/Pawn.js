@@ -8,7 +8,7 @@ class Pawn {
     this.startingGlobalPosition = _globalPosition;
     this.color = _color;
     this.isActive = false;
-    this.isInTargetField = false;
+    this.isInDestinationField = false;
     this.isSkipping = false;
     this.isSkippingTo = 0;
     this.startingPlace = _startingPlace;
@@ -45,7 +45,7 @@ class Pawn {
     //  TODO
     let willEnterTarget = this.position + steps >= 40;
     if (willEnterTarget) {
-      this.enterTargetZone(steps);
+      this.enterDestinationZone(steps);
       return;
     }
 
@@ -162,7 +162,7 @@ class Pawn {
   };
 
   pathEnds(steps) {
-    return this.position + steps >= 44;
+    return this.position + steps >= 45;
   }
 
   targetFieldIsEmpty(steps) {
@@ -204,20 +204,18 @@ class Pawn {
       if (!player.isPlaying) {
         player.pawns.forEach(function(pawn) {
           if (pawn.globalPosition === 0) console.log ( pawn );
-          if (pawn.globalPosition === targetField && !pawn.isInTargetField) {
+          if (pawn.globalPosition === targetField && !pawn.isInDestinationField) {
             pawn.returnHome();
           }
         });
-
-        //   TODO Check if my own pawn is here
       } else if (player.wonGame()) {
         alert('congrats:' + player.name + '! You WON!!!');
       }
     });
   }
 
-  enterTargetZone(steps) {
-    this.isInTargetField = true;
+  enterDestinationZone(steps) {
+    this.isInDestinationField = true;
     this.position += steps;
     this.globalPosition = -13 * this.startingGlobalPosition;
     this.endOfMove();

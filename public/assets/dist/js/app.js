@@ -141527,13 +141527,13 @@ window.ApplicationStore = {
       fields: [new THREE.Vector3(0, 0.5, 0), new THREE.Vector3(0, 0.5, 1), new THREE.Vector3(1, 0.5, 0), new THREE.Vector3(1, 0.5, 1)],
       color: '#CE0000'
     }, {
-      fields: [new THREE.Vector3(9, 0.5, 0), new THREE.Vector3(9, 0.5, 1), new THREE.Vector3(10, 0.5, 0), new THREE.Vector3(10, 0.5, 1)],
+      fields: [new THREE.Vector3(10, 0.5, 0), new THREE.Vector3(9, 0.5, 0), new THREE.Vector3(9, 0.5, 1), new THREE.Vector3(10, 0.5, 1)],
       color: '#F7D708'
     }, {
-      fields: [new THREE.Vector3(9, 0.5, 9), new THREE.Vector3(9, 0.5, 10), new THREE.Vector3(10, 0.5, 9), new THREE.Vector3(10, 0.5, 10)],
+      fields: [new THREE.Vector3(10, 0.5, 10), new THREE.Vector3(9, 0.5, 9), new THREE.Vector3(9, 0.5, 10), new THREE.Vector3(10, 0.5, 9)],
       color: '#9CCF31'
     }, {
-      fields: [new THREE.Vector3(0, 0.5, 9), new THREE.Vector3(0, 0.5, 10), new THREE.Vector3(1, 0.5, 9), new THREE.Vector3(1, 0.5, 10)],
+      fields: [new THREE.Vector3(0, 0.5, 10), new THREE.Vector3(0, 0.5, 9), new THREE.Vector3(1, 0.5, 9), new THREE.Vector3(1, 0.5, 10)],
       color: '#009ECE'
     }],
     target: [{
@@ -141615,7 +141615,7 @@ function () {
     this.startingGlobalPosition = _globalPosition;
     this.color = _color;
     this.isActive = false;
-    this.isInTargetField = false;
+    this.isInDestinationField = false;
     this.isSkipping = false;
     this.isSkippingTo = 0;
     this.startingPlace = _startingPlace;
@@ -141653,7 +141653,7 @@ function () {
       var willEnterTarget = this.position + steps >= 40;
 
       if (willEnterTarget) {
-        this.enterTargetZone(steps);
+        this.enterDestinationZone(steps);
         return;
       }
 
@@ -141754,7 +141754,7 @@ function () {
   }, {
     key: "pathEnds",
     value: function pathEnds(steps) {
-      return this.position + steps >= 44;
+      return this.position + steps >= 45;
     }
   }, {
     key: "targetFieldIsEmpty",
@@ -141793,19 +141793,19 @@ function () {
           player.pawns.forEach(function (pawn) {
             if (pawn.globalPosition === 0) console.log(pawn);
 
-            if (pawn.globalPosition === targetField && !pawn.isInTargetField) {
+            if (pawn.globalPosition === targetField && !pawn.isInDestinationField) {
               pawn.returnHome();
             }
-          }); //   TODO Check if my own pawn is here
+          });
         } else if (player.wonGame()) {
           alert('congrats:' + player.name + '! You WON!!!');
         }
       });
     }
   }, {
-    key: "enterTargetZone",
-    value: function enterTargetZone(steps) {
-      this.isInTargetField = true;
+    key: "enterDestinationZone",
+    value: function enterDestinationZone(steps) {
+      this.isInDestinationField = true;
       this.position += steps;
       this.globalPosition = -13 * this.startingGlobalPosition;
       this.endOfMove();
@@ -141963,13 +141963,13 @@ function () {
   }, {
     key: "wonGame",
     value: function wonGame() {
-      var pawnsInTarget = [];
+      var pawnsInDestination = [];
       this.pawns.forEach(function (pawn, index) {
-        if (pawn.isInTargetField) {
-          pawnsInTarget.push(index);
+        if (pawn.isInDestinationField) {
+          pawnsInDestination.push(index);
         }
       }.bind(this));
-      return pawnsInTarget.length == 4;
+      return pawnsInDestination.length == 4;
     }
   }]);
 
@@ -142003,7 +142003,10 @@ window.Burrec = new Vue({
     this.$nextTick(function () {
       var _this = this;
 
-      // Game logic
+      setInterval(function () {
+        this.flashIntensity = this.flashIntensity ? 0 : 4;
+      }.bind(this), 300); // Game logic
+
       this.createPlayers();
       this.startGame();
       EventBus.listen(EventKeys.turns.endTurn, function () {
@@ -142116,6 +142119,7 @@ window.Burrec = new Vue({
         distance: 20,
         position: "13, 10, 13"
       }],
+      flashIntensity: 0,
       indicator: {
         position: {
           x: 0,

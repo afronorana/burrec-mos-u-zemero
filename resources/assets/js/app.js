@@ -10,6 +10,11 @@ window.Burrec = new Vue({
 
   mounted() {
     this.$nextTick(function() {
+
+      setInterval(function() {
+        this.flashIntensity = this.flashIntensity ? 0 : 4
+      }.bind(this), 300);
+
       // Game logic
       this.createPlayers();
       this.startGame();
@@ -119,7 +124,7 @@ window.Burrec = new Vue({
       {color: '#ffffff', intensity: 1, distance: 20, position: `13, 10, -2`},
       {color: '#ffffff', intensity: 1, distance: 20, position: `13, 10, 13`},
     ],
-
+flashIntensity: 0,
     indicator: {
       position: {
         x: 0,
