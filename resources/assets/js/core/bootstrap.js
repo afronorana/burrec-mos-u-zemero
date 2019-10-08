@@ -16,3 +16,4 @@ window.Player = require('../Player');
 
 window.THREE = require('three');
 
+require('three/examples/js/controls/OrbitControls');

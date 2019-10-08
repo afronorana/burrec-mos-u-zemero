@@ -1,203 +1,41 @@
 require('./core/bootstrap');
+require('./ApplicationStore');
+require('./core/register/eventhandler');
+require('./core/register/mixins');
+require('./core/register/components');
 
-window.EventBus = new class {
-  constructor() {
-    this.vue = new Vue();
-  }
-
-  fire(event, data = null) {
-    this.vue.$emit(event, data);
-  }
-
-  listen(event, callback) {
-    if (typeof callback === 'function')
-      this.vue.$on(event, callback);
-  }
-};
-
-require('./core/plugins');
-
-// Mixins
-const GlobalMixin = require('./mixins/Global');
-Vue.use(GlobalMixin);
-
-// Components
-// Vue.component('the-Scene', require('./components/TheScene'));
-Vue.component('the-game', require('./components/TheGame'));
-// Vue.component('the-dice', require('./components/TheDice'));
-// Vue.component('stepping-fields', require('./components/SteppingFields'));
-// Vue.component('player-homes', require('./components/PlayerHomes'));
-
-window.ApplicationStore = {
-
-  x: 0,
-  y: 0,
-  z: 0,
-
-  cursorPointer: false,
-
-  diceData: {
-    interval: [null, null, null],
-    allDone: [false, false, false],
-    diceCalc: {
-      x: 0,
-      y: 0,
-      z: 0,
-    },
-    time: 300,
-    x: 0,
-    y: 0,
-    z: 0,
-  },
-
-  settings: {
-    quality: 12,
-  },
-  fields: {
-    home: [
-      {
-        fields: [
-          new THREE.Vector3(0, 0.5, 0), new THREE.Vector3(0, 0.5, 1),
-          new THREE.Vector3(1, 0.5, 0), new THREE.Vector3(1, 0.5, 1),
-        ],
-        color: '#CE0000',
-      },
-      {
-        fields: [
-          new THREE.Vector3(9, 0.5, 0), new THREE.Vector3(9, 0.5, 1),
-          new THREE.Vector3(10, 0.5, 0), new THREE.Vector3(10, 0.5, 1),
-        ],
-        color: '#F7D708',
-
-      },
-      {
-        fields: [
-          new THREE.Vector3(9, 0.5, 9), new THREE.Vector3(9, 0.5, 10),
-          new THREE.Vector3(10, 0.5, 9), new THREE.Vector3(10, 0.5, 10),
-        ],
-        color: '#9CCF31',
-      },
-      {
-        fields: [
-          new THREE.Vector3(0, 0.5, 9), new THREE.Vector3(0, 0.5, 10),
-          new THREE.Vector3(1, 0.5, 9), new THREE.Vector3(1, 0.5, 10),
-        ],
-        color: '#009ECE',
-
-      },
-    ],
-    target: [
-      {
-        fields: [
-          new THREE.Vector3(1, 0.5, 5), new THREE.Vector3(2, 0.5, 5),
-          new THREE.Vector3(3, 0.5, 5), new THREE.Vector3(4, 0.5, 5),
-        ],
-        color: '#CE0000',
-      },
-      {
-        fields: [
-          new THREE.Vector3(5, 0.5, 1), new THREE.Vector3(5, 0.5, 2),
-          new THREE.Vector3(5, 0.5, 3), new THREE.Vector3(5, 0.5, 4),
-        ],
-        color: '#F7D708',
-      },
-      {
-        fields: [
-          new THREE.Vector3(9, 0.5, 5), new THREE.Vector3(8, 0.5, 5),
-          new THREE.Vector3(7, 0.5, 5), new THREE.Vector3(6, 0.5, 5),
-        ],
-        color: '#9CCF31',
-      },
-      {
-        fields: [
-          new THREE.Vector3(5, 0.5, 9), new THREE.Vector3(5, 0.5, 8),
-          new THREE.Vector3(5, 0.5, 7), new THREE.Vector3(5, 0.5, 6),
-        ],
-        color: '#009ECE',
-      },
-    ],
-    path: [
-      new THREE.Vector3(0, 0.5, 4), // 0
-      new THREE.Vector3(1, 0.5, 4), // 1
-      new THREE.Vector3(2, 0.5, 4),
-      new THREE.Vector3(3, 0.5, 4),
-      new THREE.Vector3(4, 0.5, 4),
-      new THREE.Vector3(4, 0.5, 3),
-      new THREE.Vector3(4, 0.5, 2),
-      new THREE.Vector3(4, 0.5, 1),
-      new THREE.Vector3(4, 0.5, 0),
-      new THREE.Vector3(5, 0.5, 0),
-      new THREE.Vector3(6, 0.5, 0),
-      new THREE.Vector3(6, 0.5, 1),
-      new THREE.Vector3(6, 0.5, 2),
-      new THREE.Vector3(6, 0.5, 3),
-      new THREE.Vector3(6, 0.5, 4),
-      new THREE.Vector3(7, 0.5, 4),
-      new THREE.Vector3(8, 0.5, 4),
-      new THREE.Vector3(9, 0.5, 4),
-      new THREE.Vector3(10, 0.5, 4),
-      new THREE.Vector3(10, 0.5, 5),
-      new THREE.Vector3(10, 0.5, 6),
-      new THREE.Vector3(9, 0.5, 6),
-      new THREE.Vector3(8, 0.5, 6),
-      new THREE.Vector3(7, 0.5, 6),
-      new THREE.Vector3(6, 0.5, 6),
-      new THREE.Vector3(6, 0.5, 7),
-      new THREE.Vector3(6, 0.5, 8),
-      new THREE.Vector3(6, 0.5, 9),
-      new THREE.Vector3(6, 0.5, 10),
-      new THREE.Vector3(5, 0.5, 10),
-      new THREE.Vector3(4, 0.5, 10),
-      new THREE.Vector3(4, 0.5, 9),
-      new THREE.Vector3(4, 0.5, 8),
-      new THREE.Vector3(4, 0.5, 7),
-      new THREE.Vector3(4, 0.5, 6),
-      new THREE.Vector3(3, 0.5, 6),
-      new THREE.Vector3(2, 0.5, 6),
-      new THREE.Vector3(1, 0.5, 6),
-      new THREE.Vector3(0, 0.5, 6),
-      new THREE.Vector3(0, 0.5, 5),
-
-    ],
-  },
-
-  players: [],
-  currentPlayerId: -1,
-
-  lastRolledDice: 'Start',
-
-  currentRound: 0,
-  gamePlayStatus: {
-    isRolling: false,
-    isMoving: false,
-  },
-  controls: null,
-};
-
-require('three/examples/js/controls/OrbitControls');
 
 window.Burrec = new Vue({
   el: '#app',
+
   mounted() {
     this.$nextTick(function() {
+      // Game logic
+      this.createPlayers();
+      this.startGame();
+
+      EventBus.listen(EventKeys.turns.endTurn, function() {
+        this.changePlayersTurn();
+      }.bind(this));
+      EventBus.listen(EventKeys.turns.repeatTurn, function() {
+        this.repeatPlayersTurn();
+      }.bind(this));
 
 
 
       window.addEventListener('keypress', function(e) {
-        if (e.keyCode === 32) {
-          this.rollDice();
-        }
+        if (e.keyCode === 32) {this.rollDice();}
       }.bind(this));
       EventBus.listen('EventKeys.rollDice', function(amount) {
         this.rollDice(amount);
       }.bind(this));
 
-      let scene = this.$children[1].vglNamespace.scenes['scene'];
-      let camera = this.$children[1].vglNamespace.cameras['cmr1'];
-      let renderer = this.$children[1].vglNamespace.renderers[0];
+      let scene = this.$children[0].vglNamespace.scenes['scene'];
+      let camera = this.$children[0].vglNamespace.cameras['cmr1'];
+      let renderer = this.$children[0].vglNamespace.renderers[0];
 
       this.controls = new THREE.OrbitControls(
-          this.$children[1].vglNamespace.cameras['cmr1'],
+          this.$children[0].vglNamespace.cameras['cmr1'],
           renderer.$el,
       );
 
@@ -209,7 +47,7 @@ window.Burrec = new Vue({
       this.controls.enablePan = false;
 
       this.controls.addEventListener('change', () => {
-        this.$children[1].vglNamespace.update();
+        this.$children[0].vglNamespace.update();
         render();
       });
 
@@ -243,7 +81,7 @@ window.Burrec = new Vue({
           lastHoveredObject = null;
           self.store.cursorPointer = false;
         }
-        self.$children[1].vglNamespace.renderers[0].render(scene, camera);
+        self.$children[0].vglNamespace.renderers[0].render(scene, camera);
       };
       window.addEventListener('mousemove', onMouseMove, false);
 
@@ -267,7 +105,8 @@ window.Burrec = new Vue({
     });
   },
 
-  data: {
+  data() {
+    return {
     store: ApplicationStore,
 
     steppingFields: [],
@@ -289,7 +128,7 @@ window.Burrec = new Vue({
         z: 0
       },
     },
-  },
+  }},
 
   watch: {
     steppingFields: {
@@ -304,6 +143,49 @@ window.Burrec = new Vue({
 
   events: {},
   methods: {
+    createPlayers() {
+      this.store.players.push(new Player('Player 1', '#CE0000', 1, false));
+      this.store.players.push(new Player('Player 2', '#F7D708', 2, false));
+      this.store.players.push(new Player('Player 3', '#009ECE', 3, false));
+      this.store.players.push(new Player('Player 4', '#9CCF31', 4, false));
+      // this.store.players.push(new Player('Player 1', '#CE0000', 1, true));
+      // this.store.players.push(new Player('Player 2', '#F7D708', 2, true));
+      // this.store.players.push(new Player('Player 3', '#009ECE', 3, true));
+      // this.store.players.push(new Player('Player 4', '#9CCF31', 4, true));
+    },
+
+    startGame() {
+      this.store.currentRound = 1;
+      this.changePlayersTurn();
+      EventBus.fire('game.start');
+    },
+
+    changePlayersTurn() {
+
+      ApplicationStore.gamePlayStatus.isMoving = false;
+
+      /** Check if its first round **/
+      let currentPlayer = this.store.players[this.store.currentPlayerId];
+      if (currentPlayer)
+        currentPlayer.endTurn();
+
+      /** Set next player **/
+      if (this.store.currentPlayerId === this.store.players.length - 1) {
+        this.store.currentPlayerId = 0;
+        this.store.currentRound++;
+      } else {
+        this.store.currentPlayerId++;
+      }
+
+      this.store.players[this.store.currentPlayerId].startTurn();
+    },
+
+    repeatPlayersTurn() {
+      ApplicationStore.gamePlayStatus.isMoving = false;
+      let currentPlayer = this.store.players[this.store.currentPlayerId];
+      currentPlayer.endTurn();
+      currentPlayer.startTurn();
+    },
     getPawnPosition(pawn) {
       return pawn.getPosition();
     },

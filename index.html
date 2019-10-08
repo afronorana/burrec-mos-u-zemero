@@ -19,10 +19,7 @@
     </header>
 
     <div id="app" :class="{'cursor-pointer' : store.cursorPointer}">
-        <div class="container" style="opacity: .15; pointer-events: none; display: none;">
-            <!--                    <div class="container" style="opacity: .3; position: absolute;">-->
-            <the-game :stepping-fields="steppingFields"></the-game>
-        </div>
+<!--            <the-game class="container" style="opacity: .15; pointer-events: none; display: none;" :stepping-fields="steppingFields"></the-game>-->
 
         <pre style="position: absolute; top:0;left: 0;z-index: 100; color:white" >
             <span v-for="player in store.players">
@@ -144,7 +141,7 @@
                     ></vgl-mesh>
 
                     <vgl-mesh v-for="(field, index) in store.fields.path"
-                              v-if="index%10"
+                              v-if="index === player.index"
                               :key="`field-start-${playerIndex}`"
                               :position="`${store.fields.path[playerIndex*10].x} 0 ${store.fields.path[playerIndex*10].z}`"
                               geometry="fieldGeometry" :material="`fieldMaterial-${playerIndex}`"

@@ -548,128 +548,28 @@ rawAsap.makeRequestCallFromTimer = makeRequestCallFromTimer;
 /* 3 */
 /***/ (function(module, exports, __webpack_require__) {
 
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
 __webpack_require__(10);
-
-window.EventBus = new (function () {
-  function _class() {
-    _classCallCheck(this, _class);
-
-    this.vue = new Vue();
-  }
-
-  _createClass(_class, [{
-    key: 'fire',
-    value: function fire(event) {
-      var data = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : null;
-
-      this.vue.$emit(event, data);
-    }
-  }, {
-    key: 'listen',
-    value: function listen(event, callback) {
-      if (typeof callback === 'function') this.vue.$on(event, callback);
-    }
-  }]);
-
-  return _class;
-}())();
-
-__webpack_require__(11);
-
-// Mixins
-var GlobalMixin = __webpack_require__(12);
-Vue.use(GlobalMixin);
-
-// Components
-// Vue.component('the-Scene', require('./components/TheScene'));
-Vue.component('the-game', __webpack_require__(29));
-// Vue.component('the-dice', require('./components/TheDice'));
-// Vue.component('stepping-fields', require('./components/SteppingFields'));
-// Vue.component('player-homes', require('./components/PlayerHomes'));
-
-window.ApplicationStore = {
-
-  x: 0,
-  y: 0,
-  z: 0,
-
-  cursorPointer: false,
-
-  diceData: {
-    interval: [null, null, null],
-    allDone: [false, false, false],
-    diceCalc: {
-      x: 0,
-      y: 0,
-      z: 0
-    },
-    time: 300,
-    x: 0,
-    y: 0,
-    z: 0
-  },
-
-  settings: {
-    quality: 12
-  },
-  fields: {
-    home: [{
-      fields: [new THREE.Vector3(0, 0.5, 0), new THREE.Vector3(0, 0.5, 1), new THREE.Vector3(1, 0.5, 0), new THREE.Vector3(1, 0.5, 1)],
-      color: '#CE0000'
-    }, {
-      fields: [new THREE.Vector3(9, 0.5, 0), new THREE.Vector3(9, 0.5, 1), new THREE.Vector3(10, 0.5, 0), new THREE.Vector3(10, 0.5, 1)],
-      color: '#F7D708'
-
-    }, {
-      fields: [new THREE.Vector3(9, 0.5, 9), new THREE.Vector3(9, 0.5, 10), new THREE.Vector3(10, 0.5, 9), new THREE.Vector3(10, 0.5, 10)],
-      color: '#9CCF31'
-    }, {
-      fields: [new THREE.Vector3(0, 0.5, 9), new THREE.Vector3(0, 0.5, 10), new THREE.Vector3(1, 0.5, 9), new THREE.Vector3(1, 0.5, 10)],
-      color: '#009ECE'
-
-    }],
-    target: [{
-      fields: [new THREE.Vector3(1, 0.5, 5), new THREE.Vector3(2, 0.5, 5), new THREE.Vector3(3, 0.5, 5), new THREE.Vector3(4, 0.5, 5)],
-      color: '#CE0000'
-    }, {
-      fields: [new THREE.Vector3(5, 0.5, 1), new THREE.Vector3(5, 0.5, 2), new THREE.Vector3(5, 0.5, 3), new THREE.Vector3(5, 0.5, 4)],
-      color: '#F7D708'
-    }, {
-      fields: [new THREE.Vector3(9, 0.5, 5), new THREE.Vector3(8, 0.5, 5), new THREE.Vector3(7, 0.5, 5), new THREE.Vector3(6, 0.5, 5)],
-      color: '#9CCF31'
-    }, {
-      fields: [new THREE.Vector3(5, 0.5, 9), new THREE.Vector3(5, 0.5, 8), new THREE.Vector3(5, 0.5, 7), new THREE.Vector3(5, 0.5, 6)],
-      color: '#009ECE'
-    }],
-    path: [new THREE.Vector3(0, 0.5, 4), // 0
-    new THREE.Vector3(1, 0.5, 4), // 1
-    new THREE.Vector3(2, 0.5, 4), new THREE.Vector3(3, 0.5, 4), new THREE.Vector3(4, 0.5, 4), new THREE.Vector3(4, 0.5, 3), new THREE.Vector3(4, 0.5, 2), new THREE.Vector3(4, 0.5, 1), new THREE.Vector3(4, 0.5, 0), new THREE.Vector3(5, 0.5, 0), new THREE.Vector3(6, 0.5, 0), new THREE.Vector3(6, 0.5, 1), new THREE.Vector3(6, 0.5, 2), new THREE.Vector3(6, 0.5, 3), new THREE.Vector3(6, 0.5, 4), new THREE.Vector3(7, 0.5, 4), new THREE.Vector3(8, 0.5, 4), new THREE.Vector3(9, 0.5, 4), new THREE.Vector3(10, 0.5, 4), new THREE.Vector3(10, 0.5, 5), new THREE.Vector3(10, 0.5, 6), new THREE.Vector3(9, 0.5, 6), new THREE.Vector3(8, 0.5, 6), new THREE.Vector3(7, 0.5, 6), new THREE.Vector3(6, 0.5, 6), new THREE.Vector3(6, 0.5, 7), new THREE.Vector3(6, 0.5, 8), new THREE.Vector3(6, 0.5, 9), new THREE.Vector3(6, 0.5, 10), new THREE.Vector3(5, 0.5, 10), new THREE.Vector3(4, 0.5, 10), new THREE.Vector3(4, 0.5, 9), new THREE.Vector3(4, 0.5, 8), new THREE.Vector3(4, 0.5, 7), new THREE.Vector3(4, 0.5, 6), new THREE.Vector3(3, 0.5, 6), new THREE.Vector3(2, 0.5, 6), new THREE.Vector3(1, 0.5, 6), new THREE.Vector3(0, 0.5, 6), new THREE.Vector3(0, 0.5, 5)]
-  },
-
-  players: [],
-  currentPlayerId: -1,
-
-  lastRolledDice: 'Start',
-
-  currentRound: 0,
-  gamePlayStatus: {
-    isRolling: false,
-    isMoving: false
-  },
-  controls: null
-};
-
-__webpack_require__(25);
+__webpack_require__(39);
+__webpack_require__(41);
+__webpack_require__(42);
+__webpack_require__(40);
 
 window.Burrec = new Vue({
   el: '#app',
   mounted: function mounted() {
     this.$nextTick(function () {
       var _this = this;
+
+      // Game logic
+      this.createPlayers();
+      this.startGame();
+
+      EventBus.listen(EventKeys.turns.endTurn, function () {
+        this.changePlayersTurn();
+      }.bind(this));
+      EventBus.listen(EventKeys.turns.repeatTurn, function () {
+        this.repeatPlayersTurn();
+      }.bind(this));
 
       window.addEventListener('keypress', function (e) {
         if (e.keyCode === 32) {
@@ -680,11 +580,11 @@ window.Burrec = new Vue({
         this.rollDice(amount);
       }.bind(this));
 
-      var scene = this.$children[1].vglNamespace.scenes['scene'];
-      var camera = this.$children[1].vglNamespace.cameras['cmr1'];
-      var renderer = this.$children[1].vglNamespace.renderers[0];
+      var scene = this.$children[0].vglNamespace.scenes['scene'];
+      var camera = this.$children[0].vglNamespace.cameras['cmr1'];
+      var renderer = this.$children[0].vglNamespace.renderers[0];
 
-      this.controls = new THREE.OrbitControls(this.$children[1].vglNamespace.cameras['cmr1'], renderer.$el);
+      this.controls = new THREE.OrbitControls(this.$children[0].vglNamespace.cameras['cmr1'], renderer.$el);
 
       this.controls.minPolarAngle = Math.PI / 5;
       this.controls.maxPolarAngle = Math.PI / 3;
@@ -694,7 +594,7 @@ window.Burrec = new Vue({
       this.controls.enablePan = false;
 
       this.controls.addEventListener('change', function () {
-        _this.$children[1].vglNamespace.update();
+        _this.$children[0].vglNamespace.update();
         render();
       });
 
@@ -727,7 +627,7 @@ window.Burrec = new Vue({
           lastHoveredObject = null;
           self.store.cursorPointer = false;
         }
-        self.$children[1].vglNamespace.renderers[0].render(scene, camera);
+        self.$children[0].vglNamespace.renderers[0].render(scene, camera);
       };
       window.addEventListener('mousemove', onMouseMove, false);
 
@@ -748,26 +648,27 @@ window.Burrec = new Vue({
       }.bind(this), false);
     });
   },
+  data: function data() {
+    return {
+      store: ApplicationStore,
 
+      steppingFields: [],
 
-  data: {
-    store: ApplicationStore,
+      board: { position: '5 -0.05 5' },
+      cameraDeets: '-15 15 -15',
 
-    steppingFields: [],
+      pointLights: [{ color: '#ffffff', intensity: 1, distance: 20, position: '-2, 10, -2' }, { color: '#ffffff', intensity: 1, distance: 20, position: '-2, 10, 13' }, { color: '#ffffff', intensity: 1, distance: 20, position: '13, 10, -2' }, { color: '#ffffff', intensity: 1, distance: 20, position: '13, 10, 13' }],
 
-    board: { position: '5 -0.05 5' },
-    cameraDeets: '-15 15 -15',
-
-    pointLights: [{ color: '#ffffff', intensity: 1, distance: 20, position: '-2, 10, -2' }, { color: '#ffffff', intensity: 1, distance: 20, position: '-2, 10, 13' }, { color: '#ffffff', intensity: 1, distance: 20, position: '13, 10, -2' }, { color: '#ffffff', intensity: 1, distance: 20, position: '13, 10, 13' }],
-
-    indicator: {
-      position: {
-        x: 0,
-        y: 0,
-        z: 0
+      indicator: {
+        position: {
+          x: 0,
+          y: 0,
+          z: 0
+        }
       }
-    }
+    };
   },
+
 
   watch: {
     steppingFields: {
@@ -783,6 +684,45 @@ window.Burrec = new Vue({
 
   events: {},
   methods: {
+    createPlayers: function createPlayers() {
+      this.store.players.push(new Player('Player 1', '#CE0000', 1, false));
+      this.store.players.push(new Player('Player 2', '#F7D708', 2, false));
+      this.store.players.push(new Player('Player 3', '#009ECE', 3, false));
+      this.store.players.push(new Player('Player 4', '#9CCF31', 4, false));
+      // this.store.players.push(new Player('Player 1', '#CE0000', 1, true));
+      // this.store.players.push(new Player('Player 2', '#F7D708', 2, true));
+      // this.store.players.push(new Player('Player 3', '#009ECE', 3, true));
+      // this.store.players.push(new Player('Player 4', '#9CCF31', 4, true));
+    },
+    startGame: function startGame() {
+      this.store.currentRound = 1;
+      this.changePlayersTurn();
+      EventBus.fire('game.start');
+    },
+    changePlayersTurn: function changePlayersTurn() {
+
+      ApplicationStore.gamePlayStatus.isMoving = false;
+
+      /** Check if its first round **/
+      var currentPlayer = this.store.players[this.store.currentPlayerId];
+      if (currentPlayer) currentPlayer.endTurn();
+
+      /** Set next player **/
+      if (this.store.currentPlayerId === this.store.players.length - 1) {
+        this.store.currentPlayerId = 0;
+        this.store.currentRound++;
+      } else {
+        this.store.currentPlayerId++;
+      }
+
+      this.store.players[this.store.currentPlayerId].startTurn();
+    },
+    repeatPlayersTurn: function repeatPlayersTurn() {
+      ApplicationStore.gamePlayStatus.isMoving = false;
+      var currentPlayer = this.store.players[this.store.currentPlayerId];
+      currentPlayer.endTurn();
+      currentPlayer.startTurn();
+    },
     getPawnPosition: function getPawnPosition(pawn) {
       return pawn.getPosition();
     },
@@ -889,85 +829,7 @@ RawTask.prototype.call = function () {
 
 
 /***/ }),
-/* 6 */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
-
-"use strict";
-Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
-//
-//
-//
-//
-//
-//
-
-/* harmony default export */ __webpack_exports__["default"] = ({
-  components: {},
-  mounted: function mounted() {
-    this.$nextTick(function () {
-      this.createPlayers();
-      this.startGame();
-
-      EventBus.listen(EventKeys.turns.endTurn, function () {
-        this.changePlayersTurn();
-      }.bind(this));
-      EventBus.listen(EventKeys.turns.repeatTurn, function () {
-        this.repeatPlayersTurn();
-      }.bind(this));
-    }.bind(this));
-  },
-  data: function data() {
-    return {
-      store: window.ApplicationStore
-    };
-  },
-
-  events: {},
-
-  methods: {
-    createPlayers: function createPlayers() {
-      this.store.players.push(new Player('Player 1', '#CE0000', 1, false));
-      this.store.players.push(new Player('Player 2', '#F7D708', 2, false));
-      this.store.players.push(new Player('Player 3', '#009ECE', 3, false));
-      this.store.players.push(new Player('Player 4', '#9CCF31', 4, false));
-      // this.store.players.push(new Player('Player 1', '#CE0000', 1, true));
-      // this.store.players.push(new Player('Player 2', '#F7D708', 2, true));
-      // this.store.players.push(new Player('Player 3', '#009ECE', 3, true));
-      // this.store.players.push(new Player('Player 4', '#9CCF31', 4, true));
-    },
-    startGame: function startGame() {
-      this.store.currentRound = 1;
-      this.changePlayersTurn();
-      EventBus.fire('game.start');
-    },
-    changePlayersTurn: function changePlayersTurn() {
-
-      ApplicationStore.gamePlayStatus.isMoving = false;
-
-      /** Check if its first round **/
-      var currentPlayer = this.store.players[this.store.currentPlayerId];
-      if (currentPlayer) currentPlayer.endTurn();
-
-      /** Set next player **/
-      if (this.store.currentPlayerId === this.store.players.length - 1) {
-        this.store.currentPlayerId = 0;
-        this.store.currentRound++;
-      } else {
-        this.store.currentPlayerId++;
-      }
-
-      this.store.players[this.store.currentPlayerId].startTurn();
-    },
-    repeatPlayersTurn: function repeatPlayersTurn() {
-      ApplicationStore.gamePlayStatus.isMoving = false;
-      var currentPlayer = this.store.players[this.store.currentPlayerId];
-      currentPlayer.endTurn();
-      currentPlayer.startTurn();
-    }
-  }
-});
-
-/***/ }),
+/* 6 */,
 /* 7 */
 /***/ (function(module, exports) {
 
@@ -1424,13 +1286,10 @@ window.Player = __webpack_require__(9);
 
 window.THREE = __webpack_require__(24);
 
-/***/ }),
-/* 11 */
-/***/ (function(module, exports) {
-
-
+__webpack_require__(25);
 
 /***/ }),
+/* 11 */,
 /* 12 */
 /***/ (function(module, exports) {
 
@@ -129285,112 +129144,9 @@ function LensFlare() {
 
 
 /***/ }),
-/* 29 */
-/***/ (function(module, exports, __webpack_require__) {
-
-var Component = __webpack_require__(30)(
-  /* script */
-  __webpack_require__(6),
-  /* template */
-  __webpack_require__(31),
-  /* scopeId */
-  null,
-  /* cssModules */
-  null
-)
-Component.options.__file = "/Users/afronorana/Projects/Afron/burrec/resources/assets/js/components/TheGame.vue"
-if (Component.esModule && Object.keys(Component.esModule).some(function (key) {return key !== "default" && key !== "__esModule"})) {console.error("named exports are not supported in *.vue files.")}
-if (Component.options.functional) {console.error("[vue-loader] TheGame.vue: functional components are not supported with templates, they should use render functions.")}
-
-/* hot reload */
-if (false) {(function () {
-  var hotAPI = require("vue-hot-reload-api")
-  hotAPI.install(require("vue"), false)
-  if (!hotAPI.compatible) return
-  module.hot.accept()
-  if (!module.hot.data) {
-    hotAPI.createRecord("data-v-7dd547e4", Component.options)
-  } else {
-    hotAPI.reload("data-v-7dd547e4", Component.options)
-  }
-})()}
-
-module.exports = Component.exports
-
-
-/***/ }),
-/* 30 */
-/***/ (function(module, exports) {
-
-// this module is a runtime utility for cleaner component module output and will
-// be included in the final webpack user bundle
-
-module.exports = function normalizeComponent (
-  rawScriptExports,
-  compiledTemplate,
-  scopeId,
-  cssModules
-) {
-  var esModule
-  var scriptExports = rawScriptExports = rawScriptExports || {}
-
-  // ES6 modules interop
-  var type = typeof rawScriptExports.default
-  if (type === 'object' || type === 'function') {
-    esModule = rawScriptExports
-    scriptExports = rawScriptExports.default
-  }
-
-  // Vue.extend constructor export interop
-  var options = typeof scriptExports === 'function'
-    ? scriptExports.options
-    : scriptExports
-
-  // render functions
-  if (compiledTemplate) {
-    options.render = compiledTemplate.render
-    options.staticRenderFns = compiledTemplate.staticRenderFns
-  }
-
-  // scopedId
-  if (scopeId) {
-    options._scopeId = scopeId
-  }
-
-  // inject cssModules
-  if (cssModules) {
-    var computed = Object.create(options.computed || null)
-    Object.keys(cssModules).forEach(function (key) {
-      var module = cssModules[key]
-      computed[key] = function () { return module }
-    })
-    options.computed = computed
-  }
-
-  return {
-    esModule: esModule,
-    exports: scriptExports,
-    options: options
-  }
-}
-
-
-/***/ }),
-/* 31 */
-/***/ (function(module, exports, __webpack_require__) {
-
-module.exports={render:function (){var _vm=this;var _h=_vm.$createElement;var _c=_vm._self._c||_h;
-  return _c('div')
-},staticRenderFns: []}
-module.exports.render._withStripped = true
-if (false) {
-  module.hot.accept()
-  if (module.hot.data) {
-     require("vue-hot-reload-api").rerender("data-v-7dd547e4", module.exports)
-  }
-}
-
-/***/ }),
+/* 29 */,
+/* 30 */,
+/* 31 */,
 /* 32 */
 /***/ (function(module, exports, __webpack_require__) {
 
@@ -141382,6 +141138,139 @@ module.exports = function(module) {
 __webpack_require__(3);
 module.exports = __webpack_require__(4);
 
+
+/***/ }),
+/* 36 */,
+/* 37 */,
+/* 38 */,
+/* 39 */
+/***/ (function(module, exports) {
+
+
+window.ApplicationStore = {
+
+  x: 0,
+  y: 0,
+  z: 0,
+
+  cursorPointer: false,
+
+  diceData: {
+    interval: [null, null, null],
+    allDone: [false, false, false],
+    diceCalc: {
+      x: 0,
+      y: 0,
+      z: 0
+    },
+    time: 300,
+    x: 0,
+    y: 0,
+    z: 0
+  },
+
+  settings: {
+    quality: 12
+  },
+  fields: {
+    home: [{
+      fields: [new THREE.Vector3(0, 0.5, 0), new THREE.Vector3(0, 0.5, 1), new THREE.Vector3(1, 0.5, 0), new THREE.Vector3(1, 0.5, 1)],
+      color: '#CE0000'
+    }, {
+      fields: [new THREE.Vector3(9, 0.5, 0), new THREE.Vector3(9, 0.5, 1), new THREE.Vector3(10, 0.5, 0), new THREE.Vector3(10, 0.5, 1)],
+      color: '#F7D708'
+
+    }, {
+      fields: [new THREE.Vector3(9, 0.5, 9), new THREE.Vector3(9, 0.5, 10), new THREE.Vector3(10, 0.5, 9), new THREE.Vector3(10, 0.5, 10)],
+      color: '#9CCF31'
+    }, {
+      fields: [new THREE.Vector3(0, 0.5, 9), new THREE.Vector3(0, 0.5, 10), new THREE.Vector3(1, 0.5, 9), new THREE.Vector3(1, 0.5, 10)],
+      color: '#009ECE'
+
+    }],
+    target: [{
+      fields: [new THREE.Vector3(1, 0.5, 5), new THREE.Vector3(2, 0.5, 5), new THREE.Vector3(3, 0.5, 5), new THREE.Vector3(4, 0.5, 5)],
+      color: '#CE0000'
+    }, {
+      fields: [new THREE.Vector3(5, 0.5, 1), new THREE.Vector3(5, 0.5, 2), new THREE.Vector3(5, 0.5, 3), new THREE.Vector3(5, 0.5, 4)],
+      color: '#F7D708'
+    }, {
+      fields: [new THREE.Vector3(9, 0.5, 5), new THREE.Vector3(8, 0.5, 5), new THREE.Vector3(7, 0.5, 5), new THREE.Vector3(6, 0.5, 5)],
+      color: '#9CCF31'
+    }, {
+      fields: [new THREE.Vector3(5, 0.5, 9), new THREE.Vector3(5, 0.5, 8), new THREE.Vector3(5, 0.5, 7), new THREE.Vector3(5, 0.5, 6)],
+      color: '#009ECE'
+    }],
+    path: [new THREE.Vector3(0, 0.5, 4), // 0
+    new THREE.Vector3(1, 0.5, 4), // 1
+    new THREE.Vector3(2, 0.5, 4), new THREE.Vector3(3, 0.5, 4), new THREE.Vector3(4, 0.5, 4), new THREE.Vector3(4, 0.5, 3), new THREE.Vector3(4, 0.5, 2), new THREE.Vector3(4, 0.5, 1), new THREE.Vector3(4, 0.5, 0), new THREE.Vector3(5, 0.5, 0), new THREE.Vector3(6, 0.5, 0), new THREE.Vector3(6, 0.5, 1), new THREE.Vector3(6, 0.5, 2), new THREE.Vector3(6, 0.5, 3), new THREE.Vector3(6, 0.5, 4), new THREE.Vector3(7, 0.5, 4), new THREE.Vector3(8, 0.5, 4), new THREE.Vector3(9, 0.5, 4), new THREE.Vector3(10, 0.5, 4), new THREE.Vector3(10, 0.5, 5), new THREE.Vector3(10, 0.5, 6), new THREE.Vector3(9, 0.5, 6), new THREE.Vector3(8, 0.5, 6), new THREE.Vector3(7, 0.5, 6), new THREE.Vector3(6, 0.5, 6), new THREE.Vector3(6, 0.5, 7), new THREE.Vector3(6, 0.5, 8), new THREE.Vector3(6, 0.5, 9), new THREE.Vector3(6, 0.5, 10), new THREE.Vector3(5, 0.5, 10), new THREE.Vector3(4, 0.5, 10), new THREE.Vector3(4, 0.5, 9), new THREE.Vector3(4, 0.5, 8), new THREE.Vector3(4, 0.5, 7), new THREE.Vector3(4, 0.5, 6), new THREE.Vector3(3, 0.5, 6), new THREE.Vector3(2, 0.5, 6), new THREE.Vector3(1, 0.5, 6), new THREE.Vector3(0, 0.5, 6), new THREE.Vector3(0, 0.5, 5)]
+  },
+
+  players: [],
+  currentPlayerId: -1,
+
+  lastRolledDice: 'Start',
+
+  currentRound: 0,
+  gamePlayStatus: {
+    isRolling: false,
+    isMoving: false
+  },
+  controls: null
+};
+
+/***/ }),
+/* 40 */
+/***/ (function(module, exports) {
+
+// Test
+// Vue.component(
+//     'test-component',
+//     require('./../../components/TestComponent.vue').default
+// );
+
+/***/ }),
+/* 41 */
+/***/ (function(module, exports) {
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+window.EventBus = new (function () {
+    function _class() {
+        _classCallCheck(this, _class);
+
+        this.vue = new Vue();
+    }
+
+    _createClass(_class, [{
+        key: 'fire',
+        value: function fire(event) {
+            var data = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : null;
+
+            this.vue.$emit(event, data);
+        }
+    }, {
+        key: 'listen',
+        value: function listen(event, callback) {
+            if (typeof callback === 'function') this.vue.$on(event, callback);
+        }
+    }]);
+
+    return _class;
+}())();
+
+/***/ }),
+/* 42 */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__mixins_Global__ = __webpack_require__(12);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_0__mixins_Global___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_0__mixins_Global__);
+
+Vue.use(__WEBPACK_IMPORTED_MODULE_0__mixins_Global___default.a);
 
 /***/ })
 /******/ ]);
