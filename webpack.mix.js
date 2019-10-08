@@ -1,9 +1,9 @@
 let mix = require('laravel-mix');
 
-// var HardSourceWebpackPlugin = require('hard-source-webpack-plugin');
-// mix.webpackConfig({
-//   plugins: [new HardSourceWebpackPlugin()]
-// });
+var HardSourceWebpackPlugin = require('hard-source-webpack-plugin');
+mix.webpackConfig({
+  plugins: [new HardSourceWebpackPlugin()]
+});
 
 
 mix.options({
