@@ -149,9 +149,9 @@ flashIntensity: 0,
   methods: {
     createPlayers() {
       this.store.players.push(new Player('Player 1', '#CE0000', 1, false));
-      this.store.players.push(new Player('Player 2', '#F7D708', 2, false));
-      this.store.players.push(new Player('Player 3', '#009ECE', 3, false));
-      this.store.players.push(new Player('Player 4', '#9CCF31', 4, false));
+      this.store.players.push(new Player('Player 2', '#F7D708', 2, true));
+      this.store.players.push(new Player('Player 3', '#009ECE', 3, true));
+      this.store.players.push(new Player('Player 4', '#9CCF31', 4, true));
       // this.store.players.push(new Player('Player 1', '#CE0000', 1, true));
       // this.store.players.push(new Player('Player 2', '#F7D708', 2, true));
       // this.store.players.push(new Player('Player 3', '#009ECE', 3, true));
