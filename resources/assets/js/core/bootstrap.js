@@ -1,7 +1,10 @@
 window._ = require('lodash');
 window.$ = window.jQuery = require('jquery');
 window.Promise = require('promise');
+window.Vuex = require('vuex');
 window.Vue = require('vue');
+Vue.use(Vuex);
+
 window.EventKeys = require('../EventKeys');
 
 // import * as VueGL from "vue-gl";

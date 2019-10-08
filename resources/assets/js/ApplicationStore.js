@@ -1,11 +1,10 @@
 
 window.ApplicationStore = {
-
   x: 0,
   y: 0,
   z: 0,
 
-  cursorPointer: false,
+
 
   diceData: {
     interval: [null, null, null],
@@ -139,7 +138,6 @@ window.ApplicationStore = {
 
     ],
   },
-
   players: [],
   currentPlayerId: -1,
 

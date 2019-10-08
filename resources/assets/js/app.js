@@ -5,6 +5,21 @@ require('./core/register/mixins');
 require('./core/register/components');
 
 
+window.storeX = new Vuex.Store({
+  state: {
+    count: 0,
+    cursorPointer: false,
+  },
+  mutations: {
+    changeCursor(state, isPointer) {
+      state.cursorPointer = isPointer
+    },
+    increment (state) {
+      state.count++
+    }
+  }
+})
+
 window.Burrec = new Vue({
   el: '#app',
 
@@ -76,14 +91,14 @@ window.Burrec = new Vue({
           let intersectedObjectName = intersects[0].object.parent.name.toString();
           if (intersectedObjectName.startsWith('cube') ||
               intersectedObjectName === 'dice') {
-            self.store.cursorPointer = true;
+            storeX.commit('changeCursor', true);
             lastHoveredObject = intersectedObjectName;
           } else {
-            self.store.cursorPointer = false;
+            storeX.commit('changeCursor', false);
           }
         } else {
           lastHoveredObject = null;
-          self.store.cursorPointer = false;
+          storeX.commit('changeCursor', false);
         }
         self.$children[0].vglNamespace.renderers[0].render(scene, camera);
       };
@@ -112,6 +127,7 @@ window.Burrec = new Vue({
   data() {
     return {
     store: ApplicationStore,
+      storeX: storeX,
 
     steppingFields: [],
 
