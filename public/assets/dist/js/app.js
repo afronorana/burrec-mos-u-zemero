@@ -142533,9 +142533,6 @@ module.exports = function(module) {
 /***/ (function(module, exports) {
 
 window.ApplicationStore = {
-  x: 0,
-  y: 0,
-  z: 0,
   diceData: {
     interval: [null, null, null],
     allDone: [false, false, false],
@@ -142604,6 +142601,8 @@ window.ApplicationStore = {
 /***/ (function(module, exports) {
 
 module.exports = {
+  rollDice: 'EventKeys.rollDice',
+  // Todo replace all places
   turns: {
     endTurn: 'turns.endTurn',
     repeatTurn: 'turns.repeatTurn'
@@ -142873,6 +142872,7 @@ function () {
     this.isPlaying = false;
     this.avaliablePawnsIndexes = [];
     this.pawns = [new Pawn(1, _color, (_turn - 1) * 10, _turn - 1), new Pawn(2, _color, (_turn - 1) * 10, _turn - 1), new Pawn(3, _color, (_turn - 1) * 10, _turn - 1), new Pawn(4, _color, (_turn - 1) * 10, _turn - 1)];
+    this.indicatorIntervals = [];
     this.stillHome = true;
     this.stillHomeCounter = 0;
   }
@@ -142893,6 +142893,10 @@ function () {
   }, {
     key: "endTurn",
     value: function endTurn() {
+      this.indicatorIntervals.forEach(function (interval) {
+        clearInterval(interval);
+      });
+      this.indicatorIntervals = [];
       this.isPlaying = false;
       ApplicationStore.playingPlayerIndex = null;
       this.pawns.forEach(function (pawn) {
@@ -142908,9 +142912,17 @@ function () {
     key: "rollDice",
     value: function rollDice(diceResult) {
       ApplicationStore.lastRolledDice = diceResult;
-      this.setAvaliablePawns(diceResult); // console.log(this.name, ' rolled ', diceResult);
+      this.setAvaliablePawns(diceResult);
+
+      if (this.pawnsAvailable()) {
+        this.indicatorIntervals.push(setInterval(function () {
+          var intensity = storeX.getters.flashIntensity ? 0 : 4;
+          storeX.commit('switchIntensity', intensity);
+        }, 300));
+      } // console.log(this.name, ' rolled ', diceResult);
 
       /** Check if player has available pawns **/
+
 
       if (this.pawnsAvailable() !== 0 || this.stillHome) {
         /** If all pawns home, roll dice 3 times **/
@@ -143026,14 +143038,20 @@ __webpack_require__(/*! ./core/register/components */ "./resources/assets/js/cor
 window.storeX = new Vuex.Store({
   state: {
     count: 0,
-    cursorPointer: false
+    cursorPointer: false,
+    flashIntensity: 0
+  },
+  getters: {
+    flashIntensity: function flashIntensity(state) {
+      return state.flashIntensity;
+    }
   },
   mutations: {
     changeCursor: function changeCursor(state, isPointer) {
       state.cursorPointer = isPointer;
     },
-    increment: function increment(state) {
-      state.count++;
+    switchIntensity: function switchIntensity(state, intensity) {
+      state.flashIntensity = intensity;
     }
   }
 });
@@ -143041,14 +143059,56 @@ window.Burrec = new Vue({
   el: '#app',
   mounted: function mounted() {
     this.$nextTick(function () {
-      var _this = this;
-
-      setInterval(function () {
-        this.flashIntensity = this.flashIntensity ? 0 : 4;
-      }.bind(this), 300); // Game logic
-
+      // Game logic
       this.createPlayers();
       this.startGame();
+      this.addEventListeners();
+      this.initThreeJs();
+    });
+  },
+  data: function data() {
+    return {
+      store: ApplicationStore,
+      storeX: storeX,
+      rayCaster: null,
+      mouse: null,
+      lastHoveredObject: null,
+      board: {
+        position: "5 -0.05 5"
+      },
+      pointLights: [{
+        color: '#ffffff',
+        intensity: 0.8,
+        distance: 20,
+        position: "-2, 10, -2"
+      }, {
+        color: '#ffffff',
+        intensity: 0.8,
+        distance: 20,
+        position: "-2, 10, 13"
+      }, {
+        color: '#ffffff',
+        intensity: 0.8,
+        distance: 20,
+        position: "13, 10, -2"
+      }, {
+        color: '#ffffff',
+        intensity: 0.8,
+        distance: 20,
+        position: "13, 10, 13"
+      }],
+      indicator: {
+        position: {
+          x: 0,
+          y: 0,
+          z: 0
+        }
+      }
+    };
+  },
+  events: {},
+  methods: {
+    addEventListeners: function addEventListeners() {
       EventBus.listen(EventKeys.turns.endTurn, function () {
         this.changePlayersTurn();
       }.bind(this));
@@ -143063,123 +143123,64 @@ window.Burrec = new Vue({
       EventBus.listen('EventKeys.rollDice', function (amount) {
         this.rollDice(amount);
       }.bind(this));
-      var scene = this.$children[0].vglNamespace.scenes['scene'];
-      var camera = this.$children[0].vglNamespace.cameras['cmr1'];
-      var renderer = this.$children[0].vglNamespace.renderers[0];
-      this.controls = new THREE.OrbitControls(this.$children[0].vglNamespace.cameras['cmr1'], renderer.$el);
+    },
+    initThreeJs: function initThreeJs() {
+      this.initCameraControls();
+      this.initMouseFunctions();
+    },
+    initCameraControls: function initCameraControls() {
+      this.controls = new THREE.OrbitControls(this.$children[0].vglNamespace.cameras['cmr1'], this.$children[0].vglNamespace.renderers[0].$el);
       this.controls.minPolarAngle = Math.PI / 5;
       this.controls.maxPolarAngle = Math.PI / 3;
       this.controls.target = new THREE.Vector3(5, 0, 5);
       this.controls.maxDistance = 30;
       this.controls.minDistance = 15;
       this.controls.enablePan = false;
-      this.controls.addEventListener('change', function () {
-        _this.$children[0].vglNamespace.update();
-
-        render();
-      });
-      var lastHoveredObject = null; // Mouse events
-
-      var raycaster = new THREE.Raycaster();
-      var mouse = new THREE.Vector2();
-
-      function onMouseMove(event) {
-        mouse.x = event.clientX / window.innerWidth * 2 - 1;
-        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-        render();
-      }
-
-      var self = this;
-
-      var render = function render() {
-        raycaster.setFromCamera(mouse, camera);
-        var intersects = raycaster.intersectObjects(scene.children, true);
-
-        if (intersects.length > 0) {
-          var intersectedObjectName = intersects[0].object.parent.name.toString();
-
-          if (intersectedObjectName.startsWith('cube') || intersectedObjectName === 'dice') {
-            storeX.commit('changeCursor', true);
-            lastHoveredObject = intersectedObjectName;
-          } else {
-            storeX.commit('changeCursor', false);
-          }
-        } else {
-          lastHoveredObject = null;
-          storeX.commit('changeCursor', false);
-        }
-
-        self.$children[0].vglNamespace.renderers[0].render(scene, camera);
-      };
-
-      window.addEventListener('mousemove', onMouseMove, false);
+    },
+    initMouseFunctions: function initMouseFunctions() {
+      this.raycaster = new THREE.Raycaster();
+      this.mouse = new THREE.Vector2();
+      window.addEventListener('mousemove', function (event) {
+        this.mouse.x = event.clientX / window.innerWidth * 2 - 1;
+        this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        this.render();
+      }.bind(this), false);
       window.addEventListener('click', function () {
-        if (!lastHoveredObject) return;
+        if (!this.lastHoveredObject) return;
 
-        if (lastHoveredObject.toString().startsWith('cube')) {
+        if (this.lastHoveredObject.toString().startsWith('cube')) {
           this.store.players.forEach(function (player) {
             player.pawns.forEach(function (pawn) {
-              if ('cube-' + pawn.id === lastHoveredObject) {
+              if ('cube-' + pawn.id === this.lastHoveredObject) {
                 pawn.move();
               }
-            });
-          });
-        } else if (lastHoveredObject.toString() === 'dice') {
+            }.bind(this));
+          }.bind(this));
+        } else if (this.lastHoveredObject.toString() === 'dice') {
           EventBus.fire('EventKeys.rollDice');
         }
       }.bind(this), false);
-    });
-  },
-  data: function data() {
-    return {
-      store: ApplicationStore,
-      storeX: storeX,
-      steppingFields: [],
-      board: {
-        position: "5 -0.05 5"
-      },
-      cameraDeets: "-15 15 -15",
-      pointLights: [{
-        color: '#ffffff',
-        intensity: 1,
-        distance: 20,
-        position: "-2, 10, -2"
-      }, {
-        color: '#ffffff',
-        intensity: 1,
-        distance: 20,
-        position: "-2, 10, 13"
-      }, {
-        color: '#ffffff',
-        intensity: 1,
-        distance: 20,
-        position: "13, 10, -2"
-      }, {
-        color: '#ffffff',
-        intensity: 1,
-        distance: 20,
-        position: "13, 10, 13"
-      }],
-      flashIntensity: 0,
-      indicator: {
-        position: {
-          x: 0,
-          y: 0,
-          z: 0
+    },
+    render: function render() {
+      var scene = this.$children[0].vglNamespace.scenes['scene'];
+      var camera = this.$children[0].vglNamespace.cameras['cmr1'];
+      this.raycaster.setFromCamera(this.mouse, camera);
+      var intersects = this.raycaster.intersectObjects(scene.children, true);
+
+      if (intersects.length > 0) {
+        var intersectedObjectName = intersects[0].object.parent.name.toString();
+
+        if (intersectedObjectName.startsWith('cube') || intersectedObjectName === 'dice') {
+          // storeX.commit('changeCursor', true);
+          this.lastHoveredObject = intersectedObjectName;
+        } else {// storeX.commit('changeCursor', false);
         }
+      } else {
+        this.lastHoveredObject = null; // storeX.commit('changeCursor', false);
       }
-    };
-  },
-  watch: {
-    steppingFields: {
-      handler: function handler(val) {// console.log(val);
-        // console.log ( 'adsa' );
-      },
-      deep: true
-    }
-  },
-  events: {},
-  methods: {
+
+      this.$children[0].vglNamespace.renderers[0].render(scene, camera);
+    },
     createPlayers: function createPlayers() {
       this.store.players.push(new Player('Player 1', '#CE0000', 1, false));
       this.store.players.push(new Player('Player 2', '#F7D708', 2, true));

@@ -12,7 +12,7 @@ class Player {
       new Pawn(3, _color, (_turn - 1) * 10, _turn - 1),
       new Pawn(4, _color, (_turn - 1) * 10, _turn - 1),
     ];
-
+    this.indicatorIntervals = [];
     this.stillHome = true;
     this.stillHomeCounter = 0;
   }
@@ -30,6 +30,11 @@ class Player {
   }
 
   endTurn() {
+    this.indicatorIntervals.forEach(function(interval) {
+      clearInterval(interval);
+    });
+    this.indicatorIntervals = [];
+
     this.isPlaying = false;
     ApplicationStore.playingPlayerIndex = null;
     this.pawns.forEach(function(pawn) {
@@ -45,6 +50,15 @@ class Player {
     ApplicationStore.lastRolledDice = diceResult;
 
     this.setAvaliablePawns(diceResult);
+
+    if (this.pawnsAvailable()) {
+      this.indicatorIntervals.push(
+          setInterval(function() {
+            let intensity = storeX.getters.flashIntensity ? 0 : 4;
+            storeX.commit('switchIntensity', intensity);
+          }, 300),
+      );
+    }
 
     // console.log(this.name, ' rolled ', diceResult);
 
@@ -65,7 +79,6 @@ class Player {
             EventBus.fire('EventKeys.rollDice');
           }.bind(this), 2000);
         }
-
 
       } else if (this.stillHome && diceResult === 6 && this.isComputer) {
 

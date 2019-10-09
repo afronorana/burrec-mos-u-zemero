@@ -14,7 +14,7 @@
 </head>
 <body>
 <main>
-    <div id="app" :class="{'cursor-pointer' : storeX.state.cursorPointer}">
+    <div id="app" :class="{'cursor-pointer' : storeX.state.cursorPointer}" style="width: 100%;">
 
         <header>
             <nav></nav>
@@ -222,7 +222,7 @@
 
                                 <vgl-spot-light
                                         :name="`spotlight-${pawn.id}`"
-                                        :intensity="flashIntensity"
+                                        :intensity="storeX.getters.flashIntensity"
                                         distance="4" angle=".1" penumbra="1.5" color="#ffffff" target="0 0 0" position="0 0.8 0"
                                 ></vgl-spot-light>
 
@@ -262,6 +262,7 @@
         <!--                </aside>-->
 
 
+    </div>
     </div>
     <footer></footer>
 </main>
