@@ -1,5 +1,6 @@
 
 window.ApplicationStore = {
+  currentScreen: 'main-menu',
 
   diceData: {
     interval: [null, null, null],

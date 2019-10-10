@@ -7,9 +7,11 @@ require('./core/register/components');
 window.storeX = new Vuex.Store({
   state: {
     count: 0,
+    currentScreen: 'main-menu',
     cursorPointer: false,
     flashIntensity: 0,
   },
+
 
   getters: {
     flashIntensity: state => {
@@ -18,6 +20,9 @@ window.storeX = new Vuex.Store({
   },
 
   mutations: {
+    changeScreen(state, screen) {
+      state.currentScreen = screen;
+    },
     changeCursor(state, isPointer) {
       state.cursorPointer = isPointer;
     },
@@ -29,12 +34,9 @@ window.storeX = new Vuex.Store({
 
 window.Burrec = new Vue({
   el: '#app',
-
   mounted() {
     this.$nextTick(function() {
       // Game logic
-      this.createPlayers();
-      this.startGame();
       this.addEventListeners();
 
       this.initThreeJs();
@@ -45,7 +47,7 @@ window.Burrec = new Vue({
   data() {
     return {
       store: ApplicationStore,
-      storeX: storeX,
+
       rayCaster: null,
       mouse: null,
       lastHoveredObject: null,
@@ -86,6 +88,10 @@ window.Burrec = new Vue({
 
       EventBus.listen('EventKeys.rollDice', function(amount) {
         this.rollDice(amount);
+      }.bind(this));
+
+      EventBus.listen('EventKeys.game.start', function(playerNames) {
+        this.startGame(playerNames);
       }.bind(this));
 
     },
@@ -153,20 +159,22 @@ window.Burrec = new Vue({
       this.$children[0].vglNamespace.renderers[0].render(scene, camera);
     },
 
-    createPlayers() {
-      this.store.players.push(new Player('Player 1', '#CE0000', 1, false));
-      this.store.players.push(new Player('Player 2', '#F7D708', 2, true));
-      this.store.players.push(new Player('Player 3', '#009ECE', 3, true));
-      this.store.players.push(new Player('Player 4', '#9CCF31', 4, true));
-      // this.store.players.push(new Player('Player 1', '#CE0000', 1, true));
+    createPlayers(playerNames) {
+      let colors = ['#CE0000', '#F7D708', '#009ECE', '#9CCF31'];
+      playerNames.forEach(function(playerName, index){
+        this.store.players.push(new Player(playerName, colors[index], index + 1, !playerName));
+      }.bind(this))
+      // this.store.players.push(new Player('Player 1', '#CE0000', 1, false));
       // this.store.players.push(new Player('Player 2', '#F7D708', 2, true));
       // this.store.players.push(new Player('Player 3', '#009ECE', 3, true));
       // this.store.players.push(new Player('Player 4', '#9CCF31', 4, true));
     },
 
-    startGame() {
+    startGame(playerNames) {
+      this.createPlayers(playerNames);
       this.store.currentRound = 1;
       this.changePlayersTurn();
+      this.switchScreen('game-screen')
       EventBus.fire('game.start');
     },
 

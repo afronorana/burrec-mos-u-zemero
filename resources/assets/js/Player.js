@@ -54,8 +54,8 @@ class Player {
     if (this.pawnsAvailable()) {
       this.indicatorIntervals.push(
           setInterval(function() {
-            let intensity = storeX.getters.flashIntensity ? 0 : 4;
-            storeX.commit('switchIntensity', intensity);
+            // let intensity = storeX.getters.flashIntensity ? 0 : 4;
+            // storeX.commit('switchIntensity', intensity);
           }, 300),
       );
     }

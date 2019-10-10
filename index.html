@@ -14,21 +14,22 @@
 </head>
 <body>
 <main>
-    <div id="app" :class="{'cursor-pointer' : storeX.state.cursorPointer}" style="width: 100%;">
+    <div id="app" :class="{'cursor-pointer' : false}" style="width: 100%;">
 
         <header>
             <nav></nav>
         </header>
 
+
         <!-- Temporary helper -->
-        <pre style="position: absolute; top:0;left: 0;z-index: 100; color:white">
-            <span v-for="player in store.players">
-                <span style="width: 15px;height: 15px; display: inline-block;"
-                      :style="{backgroundColor: player.pawns[0].color}">
-                </span>{{player.pawns[0].globalPosition}}
-            </span>
-            <button @click="rollDice(6)">Roll 6</button>
-        </pre>
+<!--        <pre style="position: absolute; top:0;left: 0;z-index: 100; color:white">-->
+<!--            <span v-for="player in store.players">-->
+<!--                <span style="width: 15px;height: 15px; display: inline-block;"-->
+<!--                      :style="{backgroundColor: player.pawns[0].color}">-->
+<!--                </span>{{player.pawns[0].globalPosition}}-->
+<!--            </span>-->
+<!--            <button @click="rollDice(6)" class="nes-btn is-primary">Roll 6</button>-->
+<!--        </pre>-->
 
 
         <!-- Scene -->
@@ -219,10 +220,10 @@
                         <vgl-group position="0 0 0" :rotation="`0 ${indicator.rotation} 0`" v-if="pawn.isActive"
                                    :name="`cube-${pawn.id}`">
 
-
+<!--:intensity="storeX.getters.flashIntensity"-->
                                 <vgl-spot-light
                                         :name="`spotlight-${pawn.id}`"
-                                        :intensity="storeX.getters.flashIntensity"
+
                                         distance="4" angle=".1" penumbra="1.5" color="#ffffff" target="0 0 0" position="0 0.8 0"
                                 ></vgl-spot-light>
 
@@ -252,6 +253,7 @@
         </vgl-renderer>
 
 
+        <start-screen></start-screen>
         <!--                <aside class="control-panel" style="width: 100%;position: absolute; top:0; z-index: 9; background-color: white;">-->
         <!--                    <label>Quality: <input type="range" v-model="store.settings.quality"> {{store.settings.quality}}</label>-->
         <!--                    <button @click="rotate">Rotate</button>-->

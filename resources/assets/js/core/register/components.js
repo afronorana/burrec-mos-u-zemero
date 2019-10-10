@@ -1,5 +1,4 @@
-// Test
-// Vue.component(
-//     'test-component',
-//     require('./../../components/TestComponent.vue').default
-// );
+Vue.component(
+    'start-screen',
+    require('./../../components/StartScreen').default
+);

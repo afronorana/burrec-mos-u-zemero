@@ -400,6 +400,65 @@ rawAsap.makeRequestCallFromTimer = makeRequestCallFromTimer;
 
 /***/ }),
 
+/***/ "./node_modules/babel-loader/lib/index.js?!./node_modules/vue-loader/lib/index.js?!./resources/assets/js/components/StartScreen.vue?vue&type=script&lang=js&":
+/*!*****************************************************************************************************************************************************************************!*\
+  !*** ./node_modules/babel-loader/lib??ref--4-0!./node_modules/vue-loader/lib??vue-loader-options!./resources/assets/js/components/StartScreen.vue?vue&type=script&lang=js& ***!
+  \*****************************************************************************************************************************************************************************/
+/*! exports provided: default */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+/* harmony default export */ __webpack_exports__["default"] = ({
+  props: {},
+  components: {},
+  mounted: function mounted() {
+    this.$nextTick(function () {}.bind(this));
+  },
+  data: function data() {
+    return {
+      store: window.ApplicationStore,
+      playerNames: ['', '', '', '']
+    };
+  },
+  events: {},
+  methods: {
+    startGame: function startGame() {
+      EventBus.fire('EventKeys.game.start', this.playerNames);
+    }
+  }
+});
+
+/***/ }),
+
 /***/ "./node_modules/jquery/dist/jquery.js":
 /*!********************************************!*\
   !*** ./node_modules/jquery/dist/jquery.js ***!
@@ -129465,6 +129524,275 @@ function LensFlare() {
 
 /***/ }),
 
+/***/ "./node_modules/vue-loader/lib/loaders/templateLoader.js?!./node_modules/vue-loader/lib/index.js?!./resources/assets/js/components/StartScreen.vue?vue&type=template&id=3631a7f2&":
+/*!*********************************************************************************************************************************************************************************************************************!*\
+  !*** ./node_modules/vue-loader/lib/loaders/templateLoader.js??vue-loader-options!./node_modules/vue-loader/lib??vue-loader-options!./resources/assets/js/components/StartScreen.vue?vue&type=template&id=3631a7f2& ***!
+  \*********************************************************************************************************************************************************************************************************************/
+/*! exports provided: render, staticRenderFns */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "render", function() { return render; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "staticRenderFns", function() { return staticRenderFns; });
+var render = function() {
+  var _vm = this
+  var _h = _vm.$createElement
+  var _c = _vm._self._c || _h
+  return _c(
+    "div",
+    {
+      staticClass: "container",
+      staticStyle: {
+        position: "absolute",
+        "z-index": "99",
+        top: "0",
+        left: "0"
+      }
+    },
+    [
+      _vm.store.currentScreen == "main-menu"
+        ? _c("div", { staticClass: "col-md-6 col-md-offset-3 mt-30" }, [
+            _c(
+              "div",
+              { staticClass: "nes-container is-dark with-title is-rounded" },
+              [
+                _c("p", { staticClass: "title" }, [_vm._v("Main menu")]),
+                _vm._v(" "),
+                _c("p", [_vm._v("Welcome to Burrec mos u zemero")]),
+                _vm._v(" "),
+                _c(
+                  "button",
+                  {
+                    staticClass: "nes-btn is-success is-full-width",
+                    on: {
+                      click: function($event) {
+                        return _vm.switchScreen("add-players")
+                      }
+                    }
+                  },
+                  [_vm._v("Start new game")]
+                ),
+                _vm._v(" "),
+                _c(
+                  "button",
+                  {
+                    staticClass: "nes-btn is-primary is-full-width",
+                    on: {
+                      click: function($event) {
+                        return _vm.rollDice(6)
+                      }
+                    }
+                  },
+                  [_vm._v("Join game")]
+                ),
+                _vm._v(" "),
+                _c(
+                  "button",
+                  {
+                    staticClass: "nes-btn is-primary is-full-width",
+                    on: {
+                      click: function($event) {
+                        return _vm.rollDice(6)
+                      }
+                    }
+                  },
+                  [_vm._v("Settings")]
+                )
+              ]
+            )
+          ])
+        : _vm._e(),
+      _vm._v(" "),
+      _vm.store.currentScreen == "add-players"
+        ? _c("div", { staticClass: "col-md-6 col-md-offset-3 mt-30" }, [
+            _c(
+              "div",
+              { staticClass: "nes-container is-dark with-title is-rounded" },
+              [
+                _c("p", { staticClass: "title" }, [_vm._v("Add players")]),
+                _vm._v(" "),
+                _c("p", [_vm._v("Enter player names")]),
+                _vm._v(" "),
+                _c("p", [_vm._v("Blank fields will be added as computers")]),
+                _vm._v(" "),
+                _vm._l(_vm.playerNames, function(n, index) {
+                  return _c(
+                    "div",
+                    {
+                      staticClass: "nes-field",
+                      staticStyle: {
+                        "background-color": "#212529",
+                        padding: "1rem"
+                      }
+                    },
+                    [
+                      _c("input", {
+                        directives: [
+                          {
+                            name: "model",
+                            rawName: "v-model",
+                            value: _vm.playerNames[index],
+                            expression: "playerNames[index]"
+                          }
+                        ],
+                        staticClass: "nes-input is-dark",
+                        attrs: {
+                          type: "text",
+                          placeholder: "Player " + (index + 1)
+                        },
+                        domProps: { value: _vm.playerNames[index] },
+                        on: {
+                          input: function($event) {
+                            if ($event.target.composing) {
+                              return
+                            }
+                            _vm.$set(
+                              _vm.playerNames,
+                              index,
+                              $event.target.value
+                            )
+                          }
+                        }
+                      })
+                    ]
+                  )
+                }),
+                _vm._v(" "),
+                _c(
+                  "button",
+                  {
+                    staticClass: "nes-btn is-success is-full-width is-rounded",
+                    on: {
+                      click: function($event) {
+                        return _vm.startGame()
+                      }
+                    }
+                  },
+                  [_vm._v("Ready!")]
+                )
+              ],
+              2
+            )
+          ])
+        : _vm._e()
+    ]
+  )
+}
+var staticRenderFns = []
+render._withStripped = true
+
+
+
+/***/ }),
+
+/***/ "./node_modules/vue-loader/lib/runtime/componentNormalizer.js":
+/*!********************************************************************!*\
+  !*** ./node_modules/vue-loader/lib/runtime/componentNormalizer.js ***!
+  \********************************************************************/
+/*! exports provided: default */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "default", function() { return normalizeComponent; });
+/* globals __VUE_SSR_CONTEXT__ */
+
+// IMPORTANT: Do NOT use ES2015 features in this file (except for modules).
+// This module is a runtime utility for cleaner component module output and will
+// be included in the final webpack user bundle.
+
+function normalizeComponent (
+  scriptExports,
+  render,
+  staticRenderFns,
+  functionalTemplate,
+  injectStyles,
+  scopeId,
+  moduleIdentifier, /* server only */
+  shadowMode /* vue-cli only */
+) {
+  // Vue.extend constructor export interop
+  var options = typeof scriptExports === 'function'
+    ? scriptExports.options
+    : scriptExports
+
+  // render functions
+  if (render) {
+    options.render = render
+    options.staticRenderFns = staticRenderFns
+    options._compiled = true
+  }
+
+  // functional template
+  if (functionalTemplate) {
+    options.functional = true
+  }
+
+  // scopedId
+  if (scopeId) {
+    options._scopeId = 'data-v-' + scopeId
+  }
+
+  var hook
+  if (moduleIdentifier) { // server build
+    hook = function (context) {
+      // 2.3 injection
+      context =
+        context || // cached call
+        (this.$vnode && this.$vnode.ssrContext) || // stateful
+        (this.parent && this.parent.$vnode && this.parent.$vnode.ssrContext) // functional
+      // 2.2 with runInNewContext: true
+      if (!context && typeof __VUE_SSR_CONTEXT__ !== 'undefined') {
+        context = __VUE_SSR_CONTEXT__
+      }
+      // inject component styles
+      if (injectStyles) {
+        injectStyles.call(this, context)
+      }
+      // register component module identifier for async chunk inferrence
+      if (context && context._registeredComponents) {
+        context._registeredComponents.add(moduleIdentifier)
+      }
+    }
+    // used by ssr in case component is cached and beforeCreate
+    // never gets called
+    options._ssrRegister = hook
+  } else if (injectStyles) {
+    hook = shadowMode
+      ? function () { injectStyles.call(this, this.$root.$options.shadowRoot) }
+      : injectStyles
+  }
+
+  if (hook) {
+    if (options.functional) {
+      // for template-only hot-reload because in that case the render fn doesn't
+      // go through the normalizer
+      options._injectStyles = hook
+      // register for functioal component in vue file
+      var originalRender = options.render
+      options.render = function renderWithStyleInjection (h, context) {
+        hook.call(context)
+        return originalRender(h, context)
+      }
+    } else {
+      // inject component registration as beforeCreate hook
+      var existing = options.beforeCreate
+      options.beforeCreate = existing
+        ? [].concat(existing, hook)
+        : [hook]
+    }
+  }
+
+  return {
+    exports: scriptExports,
+    options: options
+  }
+}
+
+
+/***/ }),
+
 /***/ "./node_modules/vue/dist/vue.common.dev.js":
 /*!*************************************************!*\
   !*** ./node_modules/vue/dist/vue.common.dev.js ***!
@@ -142533,6 +142861,7 @@ module.exports = function(module) {
 /***/ (function(module, exports) {
 
 window.ApplicationStore = {
+  currentScreen: 'main-menu',
   diceData: {
     interval: [null, null, null],
     allDone: [false, false, false],
@@ -142915,9 +143244,8 @@ function () {
       this.setAvaliablePawns(diceResult);
 
       if (this.pawnsAvailable()) {
-        this.indicatorIntervals.push(setInterval(function () {
-          var intensity = storeX.getters.flashIntensity ? 0 : 4;
-          storeX.commit('switchIntensity', intensity);
+        this.indicatorIntervals.push(setInterval(function () {// let intensity = storeX.getters.flashIntensity ? 0 : 4;
+          // storeX.commit('switchIntensity', intensity);
         }, 300));
       } // console.log(this.name, ' rolled ', diceResult);
 
@@ -143038,6 +143366,7 @@ __webpack_require__(/*! ./core/register/components */ "./resources/assets/js/cor
 window.storeX = new Vuex.Store({
   state: {
     count: 0,
+    currentScreen: 'main-menu',
     cursorPointer: false,
     flashIntensity: 0
   },
@@ -143047,6 +143376,9 @@ window.storeX = new Vuex.Store({
     }
   },
   mutations: {
+    changeScreen: function changeScreen(state, screen) {
+      state.currentScreen = screen;
+    },
     changeCursor: function changeCursor(state, isPointer) {
       state.cursorPointer = isPointer;
     },
@@ -143060,8 +143392,6 @@ window.Burrec = new Vue({
   mounted: function mounted() {
     this.$nextTick(function () {
       // Game logic
-      this.createPlayers();
-      this.startGame();
       this.addEventListeners();
       this.initThreeJs();
     });
@@ -143069,7 +143399,6 @@ window.Burrec = new Vue({
   data: function data() {
     return {
       store: ApplicationStore,
-      storeX: storeX,
       rayCaster: null,
       mouse: null,
       lastHoveredObject: null,
@@ -143122,6 +143451,9 @@ window.Burrec = new Vue({
       }.bind(this));
       EventBus.listen('EventKeys.rollDice', function (amount) {
         this.rollDice(amount);
+      }.bind(this));
+      EventBus.listen('EventKeys.game.start', function (playerNames) {
+        this.startGame(playerNames);
       }.bind(this));
     },
     initThreeJs: function initThreeJs() {
@@ -143181,18 +143513,20 @@ window.Burrec = new Vue({
 
       this.$children[0].vglNamespace.renderers[0].render(scene, camera);
     },
-    createPlayers: function createPlayers() {
-      this.store.players.push(new Player('Player 1', '#CE0000', 1, false));
-      this.store.players.push(new Player('Player 2', '#F7D708', 2, true));
-      this.store.players.push(new Player('Player 3', '#009ECE', 3, true));
-      this.store.players.push(new Player('Player 4', '#9CCF31', 4, true)); // this.store.players.push(new Player('Player 1', '#CE0000', 1, true));
+    createPlayers: function createPlayers(playerNames) {
+      var colors = ['#CE0000', '#F7D708', '#009ECE', '#9CCF31'];
+      playerNames.forEach(function (playerName, index) {
+        this.store.players.push(new Player(playerName, colors[index], index + 1, !playerName));
+      }.bind(this)); // this.store.players.push(new Player('Player 1', '#CE0000', 1, false));
       // this.store.players.push(new Player('Player 2', '#F7D708', 2, true));
       // this.store.players.push(new Player('Player 3', '#009ECE', 3, true));
       // this.store.players.push(new Player('Player 4', '#9CCF31', 4, true));
     },
-    startGame: function startGame() {
+    startGame: function startGame(playerNames) {
+      this.createPlayers(playerNames);
       this.store.currentRound = 1;
       this.changePlayersTurn();
+      this.switchScreen('game-screen');
       EventBus.fire('game.start');
     },
     changePlayersTurn: function changePlayersTurn() {
@@ -143240,6 +143574,75 @@ window.Burrec = new Vue({
 
 /***/ }),
 
+/***/ "./resources/assets/js/components/StartScreen.vue":
+/*!********************************************************!*\
+  !*** ./resources/assets/js/components/StartScreen.vue ***!
+  \********************************************************/
+/*! exports provided: default */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony import */ var _StartScreen_vue_vue_type_template_id_3631a7f2___WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./StartScreen.vue?vue&type=template&id=3631a7f2& */ "./resources/assets/js/components/StartScreen.vue?vue&type=template&id=3631a7f2&");
+/* harmony import */ var _StartScreen_vue_vue_type_script_lang_js___WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./StartScreen.vue?vue&type=script&lang=js& */ "./resources/assets/js/components/StartScreen.vue?vue&type=script&lang=js&");
+/* empty/unused harmony star reexport *//* harmony import */ var _node_modules_vue_loader_lib_runtime_componentNormalizer_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../../../../node_modules/vue-loader/lib/runtime/componentNormalizer.js */ "./node_modules/vue-loader/lib/runtime/componentNormalizer.js");
+
+
+
+
+
+/* normalize component */
+
+var component = Object(_node_modules_vue_loader_lib_runtime_componentNormalizer_js__WEBPACK_IMPORTED_MODULE_2__["default"])(
+  _StartScreen_vue_vue_type_script_lang_js___WEBPACK_IMPORTED_MODULE_1__["default"],
+  _StartScreen_vue_vue_type_template_id_3631a7f2___WEBPACK_IMPORTED_MODULE_0__["render"],
+  _StartScreen_vue_vue_type_template_id_3631a7f2___WEBPACK_IMPORTED_MODULE_0__["staticRenderFns"],
+  false,
+  null,
+  null,
+  null
+  
+)
+
+/* hot reload */
+if (false) { var api; }
+component.options.__file = "resources/assets/js/components/StartScreen.vue"
+/* harmony default export */ __webpack_exports__["default"] = (component.exports);
+
+/***/ }),
+
+/***/ "./resources/assets/js/components/StartScreen.vue?vue&type=script&lang=js&":
+/*!*********************************************************************************!*\
+  !*** ./resources/assets/js/components/StartScreen.vue?vue&type=script&lang=js& ***!
+  \*********************************************************************************/
+/*! exports provided: default */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony import */ var _node_modules_babel_loader_lib_index_js_ref_4_0_node_modules_vue_loader_lib_index_js_vue_loader_options_StartScreen_vue_vue_type_script_lang_js___WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! -!../../../../node_modules/babel-loader/lib??ref--4-0!../../../../node_modules/vue-loader/lib??vue-loader-options!./StartScreen.vue?vue&type=script&lang=js& */ "./node_modules/babel-loader/lib/index.js?!./node_modules/vue-loader/lib/index.js?!./resources/assets/js/components/StartScreen.vue?vue&type=script&lang=js&");
+/* empty/unused harmony star reexport */ /* harmony default export */ __webpack_exports__["default"] = (_node_modules_babel_loader_lib_index_js_ref_4_0_node_modules_vue_loader_lib_index_js_vue_loader_options_StartScreen_vue_vue_type_script_lang_js___WEBPACK_IMPORTED_MODULE_0__["default"]); 
+
+/***/ }),
+
+/***/ "./resources/assets/js/components/StartScreen.vue?vue&type=template&id=3631a7f2&":
+/*!***************************************************************************************!*\
+  !*** ./resources/assets/js/components/StartScreen.vue?vue&type=template&id=3631a7f2& ***!
+  \***************************************************************************************/
+/*! exports provided: render, staticRenderFns */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony import */ var _node_modules_vue_loader_lib_loaders_templateLoader_js_vue_loader_options_node_modules_vue_loader_lib_index_js_vue_loader_options_StartScreen_vue_vue_type_template_id_3631a7f2___WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! -!../../../../node_modules/vue-loader/lib/loaders/templateLoader.js??vue-loader-options!../../../../node_modules/vue-loader/lib??vue-loader-options!./StartScreen.vue?vue&type=template&id=3631a7f2& */ "./node_modules/vue-loader/lib/loaders/templateLoader.js?!./node_modules/vue-loader/lib/index.js?!./resources/assets/js/components/StartScreen.vue?vue&type=template&id=3631a7f2&");
+/* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "render", function() { return _node_modules_vue_loader_lib_loaders_templateLoader_js_vue_loader_options_node_modules_vue_loader_lib_index_js_vue_loader_options_StartScreen_vue_vue_type_template_id_3631a7f2___WEBPACK_IMPORTED_MODULE_0__["render"]; });
+
+/* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "staticRenderFns", function() { return _node_modules_vue_loader_lib_loaders_templateLoader_js_vue_loader_options_node_modules_vue_loader_lib_index_js_vue_loader_options_StartScreen_vue_vue_type_template_id_3631a7f2___WEBPACK_IMPORTED_MODULE_0__["staticRenderFns"]; });
+
+
+
+/***/ }),
+
 /***/ "./resources/assets/js/core/bootstrap.js":
 /*!***********************************************!*\
   !*** ./resources/assets/js/core/bootstrap.js ***!
@@ -143272,13 +143675,9 @@ __webpack_require__(/*! three/examples/js/controls/OrbitControls */ "./node_modu
   !*** ./resources/assets/js/core/register/components.js ***!
   \*********************************************************/
 /*! no static exports found */
-/***/ (function(module, exports) {
+/***/ (function(module, exports, __webpack_require__) {
 
-// Test
-// Vue.component(
-//     'test-component',
-//     require('./../../components/TestComponent.vue').default
-// );
+Vue.component('start-screen', __webpack_require__(/*! ./../../components/StartScreen */ "./resources/assets/js/components/StartScreen.vue")["default"]);
 
 /***/ }),
 
@@ -143351,6 +143750,10 @@ module.exports = {
       methods: {
         rollTheDice: function rollTheDice() {
           return 1 + Math.floor(Math.random() * 6);
+        },
+        switchScreen: function switchScreen(screen) {
+          // storeX.commit('changeScreen', screen)
+          ApplicationStore.currentScreen = screen;
         }
       }
     };
@@ -143385,4 +143788,3 @@ module.exports = __webpack_require__(/*! /Users/afronorana/Projects/Afron/burrec
 /***/ })
 
 /******/ });
-//# sourceMappingURL=app.js.map
