@@ -6,6 +6,7 @@ class Player {
     this.name = _name;
     this.isPlaying = false;
     this.avaliablePawnsIndexes = [];
+    this.color = _color;
     this.pawns = [
       new Pawn(1, _color, (_turn - 1) * 10, _turn - 1),
       new Pawn(2, _color, (_turn - 1) * 10, _turn - 1),
@@ -151,7 +152,11 @@ class Player {
       }
     }.bind(this));
 
-    return pawnsInDestination.length == 4;
+    return pawnsInDestination.length === 4;
+  }
+
+  setComputer(_isComputer){
+    this.isComputer = _isComputer;
   }
 
 }

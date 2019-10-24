@@ -12,7 +12,6 @@
 @import "~normalize.css/normalize";
 @import "~family.scss/source/src/family";
 @import "~nes.css/scss/nes";
-
 @import url('https://fonts.googleapis.com/css?family=Press+Start+2P&display=swap');
 
 html, body, pre, code, kbd, samp {
@@ -26,6 +25,7 @@ body {
 #app {
     position: absolute;
 }
+
 canvas {
     width: 100%;
     height: 100%;
@@ -37,13 +37,45 @@ canvas {
 
 
 // Helpers
-.is-full-width{
+.is-full-width {
     width: 100%;
 }
-.mt-30{
+
+.mt-30 {
     margin-top: 30px;
 }
 
 .nes-btn {
     margin-bottom: 15px;
+}
+
+.game-interface-wrapper {
+    position: absolute;
+    z-index: 99;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+
+    .player-name {
+        position: absolute;
+        width: 300px;
+        &:nth-child(1){
+            left: 10px;
+            bottom: 10px;
+        }
+        &:nth-child(2){
+            left: 10px;
+            top: 10px;
+        }
+        &:nth-child(3){
+            right: 10px;
+            top: 10px;
+        }
+        &:nth-child(4){
+            right: 10px;
+            bottom: 10px;
+        }
+    }
 }

@@ -47,7 +47,7 @@ window.ApplicationStore = {
           new THREE.Vector3(9, 0.5, 10),
           new THREE.Vector3(10, 0.5, 9),
         ],
-        color: '#9CCF31',
+        color: '#009ECE',
       },
       {
         fields: [
@@ -56,7 +56,8 @@ window.ApplicationStore = {
           new THREE.Vector3(1, 0.5, 9),
           new THREE.Vector3(1, 0.5, 10),
         ],
-        color: '#009ECE',
+        color: '#9CCF31',
+
 
       },
     ],
@@ -80,14 +81,15 @@ window.ApplicationStore = {
           new THREE.Vector3(9, 0.5, 5), new THREE.Vector3(8, 0.5, 5),
           new THREE.Vector3(7, 0.5, 5), new THREE.Vector3(6, 0.5, 5),
         ],
-        color: '#9CCF31',
+        color: '#009ECE',
       },
       {
         fields: [
           new THREE.Vector3(5, 0.5, 9), new THREE.Vector3(5, 0.5, 8),
           new THREE.Vector3(5, 0.5, 7), new THREE.Vector3(5, 0.5, 6),
         ],
-        color: '#009ECE',
+        color: '#9CCF31',
+
       },
     ],
     path: [

@@ -42,7 +42,6 @@ class Pawn {
   moveToPosition() {
     let steps = ApplicationStore.lastRolledDice;
 
-    //  TODO
     let willEnterTarget = this.position + steps >= 40;
     if (willEnterTarget) {
       this.enterDestinationZone(steps);
@@ -50,6 +49,7 @@ class Pawn {
     }
 
     let finalPosition = this.globalPosition + steps;
+
     let targetField = finalPosition <= 40 ? finalPosition : finalPosition - 40;  // 8
 
     this.removeOpponentPawns(targetField);
@@ -58,7 +58,7 @@ class Pawn {
 
     let skippingInterval = setInterval(function() {
 
-      this.skippingAnimation();
+      // this.skippingAnimation();
 
       if ((steppingIndex < targetField && steppingIndex <= 40) ||
           (finalPosition > 40 && steppingIndex < 40) ||
@@ -83,9 +83,9 @@ class Pawn {
         clearInterval(skippingInterval);
       }
     }.bind(this), 200);
-    this.position += steps;
 
-    // console.log(this.position, 'toGlobalPosition', this.toGlobalPosition());
+
+    this.position += steps;
   }
 
   toGlobalPosition() {
@@ -104,29 +104,23 @@ class Pawn {
   //
   //  Non-refractored below
   //
-
   getPosition(height = 0) {
     let x, y, z;
     let fields = ApplicationStore.fields;
     if (!this.position) {
-
       x = fields.home[this.playerIndex].fields[this.startingPlace - 1].x;
       y = height;
       z = fields.home[this.playerIndex].fields[this.startingPlace - 1].z;
-
     } else if (this.position <= 39) {
-
       if (this.globalPosition > 39) {
         x = fields.path[0].x;
         y = height;
         z = fields.path[0].z;
-
       } else {
         x = fields.path[this.globalPosition].x;
         y = height;
         z = fields.path[this.globalPosition].z;
       }
-
     } else if (this.position > 39) {
       x = fields.target[this.playerIndex].fields[this.position - 41].x;
       y = height;

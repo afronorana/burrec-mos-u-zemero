@@ -102,6 +102,9 @@ window.Burrec = new Vue({
     },
 
     initCameraControls() {
+      setTimeout(function () {
+        this.$children[0].vglNamespace.cameras['cmr1'].lookAt(new THREE.Vector3(5, 0, 5));
+      }.bind(this), 300);
       this.controls = new THREE.OrbitControls(
           this.$children[0].vglNamespace.cameras['cmr1'],
           this.$children[0].vglNamespace.renderers[0].$el,
@@ -162,7 +165,7 @@ window.Burrec = new Vue({
     createPlayers(playerNames) {
       let colors = ['#CE0000', '#F7D708', '#009ECE', '#9CCF31'];
       playerNames.forEach(function(playerName, index){
-        this.store.players.push(new Player(playerName, colors[index], index + 1, !playerName));
+        this.store.players.push(new Player(playerName ? playerName : 'Computer', colors[index], index + 1, !playerName));
       }.bind(this))
       // this.store.players.push(new Player('Player 1', '#CE0000', 1, false));
       // this.store.players.push(new Player('Player 2', '#F7D708', 2, true));
