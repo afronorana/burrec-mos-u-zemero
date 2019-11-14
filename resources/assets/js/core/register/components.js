@@ -6,3 +6,15 @@ Vue.component(
     'game-interface',
     require('./../../components/GameInterface').default
 );
+Vue.component(
+    'pawn-geometry-material',
+    require('./../../components/PawnGeometryMaterial').default
+);
+Vue.component(
+    'pawn-figure',
+    require('./../../components/PawnFigure').default
+);
+Vue.component(
+    'dice-figure',
+    require('./../../components/DiceFigure').default
+);

@@ -4,6 +4,25 @@ require('./core/register/eventhandler');
 require('./core/register/mixins');
 require('./core/register/components');
 
+/** 
+ * Develompent only
+*/
+
+import Stats from 'stats.js'
+var stats = new Stats();
+stats.showPanel( 0 );
+document.body.appendChild( stats.dom );
+
+function animate() {
+	stats.begin();
+  // monitored code goes here
+
+	stats.end();
+	requestAnimationFrame( animate );
+}
+
+requestAnimationFrame( animate );
+
 window.storeX = new Vuex.Store({
   state: {
     count: 0,
@@ -55,19 +74,13 @@ window.Burrec = new Vue({
       board: {position: `5 -0.05 5`},
 
       pointLights: [
-        {color: '#ffffff', intensity: 0.8, distance: 20, position: `-2, 10, -2`},
-        {color: '#ffffff', intensity: 0.8, distance: 20, position: `-2, 10, 13`},
-        {color: '#ffffff', intensity: 0.8, distance: 20, position: `13, 10, -2`},
-        {color: '#ffffff', intensity: 0.8, distance: 20, position: `13, 10, 13`},
+        {color: '#ffffff', intensity: 0.3, distance: 20, position: `-2, 10, -2`},
+        {color: '#ffffff', intensity: 0.3, distance: 20, position: `-2, 10, 13`},
+        {color: '#ffffff', intensity: 0.3, distance: 20, position: `13, 10, -2`},
+        {color: '#ffffff', intensity: 0.3, distance: 20, position: `13, 10, 13`},
       ],
 
-      indicator: {
-        position: {
-          x: 0,
-          y: 0,
-          z: 0,
-        },
-      },
+      
     };
   },
 
@@ -206,9 +219,7 @@ window.Burrec = new Vue({
       currentPlayer.endTurn();
       currentPlayer.startTurn();
     },
-    getPawnPosition(pawn) {
-      return pawn.getPosition();
-    },
+
     rollDice(amount) {
 
       if (!this.store.gamePlayStatus.isRolling) return;
