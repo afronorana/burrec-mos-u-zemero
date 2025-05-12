@@ -1,17 +1,14 @@
 /* Generic
 ========================================================================== */
-@import "colors";
-@import "variables";
-@import "utilities";
+
 /* Vendor
 ========================================================================== */
 // Bootsrap
-@import "~bootstrap-sass/assets/stylesheets/bootstrap/variables";
-@import "~bootstrap-sass/assets/stylesheets/bootstrap/mixins";
-@import "~bootstrap-sass/assets/stylesheets/bootstrap/grid";
-@import "~normalize.css/normalize";
-@import "~family.scss/source/src/family";
-@import "~nes.css/scss/nes";
+@use "./../../node_modules/bootstrap-sass/assets/stylesheets/bootstrap/variables";
+@use "./../../node_modules/bootstrap-sass/assets/stylesheets/bootstrap/mixins";
+@use "./../../node_modules/normalize.css/normalize";
+@use "./../../node_modules/family.scss/source/src/family";
+@use "./../../node_modules/nes.css/scss/nes";
 @import url('https://fonts.googleapis.com/css?family=Press+Start+2P&display=swap');
 
 html, body, pre, code, kbd, samp {

@@ -1,11 +1,14 @@
+import './../styles/app.scss';
+
 require('./core/bootstrap');
 require('./ApplicationStore');
-require('./core/register/eventhandler');
+require('./eventhandler');
 require('./core/register/mixins');
 require('./core/register/components');
+require('./components');
 
-/** 
- * Develompent only
+/**
+ * Development only
 */
 
 import Stats from 'stats.js'
