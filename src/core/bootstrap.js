@@ -1,22 +1,26 @@
-window._ = require('lodash');
-window.$ = window.jQuery = require('jquery');
-window.Promise = require('promise');
-window.Vuex = require('vuex');
-window.Vue = require('vue');
-Vue.use(Vuex);
+import _ from 'lodash';
+import $ from 'jquery';
+import Promise from 'promise';
+import Vuex from 'vuex';
+import { createApp } from 'vue';
+import EventKeys from '../utils/EventKeys';
+import Pawn from '../utils/Pawn';
+import Player from '../utils/Player';
+import * as THREE from 'three';
 
-window.EventKeys = require('../EventKeys');
+window._ = _;
+window.$ = window.jQuery = $;
+window.Promise = Promise;
+window.Vuex = Vuex;
+window.EventKeys = EventKeys;
 
-// import * as VueGL from "vue-gl";
-window.VueGL = require('vue-gl');
-Object.keys(VueGL).forEach(name => {
-  Vue.component(name, VueGL[name]);
-});
+window.Pawn = Pawn;
+window.Player = Player;
+window.THREE = THREE; // Ensure THREE is globally available
 
+// Create Vue app instance and use Vuex
+const app = createApp({});
+app.use(Vuex);
 
-window.Pawn = require('../Pawn');
-window.Player = require('../Player');
-
-window.THREE = require('three');
-
-require('three/examples/js/controls/OrbitControls');
+// Export the Vue app instance for use in other parts of the application
+export default app;

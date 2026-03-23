@@ -1,20 +1,16 @@
-Vue.component(
-    'start-screen',
-    require('./../../components/StartScreen').default
-);
-Vue.component(
-    'game-interface',
-    require('./../../components/GameInterface').default
-);
-Vue.component(
-    'pawn-geometry-material',
-    require('./../../components/PawnGeometryMaterial').default
-);
-Vue.component(
-    'pawn-figure',
-    require('./../../components/PawnFigure').default
-);
-Vue.component(
-    'dice-figure',
-    require('./../../components/DiceFigure').default
-);
+import { createApp } from 'vue';
+import StartScreen from './../components/StartScreen.vue';
+import GameInterface from './../components/GameInterface.vue';
+import PawnGeometryMaterial from './../components/PawnGeometryMaterial.vue';
+import PawnFigure from './../components/PawnFigure.vue';
+import DiceFigure from './../components/DiceFigure.vue';
+
+const app = createApp({});
+
+app.component('start-screen', StartScreen);
+app.component('game-interface', GameInterface);
+app.component('pawn-geometry-material', PawnGeometryMaterial);
+app.component('pawn-figure', PawnFigure);
+app.component('dice-figure', DiceFigure);
+
+export default app;
