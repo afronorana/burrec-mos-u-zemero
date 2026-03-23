@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Burrec mos u zemero</title>
+    <meta charset="UTF-8">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <meta name="description" content="">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+
+    <!-- <link href="public/assets/dist/css/app.css" rel="stylesheet"> -->
+    <script src="//cdnjs.cloudflare.com/ajax/libs/modernizr/2.8.3/modernizr.min.js"></script>
+
+</head>
+<body>
+<main>
+    <div id="app" :class="{'cursor-pointer' : false}" style="width: 100%;">
+
+        <header>
+            <nav></nav>
+        </header>
+
+
+        <!-- Temporary helper -->
+       <pre style="position: absolute; top:0;left: 0;z-index: 100; color:white">
+           <span v-for="player in store.players">
+               <span style="width: 15px;height: 15px; display: inline-block;"
+                  :style="{backgroundColor: player.pawns[0].color}">
+               </span>{{player.pawns[0].globalPosition}}
+           </span>
+           <button @click="rollDice(6)" class="nes-btn is-primary">Roll 6</button>
+       </pre>
+
+
+        <!-- Scene -->
+         <canvas id="canvas" style="width: 100%; height: 100%; position: absolute; top:0; left:0; z-index: 1;"></canvas>
+
+        
+
+
+        <start-screen></start-screen>
+        <!--                <aside class="control-panel" style="width: 100%;position: absolute; top:0; z-index: 9; background-color: white;">-->
+        <!--                    <label>Quality: <input type="range" v-model="store.settings.quality"> {{store.settings.quality}}</label>-->
+        <!--                    <button @click="rotate">Rotate</button>-->
+        <!--                    time: {{time}}-->
+        <!--                    <label style="width: 100%; display: block;">X: <input style="width: 100%;" type="range" step="0.1" v-model="store.diceData.x"> {{store.diceData.x}}</label>-->
+        <!--                    <label style="width: 100%; display: block;">Y: <input style="width: 100%;" type="range" step="0.1" v-model="store.diceData.y"> {{store.diceData.y}}</label>-->
+        <!--                    <label style="width: 100%; display: block;">Z: <input style="width: 100%;" type="range" step="0.1" v-model="store.diceData.z"> {{store.diceData.z}}</label>-->
+        <!--                </aside>-->
+
+
+    </div>
+    </div>
+    <footer></footer>
+</main>
+<!-- <script src="public/assets/dist/js/app.js"></script> -->
+</body>
+</html>

@@ -1,3 +1,8 @@
+import ApplicationStore from './ApplicationStore';
+import EventBus from './eventhandler';
+import EventKeys from './EventKeys';
+import Pawn from './Pawn';
+
 class Player {
   constructor(_name, _color, _turn, _isComputer = true) {
     this.index = _turn - 1;
@@ -24,9 +29,9 @@ class Player {
     this.isPlaying = true;
 
     if (this.isComputer) {
-      setTimeout(function() {
-        EventBus.fire('EventKeys.rollDice');
-      }.bind(this), 1000);
+      setTimeout(() => {
+        EventBus.fire(EventKeys.rollDice);
+      }, 800);
     }
   }
 
@@ -68,17 +73,19 @@ class Player {
 
       /** If all pawns home, roll dice 3 times **/
       if (this.stillHome && diceResult !== 6) {
+        ApplicationStore.gamePlayStatus.isRolling = true;
+        ApplicationStore.gamePlayStatus.isMoving = false;
 
         this.stillHomeCounter++;
 
         if (this.stillHomeCounter >= 3) {
+          ApplicationStore.gamePlayStatus.isRolling = false;
           EventBus.fire(EventKeys.turns.endTurn);
           this.stillHomeCounter = 0;
         } else if (this.isComputer) {
-          // console.log ( 'Rollin again, still home' );
-          setTimeout(function() {
-            EventBus.fire('EventKeys.rollDice');
-          }.bind(this), 2000);
+          setTimeout(() => {
+            EventBus.fire(EventKeys.rollDice);
+          }, 1200);
         }
 
       } else if (this.stillHome && diceResult === 6 && this.isComputer) {
@@ -118,7 +125,7 @@ class Player {
   }
 
   hasAllPawnsHome() {
-    this.pawns.every(function(pawn) {
+    return this.pawns.every(function(pawn) {
       return pawn.position === 0;
     });
   }
@@ -161,4 +168,4 @@ class Player {
 
 }
 
-module.exports = Player;
+export default Player;

@@ -1,3 +1,8 @@
+import ApplicationStore from './ApplicationStore';
+import EventBus from './eventhandler';
+import EventKeys from './EventKeys';
+import { PAWN_STEP_DURATION_MS } from './movementConstants';
+
 class Pawn {
 
   constructor(_startingPlace, _color, _globalPosition = 0, _playerIndex) {
@@ -12,27 +17,40 @@ class Pawn {
     this.isSkipping = false;
     this.isSkippingTo = 0;
     this.startingPlace = _startingPlace;
+    this.isMoving = false;
+    this.activeMoveTimeout = null;
   }
 
   /**
    * Attempt to move pawn
    */
   move() {
-    if (this.isActive) {
-      this.position ? this.moveToPosition() : this.getOutOfHome();
+    if (!this.isActive || this.isMoving) {
+      return;
     }
+
+    this.lockMoveSelection();
+    this.isMoving = true;
+    this.position ? this.moveToPosition() : this.getOutOfHome();
   }
 
   getOutOfHome() {
-    this.globalPosition = this.startingGlobalPosition;
-    this.position = 1;
-
-    this.removeOpponentPawns(this.globalPosition);
-
-    this.endOfMove();
+    this.runMoveSequence(
+        [{
+          position: 1,
+          globalPosition: this.startingGlobalPosition,
+          isInDestinationField: false,
+        }],
+        {
+          captureField: this.startingGlobalPosition,
+        },
+    );
   }
 
   endOfMove() {
+    this.isMoving = false;
+    this.activeMoveTimeout = null;
+
     if (ApplicationStore.lastRolledDice === 6)
       EventBus.fire(EventKeys.turns.repeatTurn);
     else
@@ -40,93 +58,60 @@ class Pawn {
   }
 
   moveToPosition() {
-    let steps = ApplicationStore.lastRolledDice;
+    const steps = ApplicationStore.lastRolledDice;
+    const states = [];
 
-    let willEnterTarget = this.position + steps >= 40;
-    if (willEnterTarget) {
-      this.enterDestinationZone(steps);
-      return;
+    for (let index = 1; index <= steps; index += 1) {
+      const nextPosition = this.position + index;
+      const isInDestinationField = nextPosition > 40;
+
+      states.push({
+        position: nextPosition,
+        globalPosition: isInDestinationField
+          ? this.positionToGlobalPosition(40)
+          : this.positionToGlobalPosition(nextPosition),
+        isInDestinationField,
+      });
     }
 
-    let finalPosition = this.globalPosition + steps;
+    const finalState = states[states.length - 1];
 
-    let targetField = finalPosition <= 40 ? finalPosition : finalPosition - 40;  // 8
-
-    this.removeOpponentPawns(targetField);
-
-    let steppingIndex = this.globalPosition;
-
-    let skippingInterval = setInterval(function() {
-
-      // this.skippingAnimation();
-
-      if ((steppingIndex < targetField && steppingIndex <= 40) ||
-          (finalPosition > 40 && steppingIndex < 40) ||
-          (finalPosition === 40 && steppingIndex <= 39)) {
-
-        steppingIndex++;
-
-        this.globalPosition = steppingIndex;
-        if (steppingIndex === targetField) {
-          this.endOfMove();
-          clearInterval(skippingInterval);
-        }
-      } else if (finalPosition >= 40 && steppingIndex === 40) {
-        steppingIndex = 0;
-        this.globalPosition = steppingIndex;
-        if (finalPosition === 40)
-          clearInterval(skippingInterval);
-      } else {
-
-        // console.log('Guess I missed something here!');
-        this.endOfMove();
-        clearInterval(skippingInterval);
-      }
-    }.bind(this), 200);
-
-
-    this.position += steps;
+    this.runMoveSequence(states, {
+      captureField: finalState.position <= 40 ? finalState.globalPosition : null,
+    });
   }
 
   toGlobalPosition() {
-    if (!this.position) return this.startingGlobalPosition;
-
-    if (this.position + this.startingGlobalPosition <= 39)
-      return this.position + this.startingGlobalPosition - 1;
-    else {
-      return this.startingGlobalPosition
-          ? this.position + this.startingGlobalPosition - 41
-          : this.position - 1;
-
-    }
+    return this.positionToGlobalPosition(this.position);
   }
 
   //
   //  Non-refractored below
   //
   getPosition(height = 0) {
+    const { x, y, z } = this.getCoordinates(height);
+    return `${x} ${y} ${z}`;
+  }
+
+  getCoordinates(height = 0) {
     let x, y, z;
     let fields = ApplicationStore.fields;
     if (!this.position) {
       x = fields.home[this.playerIndex].fields[this.startingPlace - 1].x;
       y = height;
       z = fields.home[this.playerIndex].fields[this.startingPlace - 1].z;
-    } else if (this.position <= 39) {
-      if (this.globalPosition > 39) {
-        x = fields.path[0].x;
-        y = height;
-        z = fields.path[0].z;
-      } else {
-        x = fields.path[this.globalPosition].x;
-        y = height;
-        z = fields.path[this.globalPosition].z;
-      }
+    } else if (this.position <= 40) {
+      const globalPosition = this.positionToGlobalPosition(this.position);
+      x = fields.path[globalPosition].x;
+      y = height;
+      z = fields.path[globalPosition].z;
     } else if (this.position > 39) {
       x = fields.target[this.playerIndex].fields[this.position - 41].x;
       y = height;
       z = fields.target[this.playerIndex].fields[this.position - 41].z;
     }
-    return `${x} ${y} ${z}`;
+
+    return { x, y, z };
   }
 
   // Returns pawn classes
@@ -138,8 +123,16 @@ class Pawn {
 
   // Returns pawn home (Triggered by other players)
   returnHome() {
+    if (this.activeMoveTimeout) {
+      clearTimeout(this.activeMoveTimeout);
+      this.activeMoveTimeout = null;
+    }
+
+    this.isMoving = false;
     this.position = 0;
     this.globalPosition = this.startingGlobalPosition;
+    this.isInDestinationField = false;
+    this.isActive = false;
   }
 
   canLeaveHome(steps) {
@@ -158,22 +151,20 @@ class Pawn {
   }
 
   targetFieldIsEmpty(steps) {
-
     if (this.position === 0) return false;
 
     let targetFieldId = this.position + steps;
     let targetFieldIsEmpty = true;
-
     let player = ApplicationStore.players[ApplicationStore.playingPlayerIndex];
 
-    player.pawns.forEach(function(pawn) {
-      if (pawn.position === targetFieldId) targetFieldIsEmpty = false;
-      if (pawn.position === 0 && this.startingGlobalPosition +
-          1) targetFieldIsEmpty = false;
+    player.pawns.forEach((pawn) => {
+      if (pawn !== this && pawn.position === targetFieldId) {
+        targetFieldIsEmpty = false;
+      }
     });
 
     return targetFieldIsEmpty;
-  };
+  }
 
   isAvaliable(steps) {
 
@@ -212,6 +203,61 @@ class Pawn {
     this.endOfMove();
   }
 
+  positionToGlobalPosition(position) {
+    if (!position) {
+      return this.startingGlobalPosition;
+    }
+
+    return (this.startingGlobalPosition + position - 1) % 40;
+  }
+
+  lockMoveSelection() {
+    const currentPlayer = ApplicationStore.players[ApplicationStore.playingPlayerIndex];
+
+    ApplicationStore.gamePlayStatus.isMoving = false;
+
+    currentPlayer?.pawns.forEach((pawn) => {
+      pawn.isActive = false;
+    });
+  }
+
+  applyMoveState(state, stepIndex) {
+    this.position = state.position;
+    this.globalPosition = state.globalPosition;
+    this.isInDestinationField = state.isInDestinationField;
+    this.skippingAnimation(stepIndex);
+  }
+
+  runMoveSequence(states, options = {}) {
+    const { captureField = null } = options;
+
+    if (!states.length) {
+      this.endOfMove();
+      return;
+    }
+
+    const applyStep = (index) => {
+      this.applyMoveState(states[index], index);
+
+      if (index < states.length - 1) {
+        this.activeMoveTimeout = window.setTimeout(() => {
+          applyStep(index + 1);
+        }, PAWN_STEP_DURATION_MS);
+        return;
+      }
+
+      this.activeMoveTimeout = window.setTimeout(() => {
+        if (captureField !== null) {
+          this.removeOpponentPawns(captureField);
+        }
+
+        this.endOfMove();
+      }, PAWN_STEP_DURATION_MS);
+    };
+
+    applyStep(0);
+  }
+
 }
 
-module.exports = Pawn;
+export default Pawn;

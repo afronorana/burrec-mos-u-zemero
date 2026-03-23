@@ -3,12 +3,6 @@
 
 /* Vendor
 ========================================================================== */
-// Bootsrap
-@use "./../../node_modules/bootstrap-sass/assets/stylesheets/bootstrap/variables";
-@use "./../../node_modules/bootstrap-sass/assets/stylesheets/bootstrap/mixins";
-@use "./../../node_modules/normalize.css/normalize";
-@use "./../../node_modules/family.scss/source/src/family";
-@use "./../../node_modules/nes.css/scss/nes";
 @import url('https://fonts.googleapis.com/css?family=Press+Start+2P&display=swap');
 
 html, body, pre, code, kbd, samp {
@@ -16,20 +10,32 @@ html, body, pre, code, kbd, samp {
 }
 
 body {
-    background-color: #232323;
+    margin: 0;
+    background:
+        radial-gradient(circle at top, rgba(255, 225, 170, 0.18), transparent 35%),
+        linear-gradient(180deg, #241d18 0%, #171311 100%);
+    color: #ffffff;
 }
 
+html,
+body,
 #app {
-    position: absolute;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
 }
 
-canvas {
+.app-shell {
+    position: relative;
     width: 100%;
     height: 100%;
 }
 
-.cursor-pointer {
-    cursor: pointer;
+.board-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
 }
 
 
@@ -46,33 +52,151 @@ canvas {
     margin-bottom: 15px;
 }
 
+.screen-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    pointer-events: none;
+}
+
+.menu-shell {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 32px 16px;
+    pointer-events: none;
+}
+
+.menu-panel {
+    width: min(100%, 560px);
+    pointer-events: all;
+}
+
+.form-row {
+    margin-bottom: 16px;
+}
+
+.select-label {
+    display: block;
+    margin-bottom: 10px;
+    font-size: 0.7rem;
+    line-height: 1.5;
+}
+
+.slider-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.slider-value {
+    font-size: 0.62rem;
+    opacity: 0.85;
+}
+
+.quality-slider {
+    width: 100%;
+    accent-color: #209cee;
+    cursor: pointer;
+}
+
+.quality-scale {
+    margin-top: 10px;
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 0.5rem;
+    line-height: 1.4;
+    opacity: 0.78;
+}
+
+.menu-actions {
+    margin-top: 24px;
+}
+
 .game-interface-wrapper {
     position: absolute;
-    z-index: 99;
+    z-index: 20;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px;
     pointer-events: none;
 
+    .player-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 320px));
+        justify-content: space-between;
+        align-content: start;
+        gap: 12px 16px;
+    }
+
+    .hud-panel {
+        width: min(380px, 100%);
+        pointer-events: all;
+    }
+
+    .hud-buttons {
+        margin-top: 24px;
+    }
+
+    .hud-hint {
+        margin-top: 18px;
+        font-size: 0.7rem;
+        line-height: 1.6;
+        opacity: 0.85;
+    }
+
+    .hud-status {
+        min-height: 2.4em;
+        line-height: 1.6;
+    }
+
     .player-name {
-        position: absolute;
-        width: 300px;
-        &:nth-child(1){
-            left: 10px;
-            bottom: 10px;
+        width: 100%;
+        transition: transform 140ms ease, box-shadow 140ms ease;
+
+        .player-meta {
+            font-size: 0.58rem;
+            line-height: 1.7;
+            opacity: 0.85;
         }
-        &:nth-child(2){
-            left: 10px;
-            top: 10px;
+    }
+}
+
+.is-active-player {
+    transform: translateY(-6px);
+    box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.12);
+}
+
+.nes-btn[disabled] {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+@media (max-width: 900px) {
+    .game-interface-wrapper {
+        padding: 16px;
+
+        .player-grid {
+            grid-template-columns: 1fr;
+            gap: 10px;
         }
-        &:nth-child(3){
-            right: 10px;
-            top: 10px;
+
+        .player-name {
+            width: 100%;
         }
-        &:nth-child(4){
-            right: 10px;
-            bottom: 10px;
+
+        .hud-panel {
+            display: none;
         }
     }
 }

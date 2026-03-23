@@ -1,7 +1,10 @@
+import { markRaw, reactive } from 'vue';
+import * as THREE from 'three';
 
-window.ApplicationStore = {
+const vector = (x, y, z) => markRaw(new THREE.Vector3(x, y, z));
+
+const ApplicationStore = reactive({
   currentScreen: 'main-menu',
-
   diceData: {
     interval: [null, null, null],
     allDone: [false, false, false],
@@ -15,136 +18,120 @@ window.ApplicationStore = {
     y: 0,
     z: 0,
   },
-
   settings: {
-    quality: 12,
+    quality: 2,
+    outlineAppearance: 'classic',
   },
   fields: {
     home: [
       {
         fields: [
-          new THREE.Vector3(0, 0.5, 0),
-          new THREE.Vector3(0, 0.5, 1),
-          new THREE.Vector3(1, 0.5, 0),
-          new THREE.Vector3(1, 0.5, 1),
+          vector(0, 0.5, 0),
+          vector(0, 0.5, 1),
+          vector(1, 0.5, 0),
+          vector(1, 0.5, 1),
         ],
         color: '#CE0000',
       },
       {
         fields: [
-          new THREE.Vector3(10, 0.5, 0),
-          new THREE.Vector3(9, 0.5, 0),
-          new THREE.Vector3(9, 0.5, 1),
-          new THREE.Vector3(10, 0.5, 1),
+          vector(10, 0.5, 0),
+          vector(9, 0.5, 0),
+          vector(9, 0.5, 1),
+          vector(10, 0.5, 1),
         ],
         color: '#F7D708',
-
       },
       {
         fields: [
-          new THREE.Vector3(10, 0.5, 10),
-          new THREE.Vector3(9, 0.5, 9),
-          new THREE.Vector3(9, 0.5, 10),
-          new THREE.Vector3(10, 0.5, 9),
+          vector(10, 0.5, 10),
+          vector(9, 0.5, 9),
+          vector(9, 0.5, 10),
+          vector(10, 0.5, 9),
         ],
         color: '#009ECE',
       },
       {
         fields: [
-          new THREE.Vector3(0, 0.5, 10),
-          new THREE.Vector3(0, 0.5, 9),
-          new THREE.Vector3(1, 0.5, 9),
-          new THREE.Vector3(1, 0.5, 10),
+          vector(0, 0.5, 10),
+          vector(0, 0.5, 9),
+          vector(1, 0.5, 9),
+          vector(1, 0.5, 10),
         ],
         color: '#9CCF31',
-
-
       },
     ],
     target: [
       {
-        fields: [
-          new THREE.Vector3(1, 0.5, 5), new THREE.Vector3(2, 0.5, 5),
-          new THREE.Vector3(3, 0.5, 5), new THREE.Vector3(4, 0.5, 5),
-        ],
+        fields: [vector(1, 0.5, 5), vector(2, 0.5, 5), vector(3, 0.5, 5), vector(4, 0.5, 5)],
         color: '#CE0000',
       },
       {
-        fields: [
-          new THREE.Vector3(5, 0.5, 1), new THREE.Vector3(5, 0.5, 2),
-          new THREE.Vector3(5, 0.5, 3), new THREE.Vector3(5, 0.5, 4),
-        ],
+        fields: [vector(5, 0.5, 1), vector(5, 0.5, 2), vector(5, 0.5, 3), vector(5, 0.5, 4)],
         color: '#F7D708',
       },
       {
-        fields: [
-          new THREE.Vector3(9, 0.5, 5), new THREE.Vector3(8, 0.5, 5),
-          new THREE.Vector3(7, 0.5, 5), new THREE.Vector3(6, 0.5, 5),
-        ],
+        fields: [vector(9, 0.5, 5), vector(8, 0.5, 5), vector(7, 0.5, 5), vector(6, 0.5, 5)],
         color: '#009ECE',
       },
       {
-        fields: [
-          new THREE.Vector3(5, 0.5, 9), new THREE.Vector3(5, 0.5, 8),
-          new THREE.Vector3(5, 0.5, 7), new THREE.Vector3(5, 0.5, 6),
-        ],
+        fields: [vector(5, 0.5, 9), vector(5, 0.5, 8), vector(5, 0.5, 7), vector(5, 0.5, 6)],
         color: '#9CCF31',
-
       },
     ],
     path: [
-      new THREE.Vector3(0, 0.5, 4), // 0
-      new THREE.Vector3(1, 0.5, 4), // 1
-      new THREE.Vector3(2, 0.5, 4),
-      new THREE.Vector3(3, 0.5, 4),
-      new THREE.Vector3(4, 0.5, 4),
-      new THREE.Vector3(4, 0.5, 3),
-      new THREE.Vector3(4, 0.5, 2),
-      new THREE.Vector3(4, 0.5, 1),
-      new THREE.Vector3(4, 0.5, 0),
-      new THREE.Vector3(5, 0.5, 0),
-      new THREE.Vector3(6, 0.5, 0),
-      new THREE.Vector3(6, 0.5, 1),
-      new THREE.Vector3(6, 0.5, 2),
-      new THREE.Vector3(6, 0.5, 3),
-      new THREE.Vector3(6, 0.5, 4),
-      new THREE.Vector3(7, 0.5, 4),
-      new THREE.Vector3(8, 0.5, 4),
-      new THREE.Vector3(9, 0.5, 4),
-      new THREE.Vector3(10, 0.5, 4),
-      new THREE.Vector3(10, 0.5, 5),
-      new THREE.Vector3(10, 0.5, 6),
-      new THREE.Vector3(9, 0.5, 6),
-      new THREE.Vector3(8, 0.5, 6),
-      new THREE.Vector3(7, 0.5, 6),
-      new THREE.Vector3(6, 0.5, 6),
-      new THREE.Vector3(6, 0.5, 7),
-      new THREE.Vector3(6, 0.5, 8),
-      new THREE.Vector3(6, 0.5, 9),
-      new THREE.Vector3(6, 0.5, 10),
-      new THREE.Vector3(5, 0.5, 10),
-      new THREE.Vector3(4, 0.5, 10),
-      new THREE.Vector3(4, 0.5, 9),
-      new THREE.Vector3(4, 0.5, 8),
-      new THREE.Vector3(4, 0.5, 7),
-      new THREE.Vector3(4, 0.5, 6),
-      new THREE.Vector3(3, 0.5, 6),
-      new THREE.Vector3(2, 0.5, 6),
-      new THREE.Vector3(1, 0.5, 6),
-      new THREE.Vector3(0, 0.5, 6),
-      new THREE.Vector3(0, 0.5, 5),
-
+      vector(0, 0.5, 4),
+      vector(1, 0.5, 4),
+      vector(2, 0.5, 4),
+      vector(3, 0.5, 4),
+      vector(4, 0.5, 4),
+      vector(4, 0.5, 3),
+      vector(4, 0.5, 2),
+      vector(4, 0.5, 1),
+      vector(4, 0.5, 0),
+      vector(5, 0.5, 0),
+      vector(6, 0.5, 0),
+      vector(6, 0.5, 1),
+      vector(6, 0.5, 2),
+      vector(6, 0.5, 3),
+      vector(6, 0.5, 4),
+      vector(7, 0.5, 4),
+      vector(8, 0.5, 4),
+      vector(9, 0.5, 4),
+      vector(10, 0.5, 4),
+      vector(10, 0.5, 5),
+      vector(10, 0.5, 6),
+      vector(9, 0.5, 6),
+      vector(8, 0.5, 6),
+      vector(7, 0.5, 6),
+      vector(6, 0.5, 6),
+      vector(6, 0.5, 7),
+      vector(6, 0.5, 8),
+      vector(6, 0.5, 9),
+      vector(6, 0.5, 10),
+      vector(5, 0.5, 10),
+      vector(4, 0.5, 10),
+      vector(4, 0.5, 9),
+      vector(4, 0.5, 8),
+      vector(4, 0.5, 7),
+      vector(4, 0.5, 6),
+      vector(3, 0.5, 6),
+      vector(2, 0.5, 6),
+      vector(1, 0.5, 6),
+      vector(0, 0.5, 6),
+      vector(0, 0.5, 5),
     ],
   },
   players: [],
   currentPlayerId: -1,
-
+  playingPlayerIndex: null,
   lastRolledDice: 'Start',
-
   currentRound: 0,
   gamePlayStatus: {
     isRolling: false,
     isMoving: false,
   },
   controls: null,
-};
+});
+
+export default ApplicationStore;
