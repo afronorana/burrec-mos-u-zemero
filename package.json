@@ -23,7 +23,7 @@
     "bootstrap-sass": "^3.4.1",
     "family.scss": "^1.0.8",
     "jquery": "^3.4.1",
-    "lodash": "^4.17.15",
+    "lodash": "^4.18.1",
     "nes.css": "^2.2.1",
     "normalize.css": "^8.0.1",
     "promise": "^8.0.3",
