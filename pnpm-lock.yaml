@@ -18,8 +18,8 @@ importers:
         specifier: ^3.4.1
         version: 3.7.1
       lodash:
-        specifier: ^4.17.15
-        version: 4.17.21
+        specifier: ^4.18.1
+        version: 4.18.1
       nes.css:
         specifier: ^2.2.1
         version: 2.3.0
@@ -59,7 +59,7 @@ importers:
         version: 6.3.5(@types/node@22.15.17)(sass@1.88.0)
       vite-plugin-vue2:
         specifier: ^2.0.3
-        version: 2.0.3(lodash@4.17.21)(vite@6.3.5(@types/node@22.15.17)(sass@1.88.0))(vue-template-compiler@2.7.16)(vue@3.5.13)
+        version: 2.0.3(lodash@4.18.1)(vite@6.3.5(@types/node@22.15.17)(sass@1.88.0))(vue-template-compiler@2.7.16)(vue@3.5.13)
       vue:
         specifier: ^3.5.13
         version: 3.5.13
@@ -1230,8 +1230,8 @@ packages:
   lodash.kebabcase@4.1.1:
     resolution: {integrity: sha512-N8XRTIMMqqDgSy4VLKPnJ/+hpGZN+PHQiJnSenYqPaVV/NCqEogTnAdZLQiGKhxX+JCs8waWq2t1XHWKOmlY8g==}
 
-  lodash@4.17.21:
-    resolution: {integrity: sha512-v2kDEe57lecTulaDIuNTPy3Ry4gLGJ6Z1O3vE1krgXZNrsQ+LFTGHVxVjcXPs17LhbZVGedAJv8XZ1tvj5FvSg==}
+  lodash@4.18.1:
+    resolution: {integrity: sha512-dMInicTPVE8d1e5otfwmmjlxkZoUpiVLwyeTdUsi/Caj/gfzzblBcCE5sRHV/AsjuCmxWrte2TNGSYuCeCq+0Q==}
 
   lru-cache@4.1.5:
     resolution: {integrity: sha512-sWZlbEP2OsHNkXrMl5GYk/jKk70MBng6UU4YI/qGDYbgf6YbP4EvmqISbXCoJiRKs+1bSpFHVgQxvJ17F2li5g==}
@@ -2092,9 +2092,9 @@ snapshots:
       '@vue/compiler-dom': 3.5.13
       '@vue/shared': 3.5.13
 
-  '@vue/component-compiler-utils@3.3.0(lodash@4.17.21)':
+  '@vue/component-compiler-utils@3.3.0(lodash@4.18.1)':
     dependencies:
-      consolidate: 0.15.1(lodash@4.17.21)
+      consolidate: 0.15.1(lodash@4.18.1)
       hash-sum: 1.0.2
       lru-cache: 4.1.5
       merge-source-map: 1.1.0
@@ -2209,17 +2209,17 @@ snapshots:
     dependencies:
       readdirp: 4.1.2
 
-  consolidate@0.15.1(lodash@4.17.21):
+  consolidate@0.15.1(lodash@4.18.1):
     dependencies:
       bluebird: 3.7.2
     optionalDependencies:
-      lodash: 4.17.21
+      lodash: 4.18.1
 
-  consolidate@0.16.0(lodash@4.17.21):
+  consolidate@0.16.0(lodash@4.18.1):
     dependencies:
       bluebird: 3.7.2
     optionalDependencies:
-      lodash: 4.17.21
+      lodash: 4.18.1
 
   convert-source-map@2.0.0: {}
 
@@ -2349,7 +2349,7 @@ snapshots:
 
   lodash.kebabcase@4.1.1: {}
 
-  lodash@4.17.21: {}
+  lodash@4.18.1: {}
 
   lru-cache@4.1.5:
     dependencies:
@@ -2516,7 +2516,7 @@ snapshots:
 
   util-deprecate@1.0.2: {}
 
-  vite-plugin-vue2@2.0.3(lodash@4.17.21)(vite@6.3.5(@types/node@22.15.17)(sass@1.88.0))(vue-template-compiler@2.7.16)(vue@3.5.13):
+  vite-plugin-vue2@2.0.3(lodash@4.18.1)(vite@6.3.5(@types/node@22.15.17)(sass@1.88.0))(vue-template-compiler@2.7.16)(vue@3.5.13):
     dependencies:
       '@babel/core': 7.27.1
       '@babel/parser': 7.27.2
@@ -2535,8 +2535,8 @@ snapshots:
       '@rollup/pluginutils': 4.2.1
       '@vue/babel-helper-vue-jsx-merge-props': 1.4.0
       '@vue/babel-preset-jsx': 1.4.0(@babel/core@7.27.1)(vue@3.5.13)
-      '@vue/component-compiler-utils': 3.3.0(lodash@4.17.21)
-      consolidate: 0.16.0(lodash@4.17.21)
+      '@vue/component-compiler-utils': 3.3.0(lodash@4.18.1)
+      consolidate: 0.16.0(lodash@4.18.1)
       debug: 4.4.0
       fs-extra: 10.1.0
       hash-sum: 2.0.0
