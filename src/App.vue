@@ -2,6 +2,13 @@
   <main class="app-shell">
     <canvas ref="canvas" class="board-canvas"></canvas>
     <start-screen></start-screen>
+    <div class="mobile-block-overlay">
+      <div class="mobile-block-panel">
+        <p class="mobile-block-icon">🖥️</p>
+        <p class="mobile-block-title">Desktop Only</p>
+        <p class="mobile-block-message">This game is only playable on desktop. Please open it on a computer to play.</p>
+      </div>
+    </div>
   </main>
 </template>
 
