@@ -70,23 +70,6 @@ const START_FIELD_CENTER_Y = BOARD_TOP_SURFACE_Y + 0.05 + FIELD_CLEARANCE_Y;
 const PAWN_CENTER_Y = FIELD_CENTER_Y + 0.085;
 const PAWN_ACTIVE_LIFT_Y = 0.04;
 const DICE_VISUAL_FLOAT_Y = 0.016;
-const INTERACTION_SUNRAY = {
-  pulseSpeed: 0.0052,
-  dice: {
-    beamHeight: 2.5,
-    topRadius: 0.09,
-    bottomRadius: 0.64,
-    haloRadius: 0.5,
-    anchorOffsetY: (-DICE_SIZE / 2) + 0.06,
-  },
-  pawn: {
-    beamHeight: 2.15,
-    topRadius: 0.08,
-    bottomRadius: 0.46,
-    haloRadius: 0.34,
-    anchorOffsetY: -0.02,
-  },
-};
 
 export default {
   name: 'AppRoot',
@@ -112,14 +95,14 @@ export default {
       shadowLight: null,
       controls: null,
       diceMesh: null,
-      diceIndicator: null,
       dicePhysicsBody: null,
       physicsWorld: null,
       physicsLastTime: null,
       pendingDiceRoll: null,
       pawnMeshes: markRaw({}),
-      pawnIndicators: markRaw({}),
+      pawnHighlights: markRaw({}),
       pawnMotionStates: markRaw({}),
+      diceHighlight: null,
       sharedGeometries: markRaw({}),
       sharedMaterials: markRaw({}),
       sharedTextures: markRaw({}),
@@ -196,19 +179,14 @@ export default {
       this.scene?.remove(this.diceMesh);
     }
 
-    if (this.diceIndicator) {
-      this.scene?.remove(this.diceIndicator);
-    }
-
-    Object.values(this.pawnIndicators).forEach((indicator) => this.scene?.remove(indicator));
+    Object.values(this.pawnHighlights).forEach((h) => this.scene?.remove(h));
+    if (this.diceHighlight) this.scene?.remove(this.diceHighlight);
 
     this.dicePhysicsBody = null;
     this.physicsWorld = null;
     this.physicsLastTime = null;
     this.pendingDiceRoll = null;
     this.shadowLight = null;
-    this.diceIndicator = null;
-    this.pawnIndicators = markRaw({});
     this.pawnMotionStates = markRaw({});
 
     if (this.controls && this.controlsChangeHandler) {
@@ -827,7 +805,7 @@ export default {
       this.dicePhysicsBody = diceBody;
       this.resetDiceBody();
       this.syncDice();
-      this.createDiceIndicator();
+      this.createDiceHighlight();
     },
 
     renderScene() {
@@ -839,7 +817,7 @@ export default {
         this.stepPhysicsWorld();
         this.syncDice();
         this.syncPawns();
-        this.syncInteractionIndicators(performance.now());
+        this.syncHighlights();
         if (this.hoverNeedsUpdate) {
           this.refreshHoveredTarget();
         }
@@ -933,64 +911,6 @@ export default {
           );
 
           pawnMesh.scale.setScalar(pawn.isActive ? 1.1 : 1);
-        });
-      });
-    },
-
-    syncInteractionIndicators(now) {
-      const canShowDiceIndicator = Boolean(
-          this.diceIndicator &&
-          this.diceMesh &&
-          this.store.gamePlayStatus.isRolling &&
-          this.isHumanTurn(),
-      );
-
-      if (canShowDiceIndicator) {
-        this.updateSunrayIndicator(
-            this.diceIndicator,
-            {
-              x: this.diceMesh.position.x,
-              y: this.diceMesh.position.y + INTERACTION_SUNRAY.dice.anchorOffsetY,
-              z: this.diceMesh.position.z,
-            },
-            now,
-            this.hoveredTarget === 'dice' ? 1.08 : 1,
-        );
-      } else if (this.diceIndicator) {
-        this.diceIndicator.visible = false;
-      }
-
-      this.store.players.forEach((player) => {
-        player.pawns.forEach((pawn) => {
-          const indicator = this.pawnIndicators[pawn.id];
-          const mesh = this.pawnMeshes[pawn.id];
-          const shouldShow = Boolean(
-              indicator &&
-              mesh &&
-              this.store.gamePlayStatus.isMoving &&
-              this.isHumanTurn() &&
-              pawn.isActive,
-          );
-
-          if (!indicator) {
-            return;
-          }
-
-          if (!shouldShow) {
-            indicator.visible = false;
-            return;
-          }
-
-          this.updateSunrayIndicator(
-              indicator,
-              {
-                x: mesh.position.x,
-                y: mesh.position.y + INTERACTION_SUNRAY.pawn.anchorOffsetY,
-                z: mesh.position.z,
-              },
-              now,
-              this.hoveredTarget === mesh.name ? 1.08 : 1,
-          );
         });
       });
     },
@@ -1130,7 +1050,7 @@ export default {
 
       this.pawnMeshes[pawn.id] = group;
       this.scene.add(group);
-      this.ensurePawnIndicator(pawn);
+      this.ensurePawnHighlight(pawn);
       this.applyOutlineAppearance();
     },
 
@@ -1187,103 +1107,147 @@ export default {
       return fillMesh;
     },
 
-    createDiceIndicator() {
-      if (this.diceIndicator || !this.scene) {
-        return;
-      }
+    createDiceHighlight() {
+      if (this.diceHighlight || !this.scene) return;
 
-      this.diceIndicator = this.createSunrayIndicator('dice', INTERACTION_SUNRAY.dice);
-      this.scene.add(this.diceIndicator);
-    },
-
-    ensurePawnIndicator(pawn) {
-      if (this.pawnIndicators[pawn.id] || !this.scene) {
-        return;
-      }
-
-      const indicator = this.createSunrayIndicator(`pawn-${pawn.id}`, INTERACTION_SUNRAY.pawn);
-      this.pawnIndicators[pawn.id] = indicator;
-      this.scene.add(indicator);
-    },
-
-    createSunrayIndicator(key, config) {
+      const geo = this.getSharedGeometry('dice-box', () => new THREE.BoxGeometry(DICE_SIZE, DICE_SIZE, DICE_SIZE));
       const group = markRaw(new THREE.Group());
-      const beam = markRaw(new THREE.Mesh(
-          this.getSharedGeometry(
-              `sunray-beam-${key}`,
-              () => new THREE.CylinderGeometry(
-                  config.topRadius,
-                  config.bottomRadius,
-                  config.beamHeight,
-                  18,
-                  1,
-                  true,
-              ),
-          ),
-          this.getSunrayBeamMaterial(),
-      ));
-      const core = markRaw(new THREE.Mesh(
-          this.getSharedGeometry(
-              `sunray-core-${key}`,
-              () => new THREE.CylinderGeometry(
-                  config.topRadius * 0.52,
-                  config.bottomRadius * 0.42,
-                  config.beamHeight * 0.88,
-                  16,
-                  1,
-                  true,
-              ),
-          ),
-          this.getSunrayCoreMaterial(),
-      ));
-      const halo = markRaw(new THREE.Mesh(
-          this.getSharedGeometry(
-              `sunray-halo-${key}`,
-              () => new THREE.CircleGeometry(config.haloRadius, 28),
-          ),
-          this.getSunrayHaloMaterial(),
-      ));
 
-      beam.position.y = config.beamHeight * 0.5;
-      core.position.y = config.beamHeight * 0.46;
-      halo.position.y = 0.014;
-      halo.rotation.x = -Math.PI / 2;
+      const ring = markRaw(new THREE.Mesh(geo, this.getHighlightIdleMaterial()));
+      ring.renderOrder = 50;
+      ring.castShadow = false;
+      ring.receiveShadow = false;
+      ring.scale.setScalar(1.30);
 
-      [beam, core, halo].forEach((mesh) => {
-        mesh.castShadow = false;
-        mesh.receiveShadow = false;
-        mesh.renderOrder = 30;
-      });
+      const cap = markRaw(new THREE.Mesh(geo, this.diceMesh.material));
+      cap.renderOrder = 51;
+      cap.castShadow = false;
+      cap.receiveShadow = false;
 
-      group.userData.beam = beam;
-      group.userData.core = core;
-      group.userData.halo = halo;
-      group.userData.phase = Math.random() * Math.PI * 2;
+      group.add(ring);
+      group.add(cap);
+      group.userData.ring = ring;
       group.visible = false;
-      group.add(beam);
-      group.add(core);
-      group.add(halo);
-      return group;
+
+      this.diceHighlight = group;
+      this.scene.add(group);
     },
 
-    updateSunrayIndicator(indicator, position, now, emphasis = 1) {
-      if (!indicator) {
-        return;
+    ensurePawnHighlight(pawn) {
+      if (this.pawnHighlights[pawn.id] || !this.scene) return;
+
+      const pawnGroup = this.pawnMeshes[pawn.id];
+      const bodyMesh = pawnGroup.children[0];
+      const headMesh = pawnGroup.children[1];
+
+      const bodyGeo = this.getSharedGeometry('pawn-body', () => new THREE.CylinderGeometry(0.08, 0.28, 0.75, 24));
+      const headGeo = this.getSharedGeometry('pawn-head', () => new THREE.SphereGeometry(0.18, 24, 24));
+      const group = markRaw(new THREE.Group());
+
+      const bodyRing = markRaw(new THREE.Mesh(bodyGeo, this.getHighlightIdleMaterial()));
+      bodyRing.position.y = 0.35;
+      bodyRing.renderOrder = 50;
+      bodyRing.castShadow = false;
+      bodyRing.receiveShadow = false;
+      bodyRing.scale.setScalar(1.22);
+
+      const headRing = markRaw(new THREE.Mesh(headGeo, this.getHighlightIdleMaterial()));
+      headRing.position.y = 0.85;
+      headRing.renderOrder = 50;
+      headRing.castShadow = false;
+      headRing.receiveShadow = false;
+      headRing.scale.setScalar(1.22);
+
+      const bodyCap = markRaw(new THREE.Mesh(bodyGeo, bodyMesh.material));
+      bodyCap.position.y = 0.35;
+      bodyCap.renderOrder = 51;
+      bodyCap.castShadow = false;
+      bodyCap.receiveShadow = false;
+
+      const headCap = markRaw(new THREE.Mesh(headGeo, headMesh.material));
+      headCap.position.y = 0.85;
+      headCap.renderOrder = 51;
+      headCap.castShadow = false;
+      headCap.receiveShadow = false;
+
+      group.add(bodyRing);
+      group.add(headRing);
+      group.add(bodyCap);
+      group.add(headCap);
+      group.userData.bodyRing = bodyRing;
+      group.userData.headRing = headRing;
+      group.visible = false;
+
+      this.pawnHighlights[pawn.id] = group;
+      this.scene.add(group);
+    },
+
+    getHighlightIdleMaterial() {
+      return this.getSharedMaterial('highlight-idle', () => markRaw(new THREE.MeshBasicMaterial({
+        color: '#ff7700',
+        side: THREE.BackSide,
+        transparent: true,
+        opacity: 0.8,
+        depthTest: false,
+        depthWrite: false,
+        toneMapped: false,
+      })));
+    },
+
+    getHighlightHoverMaterial() {
+      return this.getSharedMaterial('highlight-hover', () => markRaw(new THREE.MeshBasicMaterial({
+        color: '#ffaa22',
+        side: THREE.BackSide,
+        transparent: true,
+        opacity: 0.95,
+        depthTest: false,
+        depthWrite: false,
+        toneMapped: false,
+      })));
+    },
+
+    syncHighlights() {
+      const now = performance.now();
+      const idleMat = this.getHighlightIdleMaterial();
+      idleMat.opacity = 0.45 + 0.35 * Math.sin(now * 0.0032);
+
+      if (this.diceHighlight && this.diceMesh) {
+        const clickable = this.store.gamePlayStatus.isRolling && this.isHumanTurn();
+        if (clickable) {
+          const hovered = this.hoveredTarget === 'dice';
+          const ring = this.diceHighlight.userData.ring;
+          ring.material = hovered ? this.getHighlightHoverMaterial() : idleMat;
+          ring.scale.setScalar(hovered ? 1.36 : 1.30);
+          this.diceHighlight.visible = true;
+          this.diceHighlight.position.copy(this.diceMesh.position);
+          this.diceHighlight.quaternion.copy(this.diceMesh.quaternion);
+        } else {
+          this.diceHighlight.visible = false;
+        }
       }
 
-      const phase = indicator.userData.phase || 0;
-      const pulse = 1 + (Math.sin((now * INTERACTION_SUNRAY.pulseSpeed) + phase) * 0.05 * emphasis);
-      const haloPulse = 1 + (Math.sin((now * 0.0072) + phase) * 0.08 * emphasis);
-      const bob = Math.sin((now * 0.0035) + phase) * 0.015;
-      const beam = indicator.userData.beam;
-      const core = indicator.userData.core;
-      const halo = indicator.userData.halo;
+      this.store.players.forEach((player) => {
+        player.pawns.forEach((pawn) => {
+          const highlight = this.pawnHighlights[pawn.id];
+          const mesh = this.pawnMeshes[pawn.id];
+          if (!highlight || !mesh) return;
 
-      indicator.visible = true;
-      indicator.position.set(position.x, position.y + bob, position.z);
-      beam.scale.set(pulse, 1, pulse);
-      core.scale.set(pulse * 0.88, 1, pulse * 0.88);
-      halo.scale.setScalar(haloPulse);
+          const clickable = this.store.gamePlayStatus.isMoving && this.isHumanTurn() && pawn.isActive;
+          if (clickable) {
+            const hovered = this.hoveredTarget === mesh.name;
+            const mat = hovered ? this.getHighlightHoverMaterial() : idleMat;
+            const scale = hovered ? 1.28 : 1.22;
+            highlight.visible = true;
+            highlight.position.copy(mesh.position);
+            highlight.userData.bodyRing.material = mat;
+            highlight.userData.bodyRing.scale.setScalar(scale);
+            highlight.userData.headRing.material = mat;
+            highlight.userData.headRing.scale.setScalar(scale);
+          } else {
+            highlight.visible = false;
+          }
+        });
+      });
     },
 
     createToonMaterial(key, materialOptions) {
@@ -1312,103 +1276,6 @@ export default {
             depthWrite: false,
             toneMapped: false,
           })),
-      );
-    },
-
-    getSunrayBeamMaterial() {
-      return this.getSharedMaterial(
-          'sunray-beam-material',
-          () => markRaw(new THREE.MeshBasicMaterial({
-            color: '#ffe3a0',
-            transparent: true,
-            opacity: 0.38,
-            alphaMap: this.getSunrayBeamTexture(),
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-            side: THREE.DoubleSide,
-            toneMapped: false,
-          })),
-      );
-    },
-
-    getSunrayCoreMaterial() {
-      return this.getSharedMaterial(
-          'sunray-core-material',
-          () => markRaw(new THREE.MeshBasicMaterial({
-            color: '#fff6cf',
-            transparent: true,
-            opacity: 0.26,
-            alphaMap: this.getSunrayBeamTexture(),
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-            side: THREE.DoubleSide,
-            toneMapped: false,
-          })),
-      );
-    },
-
-    getSunrayHaloMaterial() {
-      return this.getSharedMaterial(
-          'sunray-halo-material',
-          () => markRaw(new THREE.MeshBasicMaterial({
-            color: '#ffe4a8',
-            transparent: true,
-            opacity: 0.52,
-            alphaMap: this.getSunrayHaloTexture(),
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-            side: THREE.DoubleSide,
-            toneMapped: false,
-          })),
-      );
-    },
-
-    getSunrayBeamTexture() {
-      return this.getSharedTexture(
-          'sunray-beam-texture',
-          () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = 32;
-            canvas.height = 256;
-
-            const context = canvas.getContext('2d');
-            const gradient = context.createLinearGradient(0, 0, 0, canvas.height);
-            gradient.addColorStop(0, '#000000');
-            gradient.addColorStop(0.16, '#4a4a4a');
-            gradient.addColorStop(0.5, '#ffffff');
-            gradient.addColorStop(0.84, '#7f7f7f');
-            gradient.addColorStop(1, '#000000');
-            context.fillStyle = gradient;
-            context.fillRect(0, 0, canvas.width, canvas.height);
-
-            const texture = markRaw(new THREE.CanvasTexture(canvas));
-            texture.needsUpdate = true;
-            return texture;
-          },
-      );
-    },
-
-    getSunrayHaloTexture() {
-      return this.getSharedTexture(
-          'sunray-halo-texture',
-          () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = 256;
-            canvas.height = 256;
-
-            const context = canvas.getContext('2d');
-            const gradient = context.createRadialGradient(128, 128, 12, 128, 128, 128);
-            gradient.addColorStop(0, '#ffffff');
-            gradient.addColorStop(0.28, '#e8e8e8');
-            gradient.addColorStop(0.62, '#7f7f7f');
-            gradient.addColorStop(1, '#000000');
-            context.fillStyle = gradient;
-            context.fillRect(0, 0, canvas.width, canvas.height);
-
-            const texture = markRaw(new THREE.CanvasTexture(canvas));
-            texture.needsUpdate = true;
-            return texture;
-          },
       );
     },
 
@@ -1901,21 +1768,17 @@ export default {
         this.scene.remove(mesh);
       });
 
-      Object.values(this.pawnIndicators).forEach((indicator) => {
-        this.scene.remove(indicator);
+      Object.values(this.pawnHighlights).forEach((h) => {
+        this.scene.remove(h);
       });
 
       this.pawnMeshes = markRaw({});
-      this.pawnIndicators = markRaw({});
+      this.pawnHighlights = markRaw({});
       this.pawnMotionStates = markRaw({});
 
       this.pendingDiceRoll = null;
       this.freezeDiceBody();
       this.syncDice();
-      if (this.diceIndicator) {
-        this.diceIndicator.visible = false;
-      }
-
       this.clearHoveredTarget();
     },
 
@@ -2058,14 +1921,22 @@ export default {
           Math.min(Math.max(body.position.z, bounds.minZ), bounds.maxZ),
       );
 
+      const randomAxis = new CANNON.Vec3(
+          Math.random() - 0.5,
+          Math.random() - 0.5,
+          Math.random() - 0.5,
+      );
+      randomAxis.normalize();
+      body.quaternion.setFromAxisAngle(randomAxis, Math.random() * Math.PI * 2);
+
       const centerBiasX = (DICE_TRAY.center.x - body.position.x) * 1.25;
       const centerBiasZ = (DICE_TRAY.center.z - body.position.z) * 1.25;
       const horizontalX = centerBiasX + ((Math.random() - 0.5) * 3.4);
       const horizontalZ = centerBiasZ + ((Math.random() - 0.5) * 3.1);
       body.angularVelocity.set(
-          (Math.random() - 0.5) * 18,
-          10 + (Math.random() * 12),
-          (Math.random() - 0.5) * 18,
+          (Math.random() - 0.5) * 30,
+          (Math.random() - 0.5) * 10,
+          (Math.random() - 0.5) * 30,
       );
 
       body.applyImpulse(
@@ -2075,9 +1946,9 @@ export default {
               horizontalZ,
           ),
           new CANNON.Vec3(
-              (Math.random() - 0.5) * 0.24,
+              (Math.random() - 0.5) * 0.52,
               0,
-              (Math.random() - 0.5) * 0.24,
+              (Math.random() - 0.5) * 0.52,
           ),
       );
 
