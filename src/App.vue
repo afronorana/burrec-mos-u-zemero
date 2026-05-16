@@ -1113,20 +1113,23 @@ export default {
       const geo = this.getSharedGeometry('dice-box', () => new THREE.BoxGeometry(DICE_SIZE, DICE_SIZE, DICE_SIZE));
       const group = markRaw(new THREE.Group());
 
-      const ring = markRaw(new THREE.Mesh(geo, this.getHighlightIdleMaterial()));
-      ring.renderOrder = 50;
-      ring.castShadow = false;
-      ring.receiveShadow = false;
-      ring.scale.setScalar(1.30);
+      // Renders only where the dice is occluded (through walls)
+      const ringBehind = markRaw(new THREE.Mesh(geo, this.getHighlightBehindMaterial()));
+      ringBehind.renderOrder = 49;
+      ringBehind.castShadow = false;
+      ringBehind.receiveShadow = false;
 
-      const cap = markRaw(new THREE.Mesh(geo, this.diceMesh.material));
-      cap.renderOrder = 51;
-      cap.castShadow = false;
-      cap.receiveShadow = false;
+      // Renders only at the visible silhouette (BackSide + depthTest clips the front face)
+      const ringOutline = markRaw(new THREE.Mesh(geo, this.getHighlightOutlineMaterial()));
+      ringOutline.renderOrder = 50;
+      ringOutline.castShadow = false;
+      ringOutline.receiveShadow = false;
+      ringOutline.scale.setScalar(1.30);
 
-      group.add(ring);
-      group.add(cap);
-      group.userData.ring = ring;
+      group.add(ringBehind);
+      group.add(ringOutline);
+      group.userData.ringBehind = ringBehind;
+      group.userData.ringOutline = ringOutline;
       group.visible = false;
 
       this.diceHighlight = group;
@@ -1136,88 +1139,121 @@ export default {
     ensurePawnHighlight(pawn) {
       if (this.pawnHighlights[pawn.id] || !this.scene) return;
 
-      const pawnGroup = this.pawnMeshes[pawn.id];
-      const bodyMesh = pawnGroup.children[0];
-      const headMesh = pawnGroup.children[1];
-
       const bodyGeo = this.getSharedGeometry('pawn-body', () => new THREE.CylinderGeometry(0.08, 0.28, 0.75, 24));
       const headGeo = this.getSharedGeometry('pawn-head', () => new THREE.SphereGeometry(0.18, 24, 24));
       const group = markRaw(new THREE.Group());
 
-      const bodyRing = markRaw(new THREE.Mesh(bodyGeo, this.getHighlightIdleMaterial()));
-      bodyRing.position.y = 0.35;
-      bodyRing.renderOrder = 50;
-      bodyRing.castShadow = false;
-      bodyRing.receiveShadow = false;
-      bodyRing.scale.setScalar(1.22);
+      const bodyBehind = markRaw(new THREE.Mesh(bodyGeo, this.getHighlightBehindMaterial()));
+      bodyBehind.position.y = 0.35;
+      bodyBehind.renderOrder = 49;
+      bodyBehind.castShadow = false;
+      bodyBehind.receiveShadow = false;
 
-      const headRing = markRaw(new THREE.Mesh(headGeo, this.getHighlightIdleMaterial()));
-      headRing.position.y = 0.85;
-      headRing.renderOrder = 50;
-      headRing.castShadow = false;
-      headRing.receiveShadow = false;
-      headRing.scale.setScalar(1.22);
+      const headBehind = markRaw(new THREE.Mesh(headGeo, this.getHighlightBehindMaterial()));
+      headBehind.position.y = 0.85;
+      headBehind.renderOrder = 49;
+      headBehind.castShadow = false;
+      headBehind.receiveShadow = false;
 
-      const bodyCap = markRaw(new THREE.Mesh(bodyGeo, bodyMesh.material));
-      bodyCap.position.y = 0.35;
-      bodyCap.renderOrder = 51;
-      bodyCap.castShadow = false;
-      bodyCap.receiveShadow = false;
+      const bodyOutline = markRaw(new THREE.Mesh(bodyGeo, this.getHighlightOutlineMaterial()));
+      bodyOutline.position.y = 0.35;
+      bodyOutline.renderOrder = 50;
+      bodyOutline.castShadow = false;
+      bodyOutline.receiveShadow = false;
+      bodyOutline.scale.setScalar(1.22);
 
-      const headCap = markRaw(new THREE.Mesh(headGeo, headMesh.material));
-      headCap.position.y = 0.85;
-      headCap.renderOrder = 51;
-      headCap.castShadow = false;
-      headCap.receiveShadow = false;
+      const headOutline = markRaw(new THREE.Mesh(headGeo, this.getHighlightOutlineMaterial()));
+      headOutline.position.y = 0.85;
+      headOutline.renderOrder = 50;
+      headOutline.castShadow = false;
+      headOutline.receiveShadow = false;
+      headOutline.scale.setScalar(1.22);
 
-      group.add(bodyRing);
-      group.add(headRing);
-      group.add(bodyCap);
-      group.add(headCap);
-      group.userData.bodyRing = bodyRing;
-      group.userData.headRing = headRing;
+      group.add(bodyBehind);
+      group.add(headBehind);
+      group.add(bodyOutline);
+      group.add(headOutline);
+      group.userData.bodyBehind = bodyBehind;
+      group.userData.headBehind = headBehind;
+      group.userData.bodyOutline = bodyOutline;
+      group.userData.headOutline = headOutline;
       group.visible = false;
 
       this.pawnHighlights[pawn.id] = group;
       this.scene.add(group);
     },
 
-    getHighlightIdleMaterial() {
-      return this.getSharedMaterial('highlight-idle', () => markRaw(new THREE.MeshBasicMaterial({
+    getHighlightOutlineMaterial() {
+      return this.getSharedMaterial('highlight-outline', () => markRaw(new THREE.MeshBasicMaterial({
         color: '#ff7700',
         side: THREE.BackSide,
         transparent: true,
         opacity: 0.8,
-        depthTest: false,
+        depthTest: true,
         depthWrite: false,
         toneMapped: false,
       })));
     },
 
-    getHighlightHoverMaterial() {
-      return this.getSharedMaterial('highlight-hover', () => markRaw(new THREE.MeshBasicMaterial({
+    getHighlightOutlineHoverMaterial() {
+      return this.getSharedMaterial('highlight-outline-hover', () => markRaw(new THREE.MeshBasicMaterial({
         color: '#ffaa22',
         side: THREE.BackSide,
         transparent: true,
         opacity: 0.95,
-        depthTest: false,
+        depthTest: true,
         depthWrite: false,
         toneMapped: false,
       })));
     },
 
+    getHighlightBehindMaterial() {
+      return this.getSharedMaterial('highlight-behind', () => {
+        const mat = markRaw(new THREE.MeshBasicMaterial({
+          color: '#ff7700',
+          side: THREE.FrontSide,
+          transparent: true,
+          opacity: 0.8,
+          depthTest: true,
+          depthWrite: false,
+          toneMapped: false,
+        }));
+        mat.depthFunc = THREE.GreaterEqualDepth;
+        return mat;
+      });
+    },
+
+    getHighlightBehindHoverMaterial() {
+      return this.getSharedMaterial('highlight-behind-hover', () => {
+        const mat = markRaw(new THREE.MeshBasicMaterial({
+          color: '#ffaa22',
+          side: THREE.FrontSide,
+          transparent: true,
+          opacity: 0.95,
+          depthTest: true,
+          depthWrite: false,
+          toneMapped: false,
+        }));
+        mat.depthFunc = THREE.GreaterEqualDepth;
+        return mat;
+      });
+    },
+
     syncHighlights() {
       const now = performance.now();
-      const idleMat = this.getHighlightIdleMaterial();
-      idleMat.opacity = 0.45 + 0.35 * Math.sin(now * 0.0032);
+      const idleOpacity = 0.45 + 0.35 * Math.sin(now * 0.0032);
+      const outlineMat = this.getHighlightOutlineMaterial();
+      const behindMat = this.getHighlightBehindMaterial();
+      outlineMat.opacity = idleOpacity;
+      behindMat.opacity = idleOpacity;
 
       if (this.diceHighlight && this.diceMesh) {
         const clickable = this.store.gamePlayStatus.isRolling && this.isHumanTurn();
         if (clickable) {
           const hovered = this.hoveredTarget === 'dice';
-          const ring = this.diceHighlight.userData.ring;
-          ring.material = hovered ? this.getHighlightHoverMaterial() : idleMat;
-          ring.scale.setScalar(hovered ? 1.36 : 1.30);
+          this.diceHighlight.userData.ringOutline.material = hovered ? this.getHighlightOutlineHoverMaterial() : outlineMat;
+          this.diceHighlight.userData.ringOutline.scale.setScalar(hovered ? 1.36 : 1.30);
+          this.diceHighlight.userData.ringBehind.material = hovered ? this.getHighlightBehindHoverMaterial() : behindMat;
           this.diceHighlight.visible = true;
           this.diceHighlight.position.copy(this.diceMesh.position);
           this.diceHighlight.quaternion.copy(this.diceMesh.quaternion);
@@ -1235,14 +1271,17 @@ export default {
           const clickable = this.store.gamePlayStatus.isMoving && this.isHumanTurn() && pawn.isActive;
           if (clickable) {
             const hovered = this.hoveredTarget === mesh.name;
-            const mat = hovered ? this.getHighlightHoverMaterial() : idleMat;
-            const scale = hovered ? 1.28 : 1.22;
+            const oMat = hovered ? this.getHighlightOutlineHoverMaterial() : outlineMat;
+            const bMat = hovered ? this.getHighlightBehindHoverMaterial() : behindMat;
+            const outlineScale = hovered ? 1.28 : 1.22;
             highlight.visible = true;
             highlight.position.copy(mesh.position);
-            highlight.userData.bodyRing.material = mat;
-            highlight.userData.bodyRing.scale.setScalar(scale);
-            highlight.userData.headRing.material = mat;
-            highlight.userData.headRing.scale.setScalar(scale);
+            highlight.userData.bodyOutline.material = oMat;
+            highlight.userData.bodyOutline.scale.setScalar(outlineScale);
+            highlight.userData.headOutline.material = oMat;
+            highlight.userData.headOutline.scale.setScalar(outlineScale);
+            highlight.userData.bodyBehind.material = bMat;
+            highlight.userData.headBehind.material = bMat;
           } else {
             highlight.visible = false;
           }
