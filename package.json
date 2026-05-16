@@ -19,6 +19,9 @@
     "vite": "^7.3.1",
     "vue": "^3.5.29"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": ["@parcel/watcher", "esbuild"]
+  },
   "dependencies": {
     "bootstrap-sass": "^3.4.3",
     "cannon-es": "^0.20.0",
