@@ -1,6 +1,7 @@
 <template>
   <main class="app-shell">
     <canvas ref="canvas" class="board-canvas"></canvas>
+    <canvas ref="overlayCanvas" class="overlay-canvas"></canvas>
     <start-screen></start-screen>
     <div class="mobile-block-overlay">
       <div class="mobile-block-panel">
@@ -100,9 +101,8 @@ export default {
       physicsLastTime: null,
       pendingDiceRoll: null,
       pawnMeshes: markRaw({}),
-      pawnHighlights: markRaw({}),
       pawnMotionStates: markRaw({}),
-      diceHighlight: null,
+      overlayCtx: null,
       sharedGeometries: markRaw({}),
       sharedMaterials: markRaw({}),
       sharedTextures: markRaw({}),
@@ -127,6 +127,8 @@ export default {
   mounted() {
     this.addEventListeners();
     this.initThreeScene();
+    this.overlayCtx = this.$refs.overlayCanvas.getContext('2d');
+    this.resizeOverlayCanvas();
 
     this.resizeHandler = () => this.handleResize();
     this.keydownHandler = (event) => this.handleKeydown(event);
@@ -178,9 +180,6 @@ export default {
     if (this.diceMesh) {
       this.scene?.remove(this.diceMesh);
     }
-
-    Object.values(this.pawnHighlights).forEach((h) => this.scene?.remove(h));
-    if (this.diceHighlight) this.scene?.remove(this.diceHighlight);
 
     this.dicePhysicsBody = null;
     this.physicsWorld = null;
@@ -805,7 +804,6 @@ export default {
       this.dicePhysicsBody = diceBody;
       this.resetDiceBody();
       this.syncDice();
-      this.createDiceHighlight();
     },
 
     renderScene() {
@@ -817,11 +815,11 @@ export default {
         this.stepPhysicsWorld();
         this.syncDice();
         this.syncPawns();
-        this.syncHighlights();
         if (this.hoverNeedsUpdate) {
           this.refreshHoveredTarget();
         }
         this.renderer.render(this.scene, this.camera);
+        this.renderHighlights2D();
       };
 
       animate();
@@ -1050,7 +1048,6 @@ export default {
 
       this.pawnMeshes[pawn.id] = group;
       this.scene.add(group);
-      this.ensurePawnHighlight(pawn);
       this.applyOutlineAppearance();
     },
 
@@ -1107,186 +1104,166 @@ export default {
       return fillMesh;
     },
 
-    createDiceHighlight() {
-      if (this.diceHighlight || !this.scene) return;
+    renderHighlights2D() {
+      const canvas = this.$refs.overlayCanvas;
+      const ctx = this.overlayCtx;
+      if (!canvas || !ctx) return;
 
-      const geo = this.getSharedGeometry('dice-box', () => new THREE.BoxGeometry(DICE_SIZE, DICE_SIZE, DICE_SIZE));
-      const group = markRaw(new THREE.Group());
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Renders only where the dice is occluded (through walls)
-      const ringBehind = markRaw(new THREE.Mesh(geo, this.getHighlightBehindMaterial()));
-      ringBehind.renderOrder = 49;
-      ringBehind.castShadow = false;
-      ringBehind.receiveShadow = false;
-
-      // Renders only at the visible silhouette (BackSide + depthTest clips the front face)
-      const ringOutline = markRaw(new THREE.Mesh(geo, this.getHighlightOutlineMaterial()));
-      ringOutline.renderOrder = 50;
-      ringOutline.castShadow = false;
-      ringOutline.receiveShadow = false;
-      ringOutline.scale.setScalar(1.30);
-
-      group.add(ringBehind);
-      group.add(ringOutline);
-      group.userData.ringBehind = ringBehind;
-      group.userData.ringOutline = ringOutline;
-      group.visible = false;
-
-      this.diceHighlight = group;
-      this.scene.add(group);
-    },
-
-    ensurePawnHighlight(pawn) {
-      if (this.pawnHighlights[pawn.id] || !this.scene) return;
-
-      const bodyGeo = this.getSharedGeometry('pawn-body', () => new THREE.CylinderGeometry(0.08, 0.28, 0.75, 24));
-      const headGeo = this.getSharedGeometry('pawn-head', () => new THREE.SphereGeometry(0.18, 24, 24));
-      const group = markRaw(new THREE.Group());
-
-      const bodyBehind = markRaw(new THREE.Mesh(bodyGeo, this.getHighlightBehindMaterial()));
-      bodyBehind.position.y = 0.35;
-      bodyBehind.renderOrder = 49;
-      bodyBehind.castShadow = false;
-      bodyBehind.receiveShadow = false;
-
-      const headBehind = markRaw(new THREE.Mesh(headGeo, this.getHighlightBehindMaterial()));
-      headBehind.position.y = 0.85;
-      headBehind.renderOrder = 49;
-      headBehind.castShadow = false;
-      headBehind.receiveShadow = false;
-
-      const bodyOutline = markRaw(new THREE.Mesh(bodyGeo, this.getHighlightOutlineMaterial()));
-      bodyOutline.position.y = 0.35;
-      bodyOutline.renderOrder = 50;
-      bodyOutline.castShadow = false;
-      bodyOutline.receiveShadow = false;
-      bodyOutline.scale.setScalar(1.22);
-
-      const headOutline = markRaw(new THREE.Mesh(headGeo, this.getHighlightOutlineMaterial()));
-      headOutline.position.y = 0.85;
-      headOutline.renderOrder = 50;
-      headOutline.castShadow = false;
-      headOutline.receiveShadow = false;
-      headOutline.scale.setScalar(1.22);
-
-      group.add(bodyBehind);
-      group.add(headBehind);
-      group.add(bodyOutline);
-      group.add(headOutline);
-      group.userData.bodyBehind = bodyBehind;
-      group.userData.headBehind = headBehind;
-      group.userData.bodyOutline = bodyOutline;
-      group.userData.headOutline = headOutline;
-      group.visible = false;
-
-      this.pawnHighlights[pawn.id] = group;
-      this.scene.add(group);
-    },
-
-    getHighlightOutlineMaterial() {
-      return this.getSharedMaterial('highlight-outline', () => markRaw(new THREE.MeshBasicMaterial({
-        color: '#ff7700',
-        side: THREE.BackSide,
-        transparent: true,
-        opacity: 0.8,
-        depthTest: true,
-        depthWrite: false,
-        toneMapped: false,
-      })));
-    },
-
-    getHighlightOutlineHoverMaterial() {
-      return this.getSharedMaterial('highlight-outline-hover', () => markRaw(new THREE.MeshBasicMaterial({
-        color: '#ffaa22',
-        side: THREE.BackSide,
-        transparent: true,
-        opacity: 0.95,
-        depthTest: true,
-        depthWrite: false,
-        toneMapped: false,
-      })));
-    },
-
-    getHighlightBehindMaterial() {
-      return this.getSharedMaterial('highlight-behind', () => {
-        const mat = markRaw(new THREE.MeshBasicMaterial({
-          color: '#ff7700',
-          side: THREE.FrontSide,
-          transparent: true,
-          opacity: 0.8,
-          depthTest: true,
-          depthWrite: false,
-          toneMapped: false,
-        }));
-        mat.depthFunc = THREE.GreaterEqualDepth;
-        return mat;
-      });
-    },
-
-    getHighlightBehindHoverMaterial() {
-      return this.getSharedMaterial('highlight-behind-hover', () => {
-        const mat = markRaw(new THREE.MeshBasicMaterial({
-          color: '#ffaa22',
-          side: THREE.FrontSide,
-          transparent: true,
-          opacity: 0.95,
-          depthTest: true,
-          depthWrite: false,
-          toneMapped: false,
-        }));
-        mat.depthFunc = THREE.GreaterEqualDepth;
-        return mat;
-      });
-    },
-
-    syncHighlights() {
       const now = performance.now();
       const idleOpacity = 0.45 + 0.35 * Math.sin(now * 0.0032);
-      const outlineMat = this.getHighlightOutlineMaterial();
-      const behindMat = this.getHighlightBehindMaterial();
-      outlineMat.opacity = idleOpacity;
-      behindMat.opacity = idleOpacity;
 
-      if (this.diceHighlight && this.diceMesh) {
-        const clickable = this.store.gamePlayStatus.isRolling && this.isHumanTurn();
-        if (clickable) {
-          const hovered = this.hoveredTarget === 'dice';
-          this.diceHighlight.userData.ringOutline.material = hovered ? this.getHighlightOutlineHoverMaterial() : outlineMat;
-          this.diceHighlight.userData.ringOutline.scale.setScalar(hovered ? 1.36 : 1.30);
-          this.diceHighlight.userData.ringBehind.material = hovered ? this.getHighlightBehindHoverMaterial() : behindMat;
-          this.diceHighlight.visible = true;
-          this.diceHighlight.position.copy(this.diceMesh.position);
-          this.diceHighlight.quaternion.copy(this.diceMesh.quaternion);
-        } else {
-          this.diceHighlight.visible = false;
-        }
+      if (this.diceMesh && this.store.gamePlayStatus.isRolling && this.isHumanTurn()) {
+        const hovered = this.hoveredTarget === 'dice';
+        this.drawObjectHighlight2D(
+          ctx, canvas,
+          [this.getDiceOutlinePoints()],
+          hovered ? 0.95 : idleOpacity,
+          hovered ? '#ffaa22' : '#ff7700',
+        );
       }
 
       this.store.players.forEach((player) => {
         player.pawns.forEach((pawn) => {
-          const highlight = this.pawnHighlights[pawn.id];
+          if (!this.store.gamePlayStatus.isMoving || !this.isHumanTurn() || !pawn.isActive) return;
           const mesh = this.pawnMeshes[pawn.id];
-          if (!highlight || !mesh) return;
-
-          const clickable = this.store.gamePlayStatus.isMoving && this.isHumanTurn() && pawn.isActive;
-          if (clickable) {
-            const hovered = this.hoveredTarget === mesh.name;
-            const oMat = hovered ? this.getHighlightOutlineHoverMaterial() : outlineMat;
-            const bMat = hovered ? this.getHighlightBehindHoverMaterial() : behindMat;
-            const outlineScale = hovered ? 1.28 : 1.22;
-            highlight.visible = true;
-            highlight.position.copy(mesh.position);
-            highlight.userData.bodyOutline.material = oMat;
-            highlight.userData.bodyOutline.scale.setScalar(outlineScale);
-            highlight.userData.headOutline.material = oMat;
-            highlight.userData.headOutline.scale.setScalar(outlineScale);
-            highlight.userData.bodyBehind.material = bMat;
-            highlight.userData.headBehind.material = bMat;
-          } else {
-            highlight.visible = false;
-          }
+          if (!mesh) return;
+          const hovered = this.hoveredTarget === mesh.name;
+          this.drawObjectHighlight2D(
+            ctx, canvas,
+            [this.getPawnBodyOutlinePoints(mesh), this.getPawnHeadOutlinePoints(mesh)],
+            hovered ? 0.95 : idleOpacity,
+            hovered ? '#ffaa22' : '#ff7700',
+          );
         });
       });
+    },
+
+    getDiceOutlinePoints() {
+      const h = DICE_SIZE / 2;
+      return [
+        new THREE.Vector3(-h, -h, -h), new THREE.Vector3(-h, -h,  h),
+        new THREE.Vector3(-h,  h, -h), new THREE.Vector3(-h,  h,  h),
+        new THREE.Vector3( h, -h, -h), new THREE.Vector3( h, -h,  h),
+        new THREE.Vector3( h,  h, -h), new THREE.Vector3( h,  h,  h),
+      ].map((v) => v.applyMatrix4(this.diceMesh.matrixWorld));
+    },
+
+    getPawnBodyOutlinePoints(group) {
+      const pts = [];
+      const n = 20;
+      const levels = [
+        { y: -0.025, r: 0.28 },
+        { y: 0.175,  r: 0.227 },
+        { y: 0.35,   r: 0.18 },
+        { y: 0.55,   r: 0.127 },
+        { y: 0.725,  r: 0.08 },
+      ];
+      for (const { y, r } of levels) {
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * Math.PI * 2;
+          pts.push(new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r));
+        }
+      }
+      return pts.map((v) => v.applyMatrix4(group.matrixWorld));
+    },
+
+    getPawnHeadOutlinePoints(group) {
+      const pts = [];
+      const n = 20;
+      const r = 0.18;
+      const cy = 0.85;
+      const sinLatitudes = [-0.85, -0.6, -0.35, -0.1, 0.15, 0.4, 0.65, 0.85, 1.0];
+      for (const sinLat of sinLatitudes) {
+        const ringR = r * Math.sqrt(Math.max(0, 1 - sinLat * sinLat));
+        const ringY = cy + sinLat * r;
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * Math.PI * 2;
+          pts.push(new THREE.Vector3(Math.cos(a) * ringR, ringY, Math.sin(a) * ringR));
+        }
+      }
+      return pts.map((v) => v.applyMatrix4(group.matrixWorld));
+    },
+
+    drawObjectHighlight2D(ctx, canvas, worldPointSets, opacity, color) {
+      const w = canvas.width;
+      const h = canvas.height;
+
+      const hulls = worldPointSets.map((worldPoints) => {
+        const screenPts = worldPoints.map((wp) => {
+          const v = wp.clone().project(this.camera);
+          return { x: (v.x * 0.5 + 0.5) * w, y: (-v.y * 0.5 + 0.5) * h };
+        });
+        return this.convexHull2D(screenPts);
+      }).filter((hull) => hull.length >= 2);
+
+      if (!hulls.length) return;
+
+      ctx.save();
+      ctx.globalAlpha = opacity;
+      ctx.lineWidth = 12;
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = color;
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 10;
+
+      for (const hull of hulls) {
+        ctx.beginPath();
+        this.smoothHullPath(ctx, hull);
+        ctx.stroke();
+      }
+
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.fillStyle = '#000';
+      for (const hull of hulls) {
+        ctx.beginPath();
+        this.smoothHullPath(ctx, hull);
+        ctx.fill();
+      }
+
+      ctx.restore();
+    },
+
+    smoothHullPath(ctx, hull) {
+      if (hull.length < 3) {
+        ctx.moveTo(hull[0].x, hull[0].y);
+        if (hull.length === 2) ctx.lineTo(hull[1].x, hull[1].y);
+        return;
+      }
+      const n = hull.length;
+      const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+      const start = mid(hull[n - 1], hull[0]);
+      ctx.moveTo(start.x, start.y);
+      for (let i = 0; i < n; i++) {
+        const curr = hull[i];
+        const next = hull[(i + 1) % n];
+        const m = mid(curr, next);
+        ctx.quadraticCurveTo(curr.x, curr.y, m.x, m.y);
+      }
+      ctx.closePath();
+    },
+
+    convexHull2D(points) {
+      if (points.length <= 2) return points;
+      const sorted = [...points].sort((a, b) => (a.x !== b.x ? a.x - b.x : a.y - b.y));
+      const cross = (o, a, b) =>
+        (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+      const lower = [];
+      for (const p of sorted) {
+        while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop();
+        lower.push(p);
+      }
+      const upper = [];
+      for (let i = sorted.length - 1; i >= 0; i--) {
+        const p = sorted[i];
+        while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop();
+        upper.push(p);
+      }
+      lower.pop();
+      upper.pop();
+      return lower.concat(upper);
     },
 
     createToonMaterial(key, materialOptions) {
@@ -1636,7 +1613,15 @@ export default {
       this.camera.aspect = width / height;
       this.camera.updateProjectionMatrix();
       this.renderer.setSize(width, height, false);
+      this.resizeOverlayCanvas();
       this.hoverNeedsUpdate = true;
+    },
+
+    resizeOverlayCanvas() {
+      const canvas = this.$refs.overlayCanvas;
+      if (!canvas) return;
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
     },
 
     isHumanTurn() {
@@ -1807,12 +1792,7 @@ export default {
         this.scene.remove(mesh);
       });
 
-      Object.values(this.pawnHighlights).forEach((h) => {
-        this.scene.remove(h);
-      });
-
       this.pawnMeshes = markRaw({});
-      this.pawnHighlights = markRaw({});
       this.pawnMotionStates = markRaw({});
 
       this.pendingDiceRoll = null;
