@@ -1,242 +1,454 @@
-/* Generic
-========================================================================== */
-
-/* Vendor
-========================================================================== */
+/* ── Vendor ──────────────────────────────────────────────── */
 @import url('https://fonts.googleapis.com/css?family=Press+Start+2P&display=swap');
 
 html, body, pre, code, kbd, samp {
-    font-family: 'Press Start 2P', cursive;
+  font-family: 'Press Start 2P', cursive;
 }
 
 body {
-    margin: 0;
-    background:
-        radial-gradient(circle at top, rgba(255, 225, 170, 0.18), transparent 35%),
-        linear-gradient(180deg, #241d18 0%, #171311 100%);
-    color: #ffffff;
+  margin: 0;
+  background:
+    radial-gradient(circle at top, rgba(255, 225, 170, 0.18), transparent 35%),
+    linear-gradient(180deg, #241d18 0%, #171311 100%);
+  color: #ffffff;
 }
 
-html,
-body,
-#app {
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
+html, body, #app {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
 }
 
+/* ── App shell ───────────────────────────────────────────── */
 .app-shell {
-    position: relative;
-    width: 100%;
-    height: 100%;
+  position: relative;
+  width: 100%;
+  height: 100%;
 }
 
 .board-canvas {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
-
-// Helpers
-.is-full-width {
-    width: 100%;
-}
-
-.mt-30 {
-    margin-top: 30px;
-}
-
-.nes-btn {
-    margin-bottom: 15px;
-}
-
+/* ── Screen overlay ──────────────────────────────────────── */
 .screen-overlay {
-    position: absolute;
-    inset: 0;
-    z-index: 10;
-    pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
 }
 
-.menu-shell {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: flex-start;
-    justify-content: center;
-    padding: 32px 16px;
-    pointer-events: none;
+/* ── Menu ────────────────────────────────────────────────── */
+.menu-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  pointer-events: none;
 }
 
-.menu-panel {
-    width: min(100%, 560px);
-    pointer-events: all;
+.menu-card {
+  width: min(100%, 460px);
+  pointer-events: all;
 }
 
-.form-row {
-    margin-bottom: 16px;
+.game-title {
+  font-size: clamp(0.85rem, 2.5vw, 1.15rem);
+  line-height: 1.8;
+  margin: 0 0 16px;
+  text-align: center;
 }
 
+.game-sub {
+  font-size: 0.58rem;
+  line-height: 2;
+  opacity: 0.65;
+  text-align: center;
+  margin: 0 0 28px;
+}
+
+.panel-title {
+  font-size: 0.85rem;
+  margin: 0 0 8px;
+}
+
+.panel-desc {
+  font-size: 0.58rem;
+  line-height: 1.8;
+  opacity: 0.68;
+  margin: 0 0 20px;
+}
+
+.player-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.player-slot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.player-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.18);
+}
+
+.player-slot-field {
+  flex: 1;
+  min-width: 0;
+
+  .nes-input {
+    width: 100%;
+    box-sizing: border-box;
+  }
+}
+
+.settings-drawer {
+  margin: 20px 0 4px;
+
+  .settings-summary {
+    font-size: 0.6rem;
+    cursor: pointer;
+    list-style: none;
+    padding: 6px 0;
+    opacity: 0.72;
+    user-select: none;
+
+    &::-webkit-details-marker { display: none; }
+    &::before { content: '▸  '; }
+
+    &:hover { opacity: 1; }
+  }
+
+  &[open] .settings-summary::before {
+    content: '▾  ';
+  }
+
+  .settings-body {
+    padding-top: 16px;
+  }
+}
+
+.menu-row {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+
+  .nes-btn {
+    flex: 1;
+    margin-bottom: 0;
+  }
+}
+
+.menu-btn-full {
+  width: 100%;
+  margin-bottom: 0;
+}
+
+/* Shared label styles (used in select / slider components) */
 .select-label {
-    display: block;
-    margin-bottom: 10px;
-    font-size: 0.7rem;
-    line-height: 1.5;
+  display: block;
+  margin-bottom: 10px;
+  font-size: 0.65rem;
+  line-height: 1.6;
 }
 
 .slider-label {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .slider-value {
-    font-size: 0.62rem;
-    opacity: 0.85;
+  font-size: 0.58rem;
+  opacity: 0.82;
 }
 
 .quality-slider {
-    width: 100%;
-    accent-color: #209cee;
-    cursor: pointer;
+  width: 100%;
+  accent-color: #209cee;
+  cursor: pointer;
 }
 
 .quality-scale {
-    margin-top: 10px;
-    display: flex;
-    justify-content: space-between;
-    gap: 8px;
-    font-size: 0.5rem;
-    line-height: 1.4;
-    opacity: 0.78;
+  margin-top: 10px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.48rem;
+  line-height: 1.4;
+  opacity: 0.72;
 }
 
-.menu-actions {
-    margin-top: 24px;
+.form-row {
+  margin-bottom: 18px;
 }
 
-.game-interface-wrapper {
-    position: absolute;
-    z-index: 20;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 16px;
-    pointer-events: none;
-
-    .player-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 320px));
-        justify-content: space-between;
-        align-content: start;
-        gap: 12px 16px;
-    }
-
-    .hud-panel {
-        width: min(380px, 100%);
-        pointer-events: all;
-    }
-
-    .hud-buttons {
-        margin-top: 24px;
-    }
-
-    .hud-hint {
-        margin-top: 18px;
-        font-size: 0.7rem;
-        line-height: 1.6;
-        opacity: 0.85;
-    }
-
-    .hud-status {
-        min-height: 2.4em;
-        line-height: 1.6;
-    }
-
-    .player-name {
-        width: 100%;
-        transition: transform 140ms ease, box-shadow 140ms ease;
-
-        .player-meta {
-            font-size: 0.58rem;
-            line-height: 1.7;
-            opacity: 0.85;
-        }
-    }
+/* ── HUD ─────────────────────────────────────────────────── */
+.hud {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
 }
 
-.is-active-player {
-    transform: translateY(-6px);
-    box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.12);
+/* Status card: top-left */
+.hud-status {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  width: min(270px, calc(100vw - 96px));
+  pointer-events: all;
 }
 
-.nes-btn[disabled] {
-    opacity: 0.55;
-    cursor: not-allowed;
+.hud-player-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 
+.hud-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.14);
+}
+
+.hud-dot--sm {
+  width: 9px;
+  height: 9px;
+}
+
+.hud-player-name {
+  font-size: 0.65rem;
+  line-height: 1.4;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hud-round {
+  font-size: 0.52rem;
+  opacity: 0.58;
+  flex-shrink: 0;
+}
+
+.hud-msg {
+  font-size: 0.55rem;
+  line-height: 1.8;
+  opacity: 0.85;
+  margin: 0 0 6px;
+  min-height: 1.2em;
+}
+
+.hud-last-roll {
+  font-size: 0.52rem;
+  opacity: 0.65;
+  margin: 0;
+
+  strong {
+    opacity: 1;
+    color: #ffd080;
+  }
+}
+
+/* Settings: top-right */
+.hud-settings-area {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  pointer-events: all;
+}
+
+.hud-icon-btn {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0;
+}
+
+.hud-settings-panel {
+  width: min(300px, calc(100vw - 40px));
+}
+
+.hud-full-width {
+  width: 100%;
+  margin-top: 4px;
+  margin-bottom: 0;
+}
+
+/* Bottom zone */
+.hud-bottom {
+  position: absolute;
+  bottom: 16px;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.hud-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  pointer-events: all;
+}
+
+.hud-move-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+
+  .nes-btn {
+    margin-bottom: 0;
+    font-size: 0.62rem;
+  }
+}
+
+.hud-roll-btn {
+  font-size: 0.72rem;
+  padding: 12px 36px;
+  margin-bottom: 0;
+}
+
+/* Player strip */
+.hud-player-strip {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  padding: 0 16px;
+  pointer-events: all;
+  width: 100%;
+  max-width: 900px;
+  box-sizing: border-box;
+}
+
+.hud-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 110px;
+  max-width: 200px;
+  transition: transform 140ms ease, box-shadow 140ms ease;
+}
+
+.hud-chip--active {
+  transform: translateY(-5px);
+  box-shadow: 0 0 0 3px var(--chip-color, rgba(255, 255, 255, 0.25));
+}
+
+.hud-chip-text {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  gap: 4px;
+}
+
+.hud-chip-name {
+  font-size: 0.58rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1;
+}
+
+.hud-chip-meta {
+  font-size: 0.46rem;
+  opacity: 0.68;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+/* ── Mobile block ────────────────────────────────────────── */
 .mobile-block-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    z-index: 9999;
-    background: #171311;
-    align-items: center;
-    justify-content: center;
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #171311;
+  align-items: center;
+  justify-content: center;
 }
 
 .mobile-block-panel {
-    max-width: 320px;
-    padding: 32px 24px;
-    text-align: center;
+  max-width: 320px;
+  padding: 32px 24px;
+  text-align: center;
 }
 
 .mobile-block-icon {
-    font-size: 3rem;
-    margin: 0 0 20px;
+  font-size: 3rem;
+  margin: 0 0 20px;
 }
 
 .mobile-block-title {
-    font-size: 1rem;
-    margin: 0 0 20px;
-    color: #ffffff;
+  font-size: 1rem;
+  margin: 0 0 20px;
+  color: #ffffff;
 }
 
 .mobile-block-message {
-    font-size: 0.6rem;
-    line-height: 2;
-    color: rgba(255, 255, 255, 0.7);
-    margin: 0;
+  font-size: 0.6rem;
+  line-height: 2;
+  color: rgba(255, 255, 255, 0.7);
+  margin: 0;
 }
 
+/* ── Transitions ─────────────────────────────────────────── */
+.screen-fade-enter-active,
+.screen-fade-leave-active {
+  transition: opacity 180ms ease;
+}
+
+.screen-fade-enter-from,
+.screen-fade-leave-to {
+  opacity: 0;
+}
+
+.settings-drop-enter-active,
+.settings-drop-leave-active {
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+
+.settings-drop-enter-from,
+.settings-drop-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+/* ── Responsive ──────────────────────────────────────────── */
 @media (max-width: 768px) {
-    .mobile-block-overlay {
-        display: flex;
-    }
-}
-
-@media (max-width: 900px) {
-    .game-interface-wrapper {
-        padding: 16px;
-
-        .player-grid {
-            grid-template-columns: 1fr;
-            gap: 10px;
-        }
-
-        .player-name {
-            width: 100%;
-        }
-
-        .hud-panel {
-            display: none;
-        }
-    }
+  .mobile-block-overlay {
+    display: flex;
+  }
 }

@@ -1,68 +1,78 @@
 <template>
-  <div class="game-interface-wrapper">
-    <section class="hud-panel nes-container is-dark with-title is-rounded">
-      <p class="title">Game Status</p>
-      <p>Round {{ store.currentRound }}</p>
-      <p>
-        Turn:
-        <span v-if="currentPlayer" :style="{ color: currentPlayer.color }">
-          {{ currentPlayer.name }}
-        </span>
-        <span v-else>Waiting</span>
+  <div class="hud">
+    <!-- Status card: top-left -->
+    <div class="hud-status nes-container is-dark is-rounded">
+      <div class="hud-player-row">
+        <span class="hud-dot" :style="{ background: currentPlayer?.color || '#888' }"></span>
+        <span class="hud-player-name">{{ currentPlayer?.name || 'Waiting…' }}</span>
+        <span class="hud-round">R{{ store.currentRound }}</span>
+      </div>
+      <p v-if="statusMessage" class="hud-msg">{{ statusMessage }}</p>
+      <p v-if="store.lastRolledDice !== 'Start'" class="hud-last-roll">
+        Rolled: <strong>{{ store.lastRolledDice }}</strong>
       </p>
-      <p>Last roll: {{ store.lastRolledDice }}</p>
-      <p class="hud-status">{{ statusMessage }}</p>
+    </div>
 
-      <outline-appearance-select
-        label="Outline Style"
-        select-id="outline-style-hud"
-      ></outline-appearance-select>
+    <!-- Settings: top-right -->
+    <div class="hud-settings-area">
+      <button
+        class="nes-btn hud-icon-btn"
+        :title="settingsOpen ? 'Close' : 'Settings'"
+        @click="settingsOpen = !settingsOpen"
+      >
+        {{ settingsOpen ? '✕' : '⚙' }}
+      </button>
+      <transition name="settings-drop">
+        <div v-if="settingsOpen" class="hud-settings-panel nes-container is-dark is-rounded">
+          <outline-appearance-select label="Outline Style" select-id="outline-style-hud" />
+          <render-quality-slider label="Render Quality" slider-id="render-quality-hud" />
+          <button class="nes-btn is-warning hud-full-width" @click="goToSetup">New Game</button>
+        </div>
+      </transition>
+    </div>
 
-      <render-quality-slider
-        label="Render Quality"
-        slider-id="render-quality-hud"
-      ></render-quality-slider>
+    <!-- Bottom: actions + player strip -->
+    <div class="hud-bottom">
+      <div class="hud-actions">
+        <div v-if="movablePawns.length" class="hud-move-row">
+          <button
+            v-for="pawn in movablePawns"
+            :key="pawn.id"
+            class="nes-btn is-success"
+            @click="movePawn(pawn)"
+          >
+            Pawn {{ pawn.startingPlace }}
+          </button>
+        </div>
 
-      <div class="hud-buttons">
         <button
-          class="nes-btn is-primary is-full-width"
-          :disabled="!canRoll"
+          v-if="canRoll"
+          class="nes-btn is-primary hud-roll-btn"
           @click="rollDice"
         >
           Roll Dice
         </button>
-
-        <button
-          v-for="pawn in movablePawns"
-          :key="pawn.id"
-          class="nes-btn is-success is-full-width"
-          @click="movePawn(pawn)"
-        >
-          Move Pawn {{ pawn.startingPlace }}
-        </button>
-
-        <button class="nes-btn is-warning is-full-width" @click="goToSetup">
-          New Game
-        </button>
       </div>
 
-      <p class="hud-hint">Press Space to roll the dice.</p>
-    </section>
-
-    <div class="player-grid">
-      <div
-        v-for="player in store.players"
-        :key="player.turn"
-        class="player-name nes-container is-dark is-rounded"
-        :class="{ 'is-active-player': player.isPlaying }"
-        :style="{ color: player.color }"
-      >
-        <p>{{ player.name }}</p>
-        <p class="player-meta">{{ formatPlayerState(player) }}</p>
+      <div class="hud-player-strip">
+        <div
+          v-for="player in store.players"
+          :key="player.turn"
+          class="hud-chip nes-container is-dark is-rounded"
+          :class="{ 'hud-chip--active': player.isPlaying }"
+          :style="player.isPlaying ? { '--chip-color': player.color } : {}"
+        >
+          <span class="hud-dot hud-dot--sm" :style="{ background: player.color }"></span>
+          <div class="hud-chip-text">
+            <span class="hud-chip-name">{{ player.name }}</span>
+            <span class="hud-chip-meta">{{ formatPlayerState(player) }}</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </template>
+
 <script>
 import OutlineAppearanceSelect from './OutlineAppearanceSelect.vue';
 import RenderQualitySlider from './RenderQualitySlider.vue';
@@ -71,13 +81,11 @@ import EventBus from '../utils/eventhandler';
 import EventKeys from '../utils/EventKeys';
 
 export default {
-  components: {
-    OutlineAppearanceSelect,
-    RenderQualitySlider,
-  },
+  components: { OutlineAppearanceSelect, RenderQualitySlider },
   data() {
     return {
       store: ApplicationStore,
+      settingsOpen: false,
     };
   },
   computed: {
@@ -85,11 +93,8 @@ export default {
       return this.store.players[this.store.currentPlayerId] || null;
     },
     movablePawns() {
-      if (!this.currentPlayer || !this.store.gamePlayStatus.isMoving) {
-        return [];
-      }
-
-      return this.currentPlayer.pawns.filter((pawn) => pawn.isActive);
+      if (!this.currentPlayer || !this.store.gamePlayStatus.isMoving) return [];
+      return this.currentPlayer.pawns.filter((p) => p.isActive);
     },
     canRoll() {
       return this.store.gamePlayStatus.isRolling && this.isHumanTurn;
@@ -98,23 +103,11 @@ export default {
       return Boolean(this.currentPlayer && !this.currentPlayer.isComputer);
     },
     statusMessage() {
-      if (!this.currentPlayer) {
-        return 'Preparing the board.';
-      }
-
-      if (!this.isHumanTurn) {
-        return `${this.currentPlayer.name} is taking a turn.`;
-      }
-
-      if (this.store.gamePlayStatus.isMoving) {
-        return 'Select a highlighted pawn or click it on the board.';
-      }
-
-      if (this.store.gamePlayStatus.isRolling) {
-        return 'Roll the dice from the button, the board, or Space.';
-      }
-
-      return 'Waiting for the next turn.';
+      if (!this.currentPlayer) return 'Setting up the board…';
+      if (!this.isHumanTurn) return `${this.currentPlayer.name} is thinking…`;
+      if (this.store.gamePlayStatus.isMoving) return 'Pick a pawn to move.';
+      if (this.store.gamePlayStatus.isRolling) return 'Roll the dice!';
+      return '';
     },
   },
   methods: {
@@ -122,27 +115,18 @@ export default {
       EventBus.fire(EventKeys.rollDice);
     },
     movePawn(pawn) {
-      if (!pawn.isActive) {
-        return;
-      }
-
-      pawn.move();
+      if (pawn.isActive) pawn.move();
     },
     goToSetup() {
+      this.settingsOpen = false;
       this.store.currentScreen = 'add-players';
     },
     formatPlayerState(player) {
       return player.pawns.map((pawn) => {
-        if (pawn.position === 0) {
-          return 'Home';
-        }
-
-        if (pawn.position > 40) {
-          return `Goal ${pawn.position - 40}`;
-        }
-
-        return `Tile ${pawn.globalPosition + 1}`;
-      }).join(' | ');
+        if (pawn.position === 0) return 'H';
+        if (pawn.position > 40) return 'G';
+        return String(pawn.globalPosition + 1);
+      }).join('·');
     },
   },
 };
