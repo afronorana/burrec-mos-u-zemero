@@ -84,6 +84,9 @@ export default {
       this.applyRenderQuality();
       this.hoverNeedsUpdate = true;
     },
+    'store.settings.environment'() {
+      this.applyEnvironment();
+    },
     pendingDiceRoll(val) {
       this.store.gamePlayStatus.isDiceRolling = Boolean(val);
     },
@@ -251,7 +254,7 @@ export default {
     initThreeScene() {
       const canvas = this.$refs.canvas;
       const scene = new THREE.Scene();
-      scene.background = this.getSkyGradientTexture();
+      scene.background = this.getSkyGradientTexture(this.store.settings.environment);
 
       const camera = new THREE.PerspectiveCamera(
           45,
@@ -580,7 +583,13 @@ export default {
 
       fillLight.position.set(16, 7.5, 14.5);
       trayLight.position.set(DICE_TRAY.center.x, 2.6, DICE_TRAY.center.z);
+      
       this.shadowLight = sunLight;
+      this.ambientLight = ambientLight;
+      this.skyLight = skyLight;
+      this.sunLight = sunLight;
+      this.fillLight = fillLight;
+      this.trayLight = trayLight;
 
       this.scene.add(ambientLight);
       this.scene.add(skyLight);
@@ -588,6 +597,8 @@ export default {
       this.scene.add(sunLight.target);
       this.scene.add(fillLight);
       this.scene.add(trayLight);
+
+      this.applyEnvironment();
     },
 
     createDiceTray() {
@@ -1487,9 +1498,9 @@ export default {
       );
     },
 
-    getSkyGradientTexture() {
+    getSkyGradientTexture(env = 'day') {
       return this.getSharedTexture(
-          'sky-gradient-texture',
+          'sky-gradient-texture-' + env,
           () => {
             const canvas = document.createElement('canvas');
             canvas.width = 64;
@@ -1497,17 +1508,57 @@ export default {
 
             const context = canvas.getContext('2d');
             const gradient = context.createLinearGradient(0, 0, 0, canvas.height);
-            gradient.addColorStop(0, '#85d8ff');
-            gradient.addColorStop(0.48, '#c2ecff');
-            gradient.addColorStop(0.75, '#f9efc8');
-            gradient.addColorStop(1, '#ffd4a8');
-            context.fillStyle = gradient;
-            context.fillRect(0, 0, canvas.width, canvas.height);
 
-            context.fillStyle = 'rgba(255, 255, 255, 0.14)';
-            context.fillRect(0, canvas.height * 0.56, canvas.width, canvas.height * 0.06);
-            context.fillStyle = 'rgba(255, 226, 177, 0.16)';
-            context.fillRect(0, canvas.height * 0.76, canvas.width, canvas.height * 0.08);
+            if (env === 'night') {
+              gradient.addColorStop(0, '#050811');
+              gradient.addColorStop(0.48, '#0c1529');
+              gradient.addColorStop(0.75, '#19273f');
+              gradient.addColorStop(1, '#2a3854');
+              context.fillStyle = gradient;
+              context.fillRect(0, 0, canvas.width, canvas.height);
+
+              context.fillStyle = 'rgba(100, 140, 255, 0.05)';
+              context.fillRect(0, canvas.height * 0.56, canvas.width, canvas.height * 0.06);
+              context.fillStyle = 'rgba(50, 80, 150, 0.06)';
+              context.fillRect(0, canvas.height * 0.76, canvas.width, canvas.height * 0.08);
+            } else if (env === 'dusk') {
+              gradient.addColorStop(0, '#120917');
+              gradient.addColorStop(0.48, '#341829');
+              gradient.addColorStop(0.75, '#8a2c26');
+              gradient.addColorStop(1, '#f98231');
+              context.fillStyle = gradient;
+              context.fillRect(0, 0, canvas.width, canvas.height);
+
+              context.fillStyle = 'rgba(255, 120, 50, 0.1)';
+              context.fillRect(0, canvas.height * 0.56, canvas.width, canvas.height * 0.06);
+              context.fillStyle = 'rgba(255, 200, 100, 0.08)';
+              context.fillRect(0, canvas.height * 0.76, canvas.width, canvas.height * 0.08);
+            } else if (env === 'dawn') {
+              gradient.addColorStop(0, '#090e17');
+              gradient.addColorStop(0.48, '#222442');
+              gradient.addColorStop(0.75, '#5e3c54');
+              gradient.addColorStop(1, '#ffd080');
+              context.fillStyle = gradient;
+              context.fillRect(0, 0, canvas.width, canvas.height);
+
+              context.fillStyle = 'rgba(255, 200, 150, 0.08)';
+              context.fillRect(0, canvas.height * 0.56, canvas.width, canvas.height * 0.06);
+              context.fillStyle = 'rgba(255, 150, 200, 0.06)';
+              context.fillRect(0, canvas.height * 0.76, canvas.width, canvas.height * 0.08);
+            } else {
+              // Day
+              gradient.addColorStop(0, '#85d8ff');
+              gradient.addColorStop(0.48, '#c2ecff');
+              gradient.addColorStop(0.75, '#f9efc8');
+              gradient.addColorStop(1, '#ffd4a8');
+              context.fillStyle = gradient;
+              context.fillRect(0, 0, canvas.width, canvas.height);
+
+              context.fillStyle = 'rgba(255, 255, 255, 0.14)';
+              context.fillRect(0, canvas.height * 0.56, canvas.width, canvas.height * 0.06);
+              context.fillStyle = 'rgba(255, 226, 177, 0.16)';
+              context.fillRect(0, canvas.height * 0.76, canvas.width, canvas.height * 0.08);
+            }
 
             const texture = markRaw(new THREE.CanvasTexture(canvas));
             texture.colorSpace = THREE.SRGBColorSpace;
@@ -1515,6 +1566,99 @@ export default {
             return texture;
           },
       );
+    },
+
+    applyEnvironment() {
+      if (!this.scene || !this.camera) return;
+
+      const env = this.store.settings.environment || 'day';
+
+      this.scene.background = this.getSkyGradientTexture(env);
+
+      if (!this.ambientLight || !this.skyLight || !this.sunLight || !this.fillLight || !this.trayLight) {
+        return;
+      }
+
+      switch (env) {
+        case 'night':
+          this.ambientLight.color.set('#050a18');
+          this.ambientLight.intensity = 0.12;
+
+          this.skyLight.color.set('#1c2844');
+          this.skyLight.groundColor.set('#0d131f');
+          this.skyLight.intensity = 0.22;
+
+          this.sunLight.color.set('#99aacc');
+          this.sunLight.intensity = 0.42;
+          this.sunLight.position.set(-5.5, 13.5, 6.5);
+
+          this.fillLight.color.set('#334c7a');
+          this.fillLight.intensity = 0.18;
+
+          this.trayLight.color.set('#55aaee');
+          this.trayLight.intensity = 0.12;
+          break;
+
+        case 'dusk':
+          this.ambientLight.color.set('#34202a');
+          this.ambientLight.intensity = 0.22;
+
+          this.skyLight.color.set('#5d3c54');
+          this.skyLight.groundColor.set('#2d1a24');
+          this.skyLight.intensity = 0.45;
+
+          this.sunLight.color.set('#ff7744');
+          this.sunLight.intensity = 0.95;
+          this.sunLight.position.set(-11.5, 6.5, 3.5);
+
+          this.fillLight.color.set('#7b476c');
+          this.fillLight.intensity = 0.3;
+
+          this.trayLight.color.set('#ff8833');
+          this.trayLight.intensity = 0.18;
+          break;
+
+        case 'dawn':
+          this.ambientLight.color.set('#262a3d');
+          this.ambientLight.intensity = 0.22;
+
+          this.skyLight.color.set('#675470');
+          this.skyLight.groundColor.set('#26202c');
+          this.skyLight.intensity = 0.45;
+
+          this.sunLight.color.set('#ffaa66');
+          this.sunLight.intensity = 1.15;
+          this.sunLight.position.set(-10.5, 8.5, 4.5);
+
+          this.fillLight.color.set('#566c94');
+          this.fillLight.intensity = 0.32;
+
+          this.trayLight.color.set('#ffbb77');
+          this.trayLight.intensity = 0.18;
+          break;
+
+        case 'day':
+        default:
+          this.ambientLight.color.set('#f6f0e7');
+          this.ambientLight.intensity = 0.28;
+
+          this.skyLight.color.set('#d2e6ff');
+          this.skyLight.groundColor.set('#97ae72');
+          this.skyLight.intensity = 0.62;
+
+          this.sunLight.color.set('#fff1db');
+          this.sunLight.intensity = 1.45;
+          this.sunLight.position.set(-5.5, 13.5, 6.5);
+
+          this.fillLight.color.set('#c7dfff');
+          this.fillLight.intensity = 0.42;
+
+          this.trayLight.color.set('#ffd6a8');
+          this.trayLight.intensity = 0.18;
+          break;
+      }
+
+      this.hoverNeedsUpdate = true;
     },
 
     createCloud(position, scale = 1) {

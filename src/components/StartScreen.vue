@@ -40,6 +40,10 @@
               <label class="select-label">{{ t('language') }}</label>
               <app-tabs v-model="store.settings.locale" :options="[{ value: 'en', label: 'English' }, { value: 'sq', label: 'Shqip' }]" @update:modelValue="saveLocale" />
             </div>
+            <div class="form-row">
+              <label class="select-label">{{ t('environment') }}</label>
+              <app-tabs v-model="store.settings.environment" :options="[{ value: 'day', label: t('env.day') }, { value: 'night', label: t('env.night') }, { value: 'dusk', label: t('env.dusk') }, { value: 'dawn', label: t('env.dawn') }]" @update:modelValue="saveEnvironment" />
+            </div>
             <outline-appearance-select :label="t('outlineStyle')" select-id="outline-style-menu" />
             <render-quality-slider :label="t('renderQuality')" slider-id="render-quality-menu" />
           </app-panel>
@@ -81,6 +85,9 @@ export default {
     t,
     saveLocale(val) {
       window.localStorage.setItem('burrec.settings.locale', val);
+    },
+    saveEnvironment(val) {
+      window.localStorage.setItem('burrec.settings.environment', val);
     },
     switchScreen(screen) {
       this.store.currentScreen = screen;

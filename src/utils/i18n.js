@@ -15,6 +15,13 @@ const translations = {
     back: 'Back',
     play: 'Play',
     language: 'Language',
+    environment: 'Environment',
+    env: {
+      day: 'Day',
+      night: 'Night',
+      dusk: 'Dusk',
+      dawn: 'Dawn',
+    },
     online: {
       playOnline: 'Play Online',
       searching: 'Searching for players…',
@@ -98,6 +105,13 @@ const translations = {
     back: 'Mbrapa',
     play: 'Luaj',
     language: 'Gjuha',
+    environment: 'Mjedisi',
+    env: {
+      day: 'Ditë',
+      night: 'Natë',
+      dusk: 'Muzg',
+      dawn: 'Agim',
+    },
     online: {
       playOnline: 'Luaj Online',
       searching: 'Duke kërkuar për lojtarë…',

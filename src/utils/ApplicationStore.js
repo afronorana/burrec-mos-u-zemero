@@ -22,6 +22,7 @@ const ApplicationStore = reactive({
     quality: 2,
     outlineAppearance: 'classic',
     locale: window.localStorage.getItem('burrec.settings.locale') || 'en',
+    environment: window.localStorage.getItem('burrec.settings.environment') || 'day',
   },
   fields: {
     home: [
