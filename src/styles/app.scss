@@ -1,8 +1,8 @@
 /* ── Vendor ──────────────────────────────────────────────── */
-@import url('https://fonts.googleapis.com/css?family=Press+Start+2P&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap');
 
 html, body, pre, code, kbd, samp {
-  font-family: 'Press Start 2P', cursive;
+  font-family: 'Outfit', sans-serif;
 }
 
 body {
@@ -62,35 +62,51 @@ html, body, #app {
 }
 
 .menu-card {
-  width: min(100%, 460px);
+  width: min(460px, 92vw);
   pointer-events: all;
 }
 
+.panel {
+  color: #000000;
+}
+
 .game-title {
-  font-size: clamp(0.85rem, 2.5vw, 1.15rem);
-  line-height: 1.8;
-  margin: 0 0 16px;
+  font-size: clamp(1.8rem, 5vw, 2.5rem);
+  font-weight: 800;
+  line-height: 1.2;
+  margin: 0 0 12px;
   text-align: center;
+  text-transform: uppercase;
+  color: var(--agu-color-base, #263f2a);
 }
 
 .game-sub {
-  font-size: 0.58rem;
-  line-height: 2;
-  opacity: 0.65;
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.5;
+  opacity: 0.75;
   text-align: center;
   margin: 0 0 28px;
+  color: var(--agu-color-base, #263f2a);
 }
 
 .panel-title {
-  font-size: 0.85rem;
-  margin: 0 0 8px;
+  font-size: 1.35rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  margin: 0 0 12px;
+  color: var(--agu-color-base, #263f2a);
+  text-align: center;
 }
 
 .panel-desc {
-  font-size: 0.58rem;
-  line-height: 1.8;
-  opacity: 0.68;
+  font-size: 0.9rem;
+  font-weight: 500;
+  line-height: 1.6;
+  opacity: 0.8;
   margin: 0 0 20px;
+  text-align: center;
+  color: var(--agu-color-base, #263f2a);
 }
 
 .player-slots {
@@ -117,18 +133,13 @@ html, body, #app {
 .player-slot-field {
   flex: 1;
   min-width: 0;
-
-  .nes-input {
-    width: 100%;
-    box-sizing: border-box;
-  }
 }
 
 .settings-drawer {
   margin: 20px 0 4px;
 
   .settings-summary {
-    font-size: 0.6rem;
+    font-size: 0.95rem;
     cursor: pointer;
     list-style: none;
     padding: 6px 0;
@@ -155,7 +166,7 @@ html, body, #app {
   gap: 12px;
   margin-top: 24px;
 
-  .nes-btn {
+  .button {
     flex: 1;
     margin-bottom: 0;
   }
@@ -170,7 +181,8 @@ html, body, #app {
 .select-label {
   display: block;
   margin-bottom: 10px;
-  font-size: 0.65rem;
+  font-size: 0.95rem;
+  font-weight: 600;
   line-height: 1.6;
 }
 
@@ -182,7 +194,7 @@ html, body, #app {
 }
 
 .slider-value {
-  font-size: 0.58rem;
+  font-size: 0.9rem;
   opacity: 0.82;
 }
 
@@ -196,7 +208,7 @@ html, body, #app {
   margin-top: 10px;
   display: flex;
   justify-content: space-between;
-  font-size: 0.48rem;
+  font-size: 0.8rem;
   line-height: 1.4;
   opacity: 0.72;
 }
@@ -243,7 +255,8 @@ html, body, #app {
 }
 
 .hud-player-name {
-  font-size: 0.65rem;
+  font-size: 1rem;
+  font-weight: 700;
   line-height: 1.4;
   flex: 1;
   overflow: hidden;
@@ -252,21 +265,22 @@ html, body, #app {
 }
 
 .hud-round {
-  font-size: 0.52rem;
+  font-size: 0.85rem;
+  font-weight: 600;
   opacity: 0.58;
   flex-shrink: 0;
 }
 
 .hud-msg {
-  font-size: 0.55rem;
-  line-height: 1.8;
+  font-size: 0.9rem;
+  line-height: 1.6;
   opacity: 0.85;
   margin: 0 0 6px;
   min-height: 1.2em;
 }
 
 .hud-last-roll {
-  font-size: 0.52rem;
+  font-size: 0.85rem;
   opacity: 0.65;
   margin: 0;
 
@@ -336,14 +350,14 @@ html, body, #app {
   gap: 10px;
   justify-content: center;
 
-  .nes-btn {
+  .button {
     margin-bottom: 0;
-    font-size: 0.62rem;
+    font-size: 0.9rem;
   }
 }
 
 .hud-roll-btn {
-  font-size: 0.72rem;
+  font-size: 1.1rem;
   padding: 12px 36px;
   margin-bottom: 0;
 }
@@ -384,53 +398,25 @@ html, body, #app {
 }
 
 .hud-chip-name {
-  font-size: 0.58rem;
+  font-size: 0.95rem;
+  font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  line-height: 1;
+  line-height: 1.2;
 }
 
 .hud-chip-meta {
-  font-size: 0.46rem;
+  font-size: 0.75rem;
+  font-weight: 500;
   opacity: 0.68;
   white-space: nowrap;
-  line-height: 1;
+  line-height: 1.2;
 }
 
 /* ── Mobile block ────────────────────────────────────────── */
 .mobile-block-overlay {
   display: none;
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  background: #171311;
-  align-items: center;
-  justify-content: center;
-}
-
-.mobile-block-panel {
-  max-width: 320px;
-  padding: 32px 24px;
-  text-align: center;
-}
-
-.mobile-block-icon {
-  font-size: 3rem;
-  margin: 0 0 20px;
-}
-
-.mobile-block-title {
-  font-size: 1rem;
-  margin: 0 0 20px;
-  color: #ffffff;
-}
-
-.mobile-block-message {
-  font-size: 0.6rem;
-  line-height: 2;
-  color: rgba(255, 255, 255, 0.7);
-  margin: 0;
 }
 
 /* ── Transitions ─────────────────────────────────────────── */
@@ -456,8 +442,23 @@ html, body, #app {
 }
 
 /* ── Responsive ──────────────────────────────────────────── */
-@media (max-width: 768px) {
-  .mobile-block-overlay {
-    display: flex;
+@media (max-width: 500px) {
+  .hud-player-strip {
+    gap: 6px !important;
+    padding: 0 8px !important;
+  }
+  .hud-chip.panel {
+    padding: 6px 10px !important;
+    min-width: 80px !important;
+  }
+  .hud-chip-name {
+    font-size: 0.82rem !important;
+  }
+  .hud-chip-meta {
+    font-size: 0.68rem !important;
+  }
+  .hud-dot--sm {
+    width: 7px !important;
+    height: 7px !important;
   }
 }

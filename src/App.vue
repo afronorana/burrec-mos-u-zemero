@@ -3,13 +3,8 @@
     <canvas ref="canvas" class="board-canvas"></canvas>
     <canvas ref="overlayCanvas" class="overlay-canvas"></canvas>
     <start-screen></start-screen>
-    <div class="mobile-block-overlay">
-      <div class="mobile-block-panel">
-        <p class="mobile-block-icon">🖥️</p>
-        <p class="mobile-block-title">Desktop Only</p>
-        <p class="mobile-block-message">This game is only playable on desktop. Please open it on a computer to play.</p>
-      </div>
-    </div>
+    <win-screen></win-screen>
+
   </main>
 </template>
 
@@ -19,15 +14,17 @@ import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import StartScreen from './components/StartScreen.vue';
+import WinScreen from './components/WinScreen.vue';
 import ApplicationStore from './utils/ApplicationStore';
 import EventBus from './utils/eventhandler';
 import EventKeys from './utils/EventKeys';
 import { PAWN_STEP_DURATION_MS } from './utils/movementConstants';
 import { getOutlineAppearancePreset } from './utils/outlineAppearance';
 import { getRenderQualityPreset } from './utils/renderQuality';
+import { PLAYER_COLORS } from './utils/playerColors';
 import Player from './utils/Player';
+import MatchController from './network/MatchController';
 
-const PLAYER_COLORS = ['#CE0000', '#F7D708', '#009ECE', '#9CCF31'];
 const OUTLINE_COLOR = '#1b1411';
 const BOARD_CENTER = { x: 5, z: 5 };
 const DICE_SIZE = 0.9;
@@ -76,6 +73,7 @@ export default {
   name: 'AppRoot',
   components: {
     StartScreen,
+    WinScreen,
   },
   watch: {
     'store.settings.outlineAppearance'() {
@@ -85,6 +83,26 @@ export default {
     'store.settings.quality'() {
       this.applyRenderQuality();
       this.hoverNeedsUpdate = true;
+    },
+    pendingDiceRoll(val) {
+      this.store.gamePlayStatus.isDiceRolling = Boolean(val);
+    },
+    'store.currentScreen'(newScreen, oldScreen) {
+      if (newScreen === 'game-screen' && oldScreen !== 'game-screen') {
+        if (this.camera) {
+          const fromPos = this.camera.position.clone();
+          this.cameraTransition = {
+            start: performance.now(),
+            fromPosition: fromPos,
+            fromTarget: new THREE.Vector3(6.3, 0.4, 5),
+          };
+        }
+      } else if (newScreen !== 'game-screen' && oldScreen === 'game-screen') {
+        this.menuOrbitTime = 0;
+        if (this.controls) {
+          this.controls.enabled = false;
+        }
+      }
     },
   },
   data() {
@@ -100,8 +118,12 @@ export default {
       physicsWorld: null,
       physicsLastTime: null,
       pendingDiceRoll: null,
+      onlineDice: null,
+      diceSnapTween: null,
       pawnMeshes: markRaw({}),
       pawnMotionStates: markRaw({}),
+      menuOrbitTime: 0,
+      cameraTransition: null,
       overlayCtx: null,
       sharedGeometries: markRaw({}),
       sharedMaterials: markRaw({}),
@@ -209,6 +231,11 @@ export default {
         EventBus.listen(EventKeys.turns.repeatTurn, this.repeatPlayersTurn),
         EventBus.listen(EventKeys.rollDice, this.rollDice),
         EventBus.listen(EventKeys.game.start, this.startGame),
+        EventBus.listen(EventKeys.game.startOnline, this.startOnlineGame),
+        EventBus.listen(EventKeys.game.won, this.handleGameWon),
+        EventBus.listen(EventKeys.net.diceResult, this.handleNetDiceResult),
+        EventBus.listen(EventKeys.net.turnChange, this.handleNetTurnChange),
+        EventBus.listen(EventKeys.net.stateSync, this.handleNetStateSync),
       ];
     },
 
@@ -257,10 +284,23 @@ export default {
       controls.target.set(6.3, 0.4, 5);
       controls.update();
 
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
+      if (isMobile) {
+        controls.minDistance = 11;
+        controls.maxDistance = 18;
+        controls.minPolarAngle = Math.PI / 4;
+        controls.maxPolarAngle = Math.PI / 2.3;
+        controls.minAzimuthAngle = -Math.PI / 8;
+        controls.maxAzimuthAngle = Math.PI / 8;
+      }
+
       this.scene = markRaw(scene);
       this.camera = markRaw(camera);
       this.renderer = markRaw(renderer);
       this.controls = controls;
+      if (this.isMenuMode()) {
+        controls.enabled = false;
+      }
       this.raycaster = markRaw(new THREE.Raycaster());
       this.pointer = markRaw(new THREE.Vector2());
       this.controlsChangeHandler = () => {
@@ -809,9 +849,13 @@ export default {
     renderScene() {
       const animate = () => {
         this.animationFrameId = requestAnimationFrame(animate);
-        if (this.controls) {
+        
+        this.updateCameraPath();
+        
+        if (this.controls && !this.isMenuMode() && !this.cameraTransition) {
           this.controls.update();
         }
+        
         this.stepPhysicsWorld();
         this.syncDice();
         this.syncPawns();
@@ -835,6 +879,17 @@ export default {
           this.dicePhysicsBody.position.y + DICE_VISUAL_FLOAT_Y,
           this.dicePhysicsBody.position.z,
       );
+
+      if (this.diceSnapTween) {
+        const tween = this.diceSnapTween;
+        const progress = Math.min((performance.now() - tween.start) / tween.duration, 1);
+        this.diceMesh.quaternion.slerpQuaternions(tween.from, tween.to, progress);
+        if (progress >= 1) {
+          this.diceSnapTween = null;
+        }
+        return;
+      }
+
       this.diceMesh.quaternion.set(
           this.dicePhysicsBody.quaternion.x,
           this.dicePhysicsBody.quaternion.y,
@@ -861,7 +916,7 @@ export default {
 
         if (this.dicePhysicsBody.position.y < TABLE_PHYSICS.floorY - 2) {
           this.resetDiceBody();
-          this.completeDiceRoll(1);
+          this.finishDiceSettle(null);
           return;
         }
 
@@ -872,14 +927,12 @@ export default {
         const faceData = this.getDiceTopFaceData();
 
         if (faceData.dot >= DICE_SETTLE_RULES.faceUpDotThreshold) {
-          this.snapDiceToFaceUp(faceData);
-          this.completeDiceRoll(faceData.value);
+          this.finishDiceSettle(faceData);
           return;
         }
 
         if (this.pendingDiceRoll.recoveryAttempts >= DICE_SETTLE_RULES.maxRecoveryAttempts) {
-          this.snapDiceToFaceUp(faceData);
-          this.completeDiceRoll(faceData.value);
+          this.finishDiceSettle(faceData);
           return;
         }
 
@@ -1611,6 +1664,13 @@ export default {
       const height = window.innerHeight;
 
       this.camera.aspect = width / height;
+
+      if (width < height) {
+        this.camera.fov = 60;
+      } else {
+        this.camera.fov = 45;
+      }
+
       this.camera.updateProjectionMatrix();
       this.renderer.setSize(width, height, false);
       this.resizeOverlayCanvas();
@@ -1625,8 +1685,9 @@ export default {
     },
 
     isHumanTurn() {
+      // "This human, on this client" — remote players are not interactive here.
       const currentPlayer = this.store.players[this.store.currentPlayerId];
-      return Boolean(currentPlayer && !currentPlayer.isComputer);
+      return Boolean(currentPlayer && currentPlayer.controller === 'local');
     },
 
     setPointerFromEvent(event) {
@@ -1767,9 +1828,25 @@ export default {
 
       const pawn = this.findPawnByMeshName(target);
       if (pawn?.isActive) {
-        pawn.move();
+        this.movePawnAsCurrentPlayer(pawn);
         this.hoverNeedsUpdate = true;
       }
+    },
+
+    movePawnAsCurrentPlayer(pawn) {
+      if (this.store.online.enabled) {
+        // The server validates and echoes the move back as MOVE_APPLIED;
+        // deactivate locally so it cannot be sent twice.
+        const player = this.store.players[this.store.currentPlayerId];
+        player?.pawns.forEach((ownPawn) => {
+          ownPawn.isActive = false;
+        });
+        this.store.gamePlayStatus.isMoving = false;
+        MatchController.requestMove(pawn.startingPlace - 1);
+        return;
+      }
+
+      pawn.move();
     },
 
     findPawnByMeshName(meshName) {
@@ -1796,6 +1873,11 @@ export default {
       this.pawnMotionStates = markRaw({});
 
       this.pendingDiceRoll = null;
+      this.onlineDice = null;
+      this.diceSnapTween = null;
+      this.store.winner = null;
+      this.store.online.pendingDice = null;
+      this.store.online.diceInFlight = false;
       this.freezeDiceBody();
       this.syncDice();
       this.clearHoveredTarget();
@@ -1808,7 +1890,7 @@ export default {
                 playerName || 'Computer',
                 PLAYER_COLORS[index],
                 index + 1,
-                !playerName,
+                playerName ? 'local' : 'ai',
             ),
         );
       });
@@ -1823,11 +1905,149 @@ export default {
         normalizedNames.push('');
       }
 
+      this.store.online.enabled = false;
       this.resetGameState();
       this.createPlayers(normalizedNames);
       this.store.currentRound = 1;
       this.store.currentScreen = 'game-screen';
       this.changePlayersTurn();
+      this.hoverNeedsUpdate = true;
+    },
+
+    // ---- Online game flow (server-authoritative) ----
+
+    startOnlineGame(payload) {
+      this.resetGameState();
+      this.store.online.enabled = true;
+
+      const seatToPlayerIndex = {};
+      (payload.seats || []).forEach((seat) => {
+        if (!seat) {
+          return;
+        }
+        // Player turn = seat + 1 so pawn colors/offsets/home fields stay tied
+        // to the seat; the array index can differ when seats are sparse.
+        seatToPlayerIndex[seat.seat] = this.store.players.length;
+        this.store.players.push(
+            new Player(
+                seat.displayName || seat.username || `Player ${seat.seat + 1}`,
+                PLAYER_COLORS[seat.seat],
+                seat.seat + 1,
+                seat.seat === this.store.online.mySeat ? 'local' : 'remote',
+            ),
+        );
+      });
+
+      this.store.online.seatToPlayerIndex = seatToPlayerIndex;
+      this.store.currentScreen = 'game-screen';
+      this.setTurnBySeat(payload.turnSeat, payload.round || 1);
+    },
+
+    // Online replacement for changePlayersTurn/repeatPlayersTurn: seats may be
+    // non-contiguous, so the turn is addressed by seat, not by array rotation.
+    setTurnBySeat(seat, round) {
+      const playerIndex = this.store.online.seatToPlayerIndex[seat];
+      const player = this.store.players[playerIndex];
+      if (!player) {
+        return;
+      }
+
+      const previous = this.store.players[this.store.currentPlayerId];
+      if (previous && previous !== player) {
+        previous.endTurn();
+      }
+
+      player.pawns.forEach((pawn) => {
+        pawn.isActive = false;
+      });
+
+      this.store.currentPlayerId = playerIndex;
+      this.store.currentRound = round;
+      this.store.playingPlayerIndex = playerIndex;
+      player.isPlaying = true;
+      this.store.online.pendingDice = null;
+      this.store.gamePlayStatus.isRolling = true;
+      this.store.gamePlayStatus.isMoving = false;
+      this.hoverNeedsUpdate = true;
+    },
+
+    handleNetTurnChange(payload) {
+      if (!this.store.online.enabled) {
+        return;
+      }
+      this.setTurnBySeat(payload.turnSeat, payload.round);
+    },
+
+    handleGameWon(payload) {
+      const player = this.store.players[payload.playerIndex];
+      if (!player) {
+        return;
+      }
+      this.store.winner = {
+        name: player.name,
+        color: player.color,
+        self: player.controller === 'local',
+      };
+      this.store.gamePlayStatus.isRolling = false;
+      this.store.gamePlayStatus.isMoving = false;
+      this.hoverNeedsUpdate = true;
+    },
+
+    handleNetStateSync(payload) {
+      if (!payload || !payload.seats) {
+        return;
+      }
+
+      // Rebuild players from the snapshot, then teleport pawns into place.
+      this.startOnlineGame({
+        seats: payload.seats,
+        turnSeat: payload.turnSeat,
+        round: payload.round,
+      });
+
+      (payload.seats || []).forEach((seat) => {
+        if (!seat) {
+          return;
+        }
+        const player = this.store.players[this.store.online.seatToPlayerIndex[seat.seat]];
+        const positions = (payload.pawns && payload.pawns[seat.seat]) || [];
+        player.pawns.forEach((pawn, pawnIndex) => {
+          const position = positions[pawnIndex] || 0;
+          pawn.position = position;
+          pawn.isInDestinationField = position > 40;
+          pawn.isActive = false;
+          pawn.isMoving = false;
+          if (position === 0) {
+            pawn.globalPosition = pawn.startingGlobalPosition;
+          } else if (position <= 40) {
+            pawn.globalPosition = (pawn.startingGlobalPosition + position - 1) % 40;
+          } else {
+            pawn.globalPosition = (pawn.startingGlobalPosition + 39) % 40;
+          }
+        });
+      });
+
+      this.pawnMotionStates = markRaw({});
+
+      if (payload.awaitingMove && payload.dice != null) {
+        this.store.lastRolledDice = payload.dice;
+        this.store.gamePlayStatus.isRolling = false;
+        this.store.gamePlayStatus.isMoving = true;
+        const mover = this.store.players[this.store.online.seatToPlayerIndex[payload.turnSeat]];
+        mover?.pawns.forEach((pawn, pawnIndex) => {
+          pawn.isActive = (payload.legalPawns || []).indexOf(pawnIndex) !== -1;
+        });
+      }
+
+      if (payload.phase === 'finished' && payload.winnerSeat != null) {
+        const winner = this.store.players[this.store.online.seatToPlayerIndex[payload.winnerSeat]];
+        this.store.winner = {
+          name: winner ? winner.name : 'Player',
+          color: winner ? winner.color : '#ffffff',
+          self: payload.winnerSeat === this.store.online.mySeat,
+        };
+      }
+
       this.hoverNeedsUpdate = true;
     },
 
@@ -1978,6 +2198,130 @@ export default {
       };
     },
 
+    // The physical dice came to rest. Local mode resolves with the physical
+    // face; online mode waits for the server's DICE_RESULT value instead —
+    // the physical face (including the fell-off-table fallback) must never
+    // feed game logic online.
+    finishDiceSettle(faceData) {
+      if (faceData) {
+        this.snapDiceToFaceUp(faceData);
+      }
+
+      if (this.store.online.enabled) {
+        if (this.onlineDice) {
+          this.onlineDice.settled = true;
+          this.tryResolveOnlineDice();
+        } else {
+          this.pendingDiceRoll = null;
+        }
+        return;
+      }
+
+      this.completeDiceRoll(faceData ? faceData.value : 1);
+    },
+
+    handleNetDiceResult(payload) {
+      if (!this.store.online.enabled) {
+        return;
+      }
+
+      if (!this.onlineDice) {
+        // Roll initiated by another player (or restored) — play it locally too.
+        this.onlineDice = { settled: false, serverValue: null, payload: null };
+        if (!this.pendingDiceRoll) {
+          this.startDiceRoll();
+        }
+      }
+
+      this.onlineDice.serverValue = payload.value;
+      this.onlineDice.payload = payload;
+      this.tryResolveOnlineDice();
+    },
+
+    tryResolveOnlineDice() {
+      const onlineDice = this.onlineDice;
+      if (!onlineDice || !onlineDice.settled || onlineDice.serverValue == null) {
+        return;
+      }
+
+      const payload = onlineDice.payload;
+      this.onlineDice = null;
+      this.snapDiceToValue(onlineDice.serverValue);
+
+      // Only feed game logic if the turn has not moved on (e.g. server timeout).
+      const currentSeat = this.seatOfPlayerIndex(this.store.currentPlayerId);
+      if (payload && payload.seat === currentSeat) {
+        this.completeDiceRoll(onlineDice.serverValue);
+      } else {
+        this.pendingDiceRoll = null;
+      }
+
+      this.store.online.diceInFlight = false;
+      EventBus.fire(EventKeys.net.diceResolved);
+
+      // Single legal pawn for our own seat: send the move automatically.
+      if (
+        payload &&
+        payload.seat === this.store.online.mySeat &&
+        payload.seat === currentSeat &&
+        Array.isArray(payload.legalPawns) &&
+        payload.legalPawns.length === 1
+      ) {
+        window.setTimeout(() => MatchController.requestMove(payload.legalPawns[0]), 350);
+      }
+    },
+
+    // Rotates the settled dice so `value` faces up, with a short visual tween
+    // that reads as a final wobble.
+    snapDiceToValue(value) {
+      if (!this.dicePhysicsBody || !this.diceMesh || !DICE_FACE_NORMALS[value]) {
+        return;
+      }
+
+      const current = this.getDiceTopFaceData();
+      const fromQuaternion = new THREE.Quaternion(
+          this.dicePhysicsBody.quaternion.x,
+          this.dicePhysicsBody.quaternion.y,
+          this.dicePhysicsBody.quaternion.z,
+          this.dicePhysicsBody.quaternion.w,
+      );
+
+      if (current.value === value) {
+        return;
+      }
+
+      const desiredWorldNormal = DICE_FACE_NORMALS[value].clone().applyQuaternion(fromQuaternion);
+      const snappedQuaternion = new THREE.Quaternion()
+          .setFromUnitVectors(desiredWorldNormal.normalize(), WORLD_UP)
+          .multiply(fromQuaternion.clone())
+          .normalize();
+
+      // Body gets the final orientation immediately (it is asleep); the mesh
+      // slerps toward it in syncDice.
+      this.dicePhysicsBody.quaternion.set(
+          snappedQuaternion.x,
+          snappedQuaternion.y,
+          snappedQuaternion.z,
+          snappedQuaternion.w,
+      );
+      this.diceSnapTween = markRaw({
+        from: fromQuaternion,
+        to: snappedQuaternion,
+        start: performance.now(),
+        duration: 140,
+      });
+    },
+
+    seatOfPlayerIndex(playerIndex) {
+      const map = this.store.online.seatToPlayerIndex;
+      for (const seat in map) {
+        if (map[seat] === playerIndex) {
+          return Number(seat);
+        }
+      }
+      return -1;
+    },
+
     completeDiceRoll(diceResult = this.getDiceResultFromBody()) {
       if (!this.pendingDiceRoll) {
         return;
@@ -2114,9 +2458,74 @@ export default {
       }
 
       void amount;
+
+      if (this.store.online.enabled) {
+        const currentPlayer = this.store.players[this.store.currentPlayerId];
+        if (currentPlayer?.controller !== 'local') {
+          return;
+        }
+        // Throw the physical dice immediately to hide latency; the result is
+        // resolved with the server value in tryResolveOnlineDice.
+        this.store.gamePlayStatus.isRolling = false;
+        this.hoverNeedsUpdate = true;
+        this.onlineDice = { settled: false, serverValue: null, payload: null };
+        MatchController.requestRoll();
+        this.startDiceRoll();
+        return;
+      }
+
       this.store.gamePlayStatus.isRolling = false;
       this.hoverNeedsUpdate = true;
       this.startDiceRoll();
+    },
+
+    isMenuMode() {
+      return this.store.currentScreen !== 'game-screen';
+    },
+
+    updateCameraPath() {
+      if (!this.camera) return;
+
+      if (this.isMenuMode()) {
+        if (this.controls) {
+          this.controls.enabled = false;
+        }
+        this.menuOrbitTime += 0.0025; // slow cinematic orbit speed
+        const radius = 9.5;
+        const target = new THREE.Vector3(6.3, 0.4, 5);
+        this.camera.position.x = target.x + Math.sin(this.menuOrbitTime) * radius;
+        this.camera.position.z = target.z + Math.cos(this.menuOrbitTime) * radius;
+        this.camera.position.y = 4.2 + Math.sin(this.menuOrbitTime * 2.2) * 1.5; // low and high wave
+        this.camera.lookAt(target);
+      } else if (this.cameraTransition) {
+        if (this.controls) {
+          this.controls.enabled = false;
+        }
+        const now = performance.now();
+        const duration = 1500; // smooth 1.5s transition
+        const elapsed = now - this.cameraTransition.start;
+        const t = Math.min(elapsed / duration, 1);
+        
+        // Cubic ease-in-out
+        const ease = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        
+        const targetPos = new THREE.Vector3(7.2, 12.2, 16.1);
+        const targetLook = new THREE.Vector3(6.3, 0.4, 5);
+        
+        this.camera.position.lerpVectors(this.cameraTransition.fromPosition, targetPos, ease);
+        
+        const currentLook = new THREE.Vector3().lerpVectors(this.cameraTransition.fromTarget, targetLook, ease);
+        this.camera.lookAt(currentLook);
+        
+        if (t >= 1) {
+          this.cameraTransition = null;
+          if (this.controls) {
+            this.controls.enabled = true;
+            this.controls.target.copy(targetLook);
+            this.controls.update();
+          }
+        }
+      }
     },
   },
 };

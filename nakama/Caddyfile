@@ -1,0 +1,3 @@
+{$NAKAMA_DOMAIN} {
+	reverse_proxy nakama:7350
+}

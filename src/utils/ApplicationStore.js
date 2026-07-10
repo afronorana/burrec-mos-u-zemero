@@ -21,6 +21,7 @@ const ApplicationStore = reactive({
   settings: {
     quality: 2,
     outlineAppearance: 'classic',
+    locale: window.localStorage.getItem('burrec.settings.locale') || 'en',
   },
   fields: {
     home: [
@@ -130,6 +131,27 @@ const ApplicationStore = reactive({
   gamePlayStatus: {
     isRolling: false,
     isMoving: false,
+    isDiceRolling: false,
+  },
+  // { name, color, self } — set in both local and online mode, shown by WinScreen.
+  winner: null,
+  online: {
+    enabled: false,
+    connectionState: 'idle', // idle | connecting | connected | reconnecting | disconnected
+    displayName: '',
+    selfUserId: null,
+    matchId: null,
+    mode: null, // 'private' | 'quick'
+    joinCode: null,
+    mySeat: -1,
+    hostUserId: null,
+    seats: [], // (seat|null)[4] as broadcast by the server
+    seatToPlayerIndex: {}, // seat number -> index into store.players (seats can be non-contiguous)
+    matchmaking: false,
+    pendingDice: null, // last DICE_RESULT payload, consumed when the dice settles
+    diceInFlight: false, // gates MOVE_APPLIED/TURN_CHANGE replay while dice physics run
+    chat: [],
+    lastError: null,
   },
   controls: null,
 });

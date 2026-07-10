@@ -2,11 +2,16 @@
   "private": true,
   "name": "Burrec mos u hidhero",
   "version": "1.0.0",
+  "type": "module",
   "main": "src/main.js",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "serve": "vite preview"
+    "serve": "vite preview",
+    "nakama:build": "pnpm --dir nakama build",
+    "nakama:test": "pnpm --dir nakama test",
+    "nakama:up": "docker compose -f nakama/docker-compose.yml up -d",
+    "nakama:down": "docker compose -f nakama/docker-compose.yml down"
   },
   "keywords": [],
   "author": "Afron Orana <afron.orana@gmail.com> (https://afronorana.com)",
@@ -20,15 +25,21 @@
     "vue": "^3.5.29"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["@parcel/watcher", "esbuild"]
+    "onlyBuiltDependencies": [
+      "@parcel/watcher",
+      "esbuild"
+    ]
   },
   "dependencies": {
+    "@heroiclabs/nakama-js": "^2.8.0",
+    "@lucide/vue": "^1.24.0",
+    "afrons-game-ui": "link:../afrons-game-ui",
     "bootstrap-sass": "^3.4.3",
     "cannon-es": "^0.20.0",
     "family.scss": "^1.0.8",
     "jquery": "^4.0.0",
     "lodash": "^4.17.23",
-    "nes.css": "^2.3.0",
+    "lucide-vue-next": "^1.0.0",
     "normalize.css": "^8.0.1",
     "pinia": "^3.0.4",
     "promise": "^8.3.0",

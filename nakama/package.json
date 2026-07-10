@@ -1,0 +1,19 @@
+{
+  "name": "burrec-nakama-runtime",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build": "rollup -c",
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test tests/ludo_logic.test.ts"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^28.0.2",
+    "@rollup/plugin-node-resolve": "^16.0.0",
+    "@rollup/plugin-typescript": "^12.1.2",
+    "nakama-runtime": "github:heroiclabs/nakama-common",
+    "rollup": "^4.30.0",
+    "tslib": "^2.8.0",
+    "typescript": "^5.7.0"
+  }
+}

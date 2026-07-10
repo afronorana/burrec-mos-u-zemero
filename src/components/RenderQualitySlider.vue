@@ -1,25 +1,14 @@
 <template>
   <div class="form-row">
-    <label :for="sliderId" class="select-label slider-label">
-      <span>{{ label }}</span>
-      <span class="slider-value">{{ currentPreset.label }}</span>
-    </label>
-
-    <input
-      :id="sliderId"
-      v-model.number="store.settings.quality"
-      class="quality-slider"
-      type="range"
+    <app-slider
+      :label="label"
+      v-model="store.settings.quality"
       :min="min"
       :max="max"
-      step="1"
-    >
-
-    <div class="quality-scale">
-      <span>Low</span>
-      <span>Balanced</span>
-      <span>High</span>
-    </div>
+      :step="1"
+      :pip-labels="pipLabels"
+      :value-formatter="formatValue"
+    />
   </div>
 </template>
 
@@ -48,12 +37,17 @@ export default {
       store: ApplicationStore,
       min: RENDER_QUALITY_MIN,
       max: RENDER_QUALITY_MAX,
+      pipLabels: [
+        { value: 1, label: 'Low' },
+        { value: 2, label: 'Balanced' },
+        { value: 3, label: 'High' }
+      ]
     };
   },
-  computed: {
-    currentPreset() {
-      return getRenderQualityPreset(this.store.settings.quality);
-    },
-  },
+  methods: {
+    formatValue(val) {
+      return getRenderQualityPreset(val).label;
+    }
+  }
 };
 </script>

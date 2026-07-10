@@ -1,17 +1,7 @@
 <template>
   <div class="form-row">
-    <label :for="selectId" class="select-label">{{ label }}</label>
-    <div class="nes-select is-dark is-full-width">
-      <select :id="selectId" v-model="store.settings.outlineAppearance">
-        <option
-          v-for="option in outlineAppearanceOptions"
-          :key="option.value"
-          :value="option.value"
-        >
-          {{ option.label }}
-        </option>
-      </select>
-    </div>
+    <label class="select-label">{{ label }}</label>
+    <app-tabs v-model="store.settings.outlineAppearance" :options="outlineAppearanceOptions" />
   </div>
 </template>
 

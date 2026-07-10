@@ -1,0 +1,70 @@
+# Production stack for a DigitalOcean droplet (or any docker host).
+#
+# Usage:
+#   1. Create nakama/.env.prod with:
+#        NAKAMA_DOMAIN=nakama.example.com
+#        NAKAMA_SERVER_KEY=<long random string>
+#        POSTGRES_PASSWORD=<long random string>
+#   2. Build the runtime bundle locally (pnpm nakama:build) and copy ./build
+#      along with this file, Caddyfile and local.yml to the droplet.
+#   3. docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
+#
+# Caddy terminates TLS (auto Let's Encrypt) and proxies wss:// to nakama:7350,
+# which is what the GitHub Pages (https) client requires. Point the domain's
+# A record at the droplet before first start.
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=nakama
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?set in .env.prod}
+    volumes:
+      - nakama-db:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "nakama"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  nakama:
+    image: heroiclabs/nakama:3.21.1
+    entrypoint:
+      - "/bin/sh"
+      - "-ecx"
+      - >
+        /nakama/nakama migrate up --database.address postgres:${POSTGRES_PASSWORD}@postgres:5432/nakama &&
+        exec /nakama/nakama --config /nakama/data/local.yml
+        --database.address postgres:${POSTGRES_PASSWORD}@postgres:5432/nakama
+        --socket.server_key ${NAKAMA_SERVER_KEY}
+        --session.encryption_key ${NAKAMA_SERVER_KEY}
+        --runtime.js_entrypoint index.js
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./build:/nakama/data/modules
+      - ./local.yml:/nakama/data/local.yml
+    expose:
+      - "7350"
+    ports:
+      - "127.0.0.1:7351:7351" # console via SSH tunnel only
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      - NAKAMA_DOMAIN=${NAKAMA_DOMAIN:?set in .env.prod}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  nakama-db:
+  caddy-data:
+  caddy-config:

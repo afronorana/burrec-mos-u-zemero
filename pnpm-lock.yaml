@@ -8,6 +8,15 @@ importers:
 
   .:
     dependencies:
+      '@heroiclabs/nakama-js':
+        specifier: ^2.8.0
+        version: 2.8.0
+      '@lucide/vue':
+        specifier: ^1.24.0
+        version: 1.24.0(vue@3.5.29)
+      afrons-game-ui:
+        specifier: link:../afrons-game-ui
+        version: link:../afrons-game-ui
       bootstrap-sass:
         specifier: ^3.4.3
         version: 3.4.3
@@ -23,9 +32,9 @@ importers:
       lodash:
         specifier: ^4.17.23
         version: 4.17.23
-      nes.css:
-        specifier: ^2.3.0
-        version: 2.3.0
+      lucide-vue-next:
+        specifier: ^1.0.0
+        version: 1.0.0(vue@3.5.29)
       normalize.css:
         specifier: ^8.0.1
         version: 8.0.1
@@ -242,8 +251,16 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@heroiclabs/nakama-js@2.8.0':
+    resolution: {integrity: sha512-E3bH/pqosASGHmVttsa708UjoLYkzZ4Sy3JUZV0TMK3oZK19QVyKrWhqjwyFwvKI2WyVf30xiRD+2ffvmfpw4A==}
+
   '@jridgewell/sourcemap-codec@1.5.5':
     resolution: {integrity: sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og==}
+
+  '@lucide/vue@1.24.0':
+    resolution: {integrity: sha512-5bNPX0G2YEWdUlBYk7pE8SgDg/f1mkIFpJ9vtE44pW/cwRz7Ioc0tOTESoVJAPvxIELSmYekX+XXIJMjsswNIg==}
+    peerDependencies:
+      vue: '>=3.0.1'
 
   '@parcel/watcher-android-arm64@2.5.6':
     resolution: {integrity: sha512-YQxSS34tPF/6ZG7r/Ih9xy+kP/WwediEUsqmtf0cuCV5TPPKw/PQHRhueUo6JdeFJaqV3pyjm0GdYjZotbRt/A==}
@@ -455,6 +472,9 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@scarf/scarf@1.4.0':
+    resolution: {integrity: sha512-xxeapPiUXdZAE3che6f3xogoJPeZgig6omHEy1rIY5WVsB3H2BHNnZH+gHG6x91SCWyQCzWGsuL2Hh3ClO5/qQ==}
+
   '@types/estree@1.0.8':
     resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
 
@@ -511,6 +531,10 @@ packages:
 
   asap@2.0.6:
     resolution: {integrity: sha512-BSHWgDSAiKs50o2Re8ppvp3seVHXSRM44cdSsT9FfNEUUZLOGWVCsiWaRPWM1Znn+mqZ1OfVZ3z3DWEzSp7hRA==}
+
+  base64-arraybuffer@1.0.2:
+    resolution: {integrity: sha512-I3yl4r9QB5ZRY3XuJVEPfc2XhZO6YweFPI+UovAzn+8/hb3oJ6lnysaFcjVpkCPfVWFUDvoZ8kmVDP7WyRtYtQ==}
+    engines: {node: '>= 0.6.0'}
 
   birpc@2.9.0:
     resolution: {integrity: sha512-KrayHS5pBi69Xi9JmvoqrIgYGDkD6mcSe/i6YKi3w5kekCLzrX4+nawcXqrj2tIp50Kw/mT/s3p+GVK0A0sKxw==}
@@ -598,8 +622,17 @@ packages:
   jquery@4.0.0:
     resolution: {integrity: sha512-TXCHVR3Lb6TZdtw1l3RTLf8RBWVGexdxL6AC8/e0xZKEpBflBsjh9/8LXw+dkNFuOyW9B7iB3O1sP7hS0Kiacg==}
 
+  js-base64@3.8.0:
+    resolution: {integrity: sha512-65kvbemyZhj+ExQt1PEFyBEjL5vAHysu1lJdW1AwhhChkO8ZBPizYk/m9GVrpbS2Je1hF+UYZ+6KywqtZV8mHw==}
+
   lodash@4.17.23:
     resolution: {integrity: sha512-LgVTMpQtIopCi79SJeDiP0TfWi5CNEc/L/aRdTh3yIvmZXTnheWpKjSZhnvMl8iXbC1tFg9gdHHDMLoV7CnG+w==}
+
+  lucide-vue-next@1.0.0:
+    resolution: {integrity: sha512-V6SPvx1IHTj/UY+FrIYWV5faISsPSb8BnWSFDxAtezWKvWc9ZZ40PDrdu1/Qb5vg4lHWr1hs1BAMGVGm6V1Xdg==}
+    deprecated: Package deprecated. Please use @lucide/vue instead.
+    peerDependencies:
+      vue: '>=3.0.1'
 
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
@@ -611,10 +644,6 @@ packages:
     resolution: {integrity: sha512-N8SpfPUnUp1bK+PMYW8qSWdl9U+wwNWI4QKxOYDy9JAro3WMX7p2OeVRF9v+347pnakNevPmiHhNmZ2HbFA76w==}
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
-
-  nes.css@2.3.0:
-    resolution: {integrity: sha512-lCFZs9vj3f5RVdbvTL/kSxiYsOARwSeAdJaMNo+bCgmWOO9x8ay7QpT4yQVKHy3r5Dttzd0uqVdpt3fvvx6EpQ==}
-    engines: {node: 10.x}
 
   node-addon-api@7.1.1:
     resolution: {integrity: sha512-5m3bsyrjFWE1xf7nz7YXdN4udnVtXK6/Yfgn5qnahL6bCkf2yKt4k3nuTKAtT4r3IG8JNR2ncsIMdZuAzJjHQQ==}
@@ -755,6 +784,9 @@ packages:
     peerDependencies:
       vue: ^3.2.0
 
+  whatwg-fetch@3.6.20:
+    resolution: {integrity: sha512-EqhiFU6daOA8kpjOWTL0olhVOF3i7OrFzSYiGsEMB8GcXS+RrzauAERX65xMeNWVqxA6HXH2m69Z9LaKKdisfg==}
+
   which@2.0.2:
     resolution: {integrity: sha512-BLI3Tl1TW3Pvl70l3yq3Y64i+awpwXqsGBYWkkqMtnbXgrMD+yj7rhW0kuEDxzJaYXGjEW5ogapKNMEKNMjibA==}
     engines: {node: '>= 8'}
@@ -855,7 +887,18 @@ snapshots:
   '@esbuild/win32-x64@0.27.3':
     optional: true
 
+  '@heroiclabs/nakama-js@2.8.0':
+    dependencies:
+      '@scarf/scarf': 1.4.0
+      base64-arraybuffer: 1.0.2
+      js-base64: 3.8.0
+      whatwg-fetch: 3.6.20
+
   '@jridgewell/sourcemap-codec@1.5.5': {}
+
+  '@lucide/vue@1.24.0(vue@3.5.29)':
+    dependencies:
+      vue: 3.5.29
 
   '@parcel/watcher-android-arm64@2.5.6':
     optional: true
@@ -995,6 +1038,8 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.59.0':
     optional: true
 
+  '@scarf/scarf@1.4.0': {}
+
   '@types/estree@1.0.8': {}
 
   '@types/node@22.15.17':
@@ -1083,6 +1128,8 @@ snapshots:
   '@vue/shared@3.5.29': {}
 
   asap@2.0.6: {}
+
+  base64-arraybuffer@1.0.2: {}
 
   birpc@2.9.0: {}
 
@@ -1174,7 +1221,13 @@ snapshots:
 
   jquery@4.0.0: {}
 
+  js-base64@3.8.0: {}
+
   lodash@4.17.23: {}
+
+  lucide-vue-next@1.0.0(vue@3.5.29):
+    dependencies:
+      vue: 3.5.29
 
   magic-string@0.30.21:
     dependencies:
@@ -1183,8 +1236,6 @@ snapshots:
   mitt@3.0.1: {}
 
   nanoid@3.3.11: {}
-
-  nes.css@2.3.0: {}
 
   node-addon-api@7.1.1:
     optional: true
@@ -1308,6 +1359,8 @@ snapshots:
     dependencies:
       '@vue/devtools-api': 6.6.4
       vue: 3.5.29
+
+  whatwg-fetch@3.6.20: {}
 
   which@2.0.2:
     dependencies:

@@ -1,0 +1,13 @@
+# Dev config, mounted into the nakama container by docker-compose.yml.
+name: burrec-nakama
+logger:
+  level: "INFO"
+session:
+  # Nakama's default token expiry is 60s — the socket dies mid-game without this.
+  token_expiry_sec: 7200
+  refresh_token_expiry_sec: 604800
+socket:
+  # Must match VITE_NAKAMA_KEY on the client.
+  server_key: "burrec-dev-key"
+runtime:
+  js_entrypoint: "index.js"

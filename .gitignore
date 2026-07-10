@@ -8,5 +8,9 @@
 mix.js
 yarn.lock
 package-lock.json
+.DS_Store
 *.SD_Store
 *SD_Store
+/nakama/node_modules
+/nakama/build
+.env.prod

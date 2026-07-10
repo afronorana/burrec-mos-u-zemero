@@ -51,6 +51,18 @@ class Pawn {
     this.isMoving = false;
     this.activeMoveTimeout = null;
 
+    if (ApplicationStore.online.enabled) {
+      // Online, turn advancement comes only from the server's TURN_CHANGE.
+      EventBus.fire(EventKeys.pawn.moveComplete, { pawnId: this.id });
+      return;
+    }
+
+    const owner = ApplicationStore.players[this.playerIndex];
+    if (owner && owner.wonGame()) {
+      EventBus.fire(EventKeys.game.won, { playerIndex: this.playerIndex });
+      return;
+    }
+
     if (ApplicationStore.lastRolledDice === 6)
       EventBus.fire(EventKeys.turns.repeatTurn);
     else
@@ -182,16 +194,15 @@ class Pawn {
   }
 
   // Checks if an opponents pawn is on the target, if so removes it.
+  // (Win detection lives in endOfMove / the server — not here.)
   removeOpponentPawns(targetField) {
     ApplicationStore.players.forEach(function(player) {
       if (!player.isPlaying) {
         player.pawns.forEach(function(pawn) {
-          if (pawn.globalPosition === targetField && !pawn.isInDestinationField) {
+          if (pawn.position !== 0 && pawn.globalPosition === targetField && !pawn.isInDestinationField) {
             pawn.returnHome();
           }
         });
-      } else if (player.wonGame()) {
-        alert('congrats:' + player.name + '! You WON!!!');
       }
     });
   }

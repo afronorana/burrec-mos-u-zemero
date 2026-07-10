@@ -1,0 +1,153 @@
+<template>
+  <div class="menu-center">
+    <app-panel class="menu-card">
+      <h2 class="panel-title">{{ t('online.playOnline') }}</h2>
+
+      <div v-if="store.online.matchmaking" class="online-searching">
+        <p class="panel-desc">{{ t('online.searching') }}</p>
+        <app-button red class="menu-btn-full" :disabled="busy" @click="cancelSearch">
+          {{ t('online.cancel') }}
+        </app-button>
+      </div>
+
+      <template v-else>
+        <app-input
+          v-model="displayName"
+          :label="t('online.yourName')"
+          :max-length="24"
+        />
+
+        <div class="online-actions">
+          <app-button blue class="menu-btn-full" :disabled="!canSubmit" @click="quickMatch">
+            {{ t('online.quickMatch') }}
+          </app-button>
+          <app-button green class="menu-btn-full" :disabled="!canSubmit" @click="createLobby">
+            {{ t('online.createLobby') }}
+          </app-button>
+
+          <div class="online-join-row">
+            <app-input
+              v-model="joinCode"
+              :label="t('online.lobbyCode')"
+              :max-length="5"
+              class="online-code-input"
+              @input="joinCode = joinCode.toUpperCase()"
+              @keyup.enter="joinLobby"
+            />
+            <app-button blue class="online-join-btn" :disabled="!canSubmit || joinCode.length !== 5" @click="joinLobby">
+              {{ t('online.join') }}
+            </app-button>
+          </div>
+        </div>
+
+        <p v-if="errorMessage" class="online-error">{{ errorMessage }}</p>
+
+        <div class="menu-row">
+          <app-button slate-blue :disabled="busy" @click="goBack">{{ t('back') }}</app-button>
+        </div>
+      </template>
+    </app-panel>
+  </div>
+</template>
+
+<script>
+import ApplicationStore from '../utils/ApplicationStore';
+import MatchController from '../network/MatchController';
+import { t } from '../utils/i18n';
+
+export default {
+  data() {
+    return {
+      store: ApplicationStore,
+      displayName: window.localStorage.getItem('burrec.online.displayName') || '',
+      joinCode: '',
+      busy: false,
+    };
+  },
+  computed: {
+    canSubmit() {
+      return !this.busy && this.displayName.trim().length > 0;
+    },
+    errorMessage() {
+      const error = this.store.online.lastError;
+      return error ? t(`errors.${error}`) : '';
+    },
+  },
+  methods: {
+    t,
+    async run(action) {
+      this.busy = true;
+      this.store.online.lastError = null;
+      try {
+        await action();
+      } catch (error) {
+        this.store.online.lastError = error?.message ? error.message : 'connect_failed';
+      } finally {
+        this.busy = false;
+      }
+    },
+    quickMatch() {
+      this.run(() => MatchController.quickMatch(this.displayName));
+    },
+    createLobby() {
+      this.run(() => MatchController.createPrivate(this.displayName));
+    },
+    joinLobby() {
+      this.run(() => MatchController.joinByCode(this.joinCode, this.displayName));
+    },
+    async cancelSearch() {
+      this.busy = true;
+      try {
+        await MatchController.cancelQuickMatch();
+      } finally {
+        this.busy = false;
+      }
+    },
+    goBack() {
+      this.store.online.lastError = null;
+      this.store.currentScreen = 'main-menu';
+    },
+  },
+};
+</script>
+
+<style scoped>
+.online-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.online-join-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.online-code-input {
+  flex: 1;
+  min-width: 0;
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.online-join-btn {
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.online-error {
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--agu-color-red, #e9576f);
+}
+
+.online-searching {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+</style>
