@@ -41,10 +41,13 @@
         :placeholder="t('online.chatPlaceholder')"
         maxlength="200"
         class="chat-input"
-      />
-      <app-button blue class="chat-send-btn" :disabled="!draft.trim()" @click="submit">
-        <send-icon :size="18" />
-      </app-button>
+      >
+        <template #append>
+          <app-button blue class="chat-send-btn" :disabled="!draft.trim()" @click="submit">
+            <send-icon :size="18" />
+          </app-button>
+        </template>
+      </app-input>
     </form>
   </div>
 </template>
