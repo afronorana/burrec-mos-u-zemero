@@ -37,6 +37,7 @@
       <app-input
         v-model="draft"
         label=""
+        :required="false"
         :placeholder="t('online.chatPlaceholder')"
         maxlength="200"
         class="chat-input"
