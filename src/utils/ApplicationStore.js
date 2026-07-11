@@ -4,7 +4,7 @@ import * as THREE from 'three';
 const vector = (x, y, z) => markRaw(new THREE.Vector3(x, y, z));
 
 const ApplicationStore = reactive({
-  currentScreen: 'main-menu',
+  currentScreen: 'login-screen',
   diceData: {
     interval: [null, null, null],
     allDone: [false, false, false],
@@ -154,6 +154,9 @@ const ApplicationStore = reactive({
     chat: [],
     lastError: null,
   },
+  localSetupActive: [false, false, false, false],
+  localSetupNames: ['', '', '', ''],
+  localSetupTypes: ['local', 'ai', 'ai', 'ai'],
   controls: null,
 });
 

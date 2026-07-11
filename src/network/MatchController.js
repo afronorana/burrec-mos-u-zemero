@@ -188,6 +188,10 @@ class MatchControllerService {
     this.send(OpCode.SYNC_REQUEST, {});
   }
 
+  requestClaimSeat(seatIndex) {
+    this.send(OpCode.CLAIM_SEAT, { seat: seatIndex });
+  }
+
   handleMatchData(matchData) {
     const payload = decodePayload(matchData.data);
 
@@ -239,6 +243,7 @@ class MatchControllerService {
     online.hostUserId = payload.hostUserId || null;
     online.joinCode = payload.joinCode || online.joinCode;
     online.mySeat = this.seatOfSelf(online.seats);
+    EventBus.fire(EventKeys.net.lobbyUpdated);
   }
 
   handleGameStart(payload) {

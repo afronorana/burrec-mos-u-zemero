@@ -553,6 +553,25 @@ const matchLoop = function (
       case OpCode.SYNC_REQUEST:
         broadcast(dispatcher, OpCode.STATE_SYNC, snapshotPayload(state), [sender]);
         break;
+      case OpCode.CLAIM_SEAT: {
+        const senderSeat = seatOfUser(state, sender.userId);
+        const targetSeatIndex = typeof payload.seat === 'number' ? payload.seat : -1;
+        if (
+          state.phase === 'lobby' &&
+          senderSeat &&
+          targetSeatIndex >= 0 &&
+          targetSeatIndex < MAX_SEATS &&
+          state.seats[targetSeatIndex] === null
+        ) {
+          const oldIndex = senderSeat.seat;
+          senderSeat.seat = targetSeatIndex;
+          senderSeat.ready = false;
+          state.seats[targetSeatIndex] = senderSeat;
+          state.seats[oldIndex] = null;
+          broadcast(dispatcher, OpCode.LOBBY_STATE, lobbyStatePayload(state));
+        }
+        break;
+      }
       default:
         break;
     }

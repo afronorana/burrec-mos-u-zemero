@@ -106,6 +106,44 @@ export default {
           this.controls.enabled = false;
         }
       }
+
+      if (newScreen === 'add-players') {
+        this.store.localSetupActive = [true, true, false, false];
+        this.store.localSetupNames = [
+          this.store.online.displayName || 'Player 1',
+          'Robot 2',
+          'Robot 3',
+          'Robot 4'
+        ];
+        this.store.localSetupTypes = ['local', 'ai', 'ai', 'ai'];
+        this.syncLocalPlayersFromSetup();
+      } else if (newScreen === 'lobby') {
+        this.syncOnlinePlayersFromLobby();
+      }
+    },
+    'store.localSetupNames': {
+      handler() {
+        if (this.store.currentScreen === 'add-players') {
+          this.syncLocalPlayersFromSetup();
+        }
+      },
+      deep: true,
+    },
+    'store.localSetupActive': {
+      handler() {
+        if (this.store.currentScreen === 'add-players') {
+          this.syncLocalPlayersFromSetup();
+        }
+      },
+      deep: true,
+    },
+    'store.localSetupTypes': {
+      handler() {
+        if (this.store.currentScreen === 'add-players') {
+          this.syncLocalPlayersFromSetup();
+        }
+      },
+      deep: true,
     },
   },
   data() {
@@ -128,6 +166,9 @@ export default {
       menuOrbitTime: 0,
       cameraTransition: null,
       overlayCtx: null,
+      homeBaseHelpers: null,
+      grassMeshes: null,
+      isMobile: false,
       sharedGeometries: markRaw({}),
       sharedMaterials: markRaw({}),
       sharedTextures: markRaw({}),
@@ -239,6 +280,7 @@ export default {
         EventBus.listen(EventKeys.net.diceResult, this.handleNetDiceResult),
         EventBus.listen(EventKeys.net.turnChange, this.handleNetTurnChange),
         EventBus.listen(EventKeys.net.stateSync, this.handleNetStateSync),
+        EventBus.listen(EventKeys.net.lobbyUpdated, this.syncOnlinePlayersFromLobby),
       ];
     },
 
@@ -287,7 +329,8 @@ export default {
       controls.target.set(6.3, 0.4, 5);
       controls.update();
 
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
+      this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
+      const isMobile = this.isMobile;
       if (isMobile) {
         controls.minDistance = 11;
         controls.maxDistance = 18;
@@ -317,6 +360,8 @@ export default {
       this.createLights();
       this.createPhysicsWorld();
       this.createDice();
+      this.createHomeBaseHelpers();
+      this.createGrassAndTrees();
       this.applyRenderQuality();
       this.applyOutlineAppearance();
       this.handleResize();
@@ -842,6 +887,9 @@ export default {
 
       diceMesh.name = 'dice';
       this.diceMesh = markRaw(diceMesh);
+      if (this.isMobile) {
+        diceMesh.visible = false;
+      }
       this.scene.add(diceMesh);
 
       const diceBody = markRaw(new CANNON.Body({
@@ -862,6 +910,38 @@ export default {
         this.animationFrameId = requestAnimationFrame(animate);
         
         this.updateCameraPath();
+
+        if (this.grassMeshes && this.grassMeshes.length > 0) {
+          const time = performance.now() * 0.0025;
+          this.grassMeshes.forEach((grass, idx) => {
+            const wave = Math.sin(time + idx * 0.6) * 0.09;
+            grass.rotation.z = wave;
+            grass.rotation.y = wave * 0.3;
+          });
+        }
+
+        if (this.homeBaseHelpers && (this.store.currentScreen === 'add-players' || this.store.currentScreen === 'lobby')) {
+          const time = performance.now() * 0.004;
+          this.homeBaseHelpers.forEach((mesh, idx) => {
+            mesh.visible = true;
+            let isEmpty = false;
+            if (this.store.currentScreen === 'add-players') {
+              isEmpty = !this.store.localSetupActive[idx];
+            } else {
+              isEmpty = !this.store.online.seats[idx];
+            }
+
+            if (isEmpty) {
+              mesh.material.opacity = 0.15 + Math.sin(time) * 0.08;
+            } else {
+              mesh.material.opacity = 0.38;
+            }
+          });
+        } else if (this.homeBaseHelpers) {
+          this.homeBaseHelpers.forEach((mesh) => {
+            mesh.visible = false;
+          });
+        }
         
         if (this.controls && !this.isMenuMode() && !this.cameraTransition) {
           this.controls.update();
@@ -957,12 +1037,16 @@ export default {
 
     syncPawns() {
       const now = performance.now();
+      const activePawnIds = new Set();
 
       this.store.players.forEach((player) => {
         player.pawns.forEach((pawn) => {
+          activePawnIds.add(pawn.id);
           this.ensurePawnMesh(pawn);
 
           const pawnMesh = this.pawnMeshes[pawn.id];
+          pawnMesh.visible = true;
+          
           const targetState = this.getPawnWorldState(pawn);
           const animatedPosition = this.getAnimatedPawnPosition(pawn, targetState, now);
 
@@ -974,6 +1058,13 @@ export default {
 
           pawnMesh.scale.setScalar(pawn.isActive ? 1.1 : 1);
         });
+      });
+
+      // Hide any cached pawn meshes that are no longer active in store.players
+      Object.keys(this.pawnMeshes).forEach((pawnId) => {
+        if (!activePawnIds.has(pawnId)) {
+          this.pawnMeshes[pawnId].visible = false;
+        }
       });
     },
 
@@ -1581,60 +1672,60 @@ export default {
 
       switch (env) {
         case 'night':
-          this.ambientLight.color.set('#050a18');
-          this.ambientLight.intensity = 0.12;
+          this.ambientLight.color.set('#1a2b4c');
+          this.ambientLight.intensity = 0.45;
 
-          this.skyLight.color.set('#1c2844');
+          this.skyLight.color.set('#2b3e66');
           this.skyLight.groundColor.set('#0d131f');
-          this.skyLight.intensity = 0.22;
+          this.skyLight.intensity = 0.65;
 
-          this.sunLight.color.set('#99aacc');
-          this.sunLight.intensity = 0.42;
+          this.sunLight.color.set('#b3ccff');
+          this.sunLight.intensity = 0.9;
           this.sunLight.position.set(-5.5, 13.5, 6.5);
 
-          this.fillLight.color.set('#334c7a');
-          this.fillLight.intensity = 0.18;
+          this.fillLight.color.set('#4c70b3');
+          this.fillLight.intensity = 0.45;
 
           this.trayLight.color.set('#55aaee');
-          this.trayLight.intensity = 0.12;
+          this.trayLight.intensity = 0.22;
           break;
 
         case 'dusk':
-          this.ambientLight.color.set('#34202a');
-          this.ambientLight.intensity = 0.22;
+          this.ambientLight.color.set('#4c2e3d');
+          this.ambientLight.intensity = 0.42;
 
-          this.skyLight.color.set('#5d3c54');
+          this.skyLight.color.set('#805373');
           this.skyLight.groundColor.set('#2d1a24');
-          this.skyLight.intensity = 0.45;
+          this.skyLight.intensity = 0.75;
 
-          this.sunLight.color.set('#ff7744');
-          this.sunLight.intensity = 0.95;
+          this.sunLight.color.set('#ff8855');
+          this.sunLight.intensity = 1.55;
           this.sunLight.position.set(-11.5, 6.5, 3.5);
 
-          this.fillLight.color.set('#7b476c');
-          this.fillLight.intensity = 0.3;
+          this.fillLight.color.set('#a65f91');
+          this.fillLight.intensity = 0.55;
 
           this.trayLight.color.set('#ff8833');
-          this.trayLight.intensity = 0.18;
+          this.trayLight.intensity = 0.28;
           break;
 
         case 'dawn':
-          this.ambientLight.color.set('#262a3d');
-          this.ambientLight.intensity = 0.22;
+          this.ambientLight.color.set('#373d59');
+          this.ambientLight.intensity = 0.45;
 
-          this.skyLight.color.set('#675470');
+          this.skyLight.color.set('#8c7299');
           this.skyLight.groundColor.set('#26202c');
-          this.skyLight.intensity = 0.45;
+          this.skyLight.intensity = 0.75;
 
-          this.sunLight.color.set('#ffaa66');
-          this.sunLight.intensity = 1.15;
+          this.sunLight.color.set('#ffbb77');
+          this.sunLight.intensity = 1.65;
           this.sunLight.position.set(-10.5, 8.5, 4.5);
 
-          this.fillLight.color.set('#566c94');
-          this.fillLight.intensity = 0.32;
+          this.fillLight.color.set('#7592c9');
+          this.fillLight.intensity = 0.52;
 
           this.trayLight.color.set('#ffbb77');
-          this.trayLight.intensity = 0.18;
+          this.trayLight.intensity = 0.28;
           break;
 
         case 'day':
@@ -1863,7 +1954,13 @@ export default {
 
       const interactiveObjects = [];
 
-      if (this.diceMesh && this.store.gamePlayStatus.isRolling && this.isHumanTurn()) {
+      if (this.store.currentScreen === 'add-players' || this.store.currentScreen === 'lobby') {
+        if (this.homeBaseHelpers) {
+          interactiveObjects.push(...this.homeBaseHelpers);
+        }
+      }
+
+      if (this.diceMesh && this.store.gamePlayStatus.isRolling && this.isHumanTurn() && !this.isMobile) {
         interactiveObjects.push(this.diceMesh);
       }
 
@@ -1890,7 +1987,7 @@ export default {
       let current = hitObject;
 
       while (current) {
-        if (current.name === 'dice' || current.name.startsWith('cube-')) {
+        if (current.name === 'dice' || current.name.startsWith('cube-') || current.name.startsWith('home-base-helper-')) {
           return current.name;
         }
         current = current.parent;
@@ -1964,6 +2061,13 @@ export default {
         return;
       }
 
+      if (target.startsWith('home-base-helper-')) {
+        const idx = parseInt(target.replace('home-base-helper-', ''), 10);
+        this.handleBaseClick(idx);
+        this.hoverNeedsUpdate = true;
+        return;
+      }
+
       if (target === 'dice') {
         this.rollDice();
         this.hoverNeedsUpdate = true;
@@ -2027,35 +2131,218 @@ export default {
       this.clearHoveredTarget();
     },
 
-    createPlayers(playerNames) {
-      playerNames.forEach((playerName, index) => {
-        this.store.players.push(
-            new Player(
-                playerName || 'Computer',
-                PLAYER_COLORS[index],
-                index + 1,
-                playerName ? 'local' : 'ai',
-            ),
-        );
-      });
-    },
-
-    startGame(playerNames) {
-      const normalizedNames = Array.isArray(playerNames)
-        ? playerNames.slice(0, 4)
-        : [];
-
-      while (normalizedNames.length < 4) {
-        normalizedNames.push('');
+    startGame() {
+      if (this.store.players.length < 2) {
+        return;
       }
 
       this.store.online.enabled = false;
-      this.resetGameState();
-      this.createPlayers(normalizedNames);
+      this.store.currentPlayerId = -1;
       this.store.currentRound = 1;
+      this.store.playingPlayerIndex = null;
+      this.store.lastRolledDice = 'Start';
+      this.store.gamePlayStatus.isRolling = false;
+      this.store.gamePlayStatus.isMoving = false;
+      this.store.winner = null;
+
+      this.store.players.forEach((player) => {
+        player.pawns.forEach((pawn) => {
+          pawn.position = 0;
+          pawn.isActive = false;
+        });
+        player.stillHome = true;
+        player.stillHomeCounter = 0;
+        player.isPlaying = false;
+      });
+
+      this.pendingDiceRoll = null;
+      this.onlineDice = null;
+      this.diceSnapTween = null;
+      this.freezeDiceBody();
+      this.resetDiceBody();
+
       this.store.currentScreen = 'game-screen';
       this.changePlayersTurn();
       this.hoverNeedsUpdate = true;
+    },
+
+    syncOnlinePlayersFromLobby() {
+      if (this.store.currentScreen !== 'lobby') {
+        return;
+      }
+      this.store.players.splice(0, this.store.players.length);
+      const seats = this.store.online.seats || [];
+      seats.forEach((seat) => {
+        if (seat) {
+          const isMe = seat.userId === this.store.online.selfUserId;
+          const controller = isMe ? 'local' : 'remote';
+          const name = seat.displayName || seat.username || `Player ${seat.seat + 1}`;
+          const player = markRaw(new Player(name, PLAYER_COLORS[seat.seat], seat.seat + 1, controller));
+          this.store.players.push(player);
+        }
+      });
+      this.hoverNeedsUpdate = true;
+    },
+
+    syncLocalPlayersFromSetup() {
+      this.store.players.splice(0, this.store.players.length);
+      for (let i = 0; i < 4; i++) {
+        if (this.store.localSetupActive[i]) {
+          const controller = this.store.localSetupTypes[i];
+          const name = this.store.localSetupNames[i].trim() || (controller === 'ai' ? `Robot ${i+1}` : `Lojtari ${i+1}`);
+          const player = markRaw(new Player(name, PLAYER_COLORS[i], i + 1, controller));
+          this.store.players.push(player);
+        }
+      }
+      this.hoverNeedsUpdate = true;
+    },
+
+    handleBaseClick(idx) {
+      if (this.store.currentScreen === 'add-players') {
+        const isActive = this.store.localSetupActive[idx];
+        const isAI = this.store.localSetupTypes[idx] === 'ai';
+
+        if (!isActive) {
+          this.store.localSetupActive[idx] = true;
+          this.store.localSetupTypes[idx] = 'local';
+          const humanCount = this.store.localSetupActive.filter((active, index) => active && this.store.localSetupTypes[index] === 'local').length;
+          if (humanCount === 1) {
+            this.store.localSetupNames[idx] = this.store.online.displayName || `Lojtari ${idx + 1}`;
+          } else {
+            this.store.localSetupNames[idx] = `Lojtari ${idx + 1}`;
+          }
+        } else if (!isAI) {
+          this.store.localSetupTypes[idx] = 'ai';
+          this.store.localSetupNames[idx] = `Robot ${idx + 1}`;
+        } else {
+          this.store.localSetupActive[idx] = false;
+          this.store.localSetupNames[idx] = '';
+        }
+
+        this.syncLocalPlayersFromSetup();
+      } else if (this.store.currentScreen === 'lobby') {
+        if (!this.store.online.seats[idx]) {
+          MatchController.requestClaimSeat(idx);
+        }
+      }
+    },
+
+    createHomeBaseHelpers() {
+      const centers = [
+        new THREE.Vector3(9.5, 0.51, 0.5),  // Red
+        new THREE.Vector3(0.5, 0.51, 9.5),  // Green
+        new THREE.Vector3(0.5, 0.51, 0.5),  // Yellow
+        new THREE.Vector3(9.5, 0.51, 9.5),  // Blue
+      ];
+
+      const geo = markRaw(new THREE.CylinderGeometry(1.15, 1.15, 0.04, 32));
+      this.homeBaseHelpers = [];
+
+      centers.forEach((center, idx) => {
+        const color = PLAYER_COLORS[idx];
+        const mat = markRaw(new THREE.MeshBasicMaterial({
+          color: color,
+          transparent: true,
+          opacity: 0.15,
+          depthWrite: false,
+        }));
+
+        const mesh = markRaw(new THREE.Mesh(geo, mat));
+        mesh.position.copy(center);
+        mesh.name = `home-base-helper-${idx}`;
+        this.scene.add(mesh);
+        this.homeBaseHelpers.push(mesh);
+      });
+    },
+
+    createGrassAndTrees() {
+      const treePositions = [
+        [-3.2, 3], [-3.8, 8.5], [3.2, -2.8], [9.8, -3.2],
+        [15.5, 1.8], [15.2, 9.2], [9.5, 13.5], [14.0, 13.2],
+        [2.2, 12.8], [-1.8, 11.2]
+      ];
+      treePositions.forEach(([tx, tz]) => {
+        this.createTree(tx, tz, 0.75 + Math.random() * 0.35);
+      });
+
+      const grassPositions = [
+        [-3, 4.8], [-2.5, 6.2], [-4, 2], [-1.5, -1.2], [3, -3],
+        [6.5, -2.5], [9, -3.2], [12, -2.2], [14.5, 1], [15.5, 4.2],
+        [15, 6.5], [14, 11.2], [11.5, 13.2], [8.5, 12.2], [5.5, 12.8],
+        [1, 11.8], [-1.5, 10.2], [-4, 9], [6, 12.5], [10, -2.5]
+      ];
+      this.grassMeshes = [];
+      grassPositions.forEach(([gx, gz]) => {
+        this.createGrass(gx, gz, 0.65);
+      });
+    },
+
+    createTree(x, z, scale = 1) {
+      const treeGroup = markRaw(new THREE.Group());
+      
+      const trunkGeo = this.getSharedGeometry('tree-trunk', () => new THREE.CylinderGeometry(0.12, 0.18, 0.8, 8));
+      const trunkMat = this.createToonMaterial('tree-trunk-mat', { color: '#8b5a2b', roughness: 0.9 }, { outlineThickness: 0.01 });
+      const trunk = this.createOutlinedMesh(trunkGeo, trunkMat);
+      trunk.position.y = 0.4;
+      trunk.castShadow = true;
+      trunk.receiveShadow = true;
+      treeGroup.add(trunk);
+
+      const foliageGeo = this.getSharedGeometry('tree-foliage', () => new THREE.ConeGeometry(0.48, 1.0, 8));
+      const foliageMat = this.createToonMaterial('tree-foliage-mat', { color: '#38761d', roughness: 0.8 }, { outlineThickness: 0.01 });
+      
+      const f1 = this.createOutlinedMesh(foliageGeo, foliageMat);
+      f1.position.y = 0.9;
+      f1.castShadow = true;
+      treeGroup.add(f1);
+
+      const f2 = this.createOutlinedMesh(foliageGeo, foliageMat);
+      f2.position.y = 1.35;
+      f2.scale.set(0.8, 0.8, 0.8);
+      f2.castShadow = true;
+      treeGroup.add(f2);
+      
+      treeGroup.position.set(x, -1.18, z);
+      treeGroup.scale.set(scale, scale, scale);
+      this.scene.add(treeGroup);
+    },
+
+    createGrass(x, z, scale = 1) {
+      const grassGroup = markRaw(new THREE.Group());
+      const bladeGeo = this.getSharedGeometry('grass-blade', () => {
+        const geom = new THREE.BufferGeometry();
+        const vertices = new Float32Array([
+          -0.04, 0, 0,
+           0.04, 0, 0,
+           0, 0.36, 0
+        ]);
+        geom.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+        geom.computeVertexNormals();
+        return geom;
+      });
+
+      const grassMat = this.createToonMaterial('grass-blade-mat', {
+        color: '#5ea24e',
+        roughness: 0.9,
+        side: THREE.DoubleSide
+      }, {
+        outlineThickness: 0.008,
+        outlineColor: '#2b5220'
+      });
+
+      for (let i = 0; i < 3; i++) {
+        const blade = this.createOutlinedMesh(bladeGeo, grassMat);
+        blade.rotation.y = (i * Math.PI) / 3;
+        blade.rotation.x = 0.08 + Math.random() * 0.08;
+        grassGroup.add(blade);
+      }
+
+      grassGroup.position.set(x, -1.18, z);
+      const s = scale * (0.8 + Math.random() * 0.4);
+      grassGroup.scale.set(s, s, s);
+      
+      this.scene.add(grassGroup);
+      this.grassMeshes.push(grassGroup);
     },
 
     // ---- Online game flow (server-authoritative) ----

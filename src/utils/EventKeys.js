@@ -18,6 +18,7 @@ const EventKeys = {
     diceResolved: 'net.diceResolved',
     turnChange: 'net.turnChange',
     stateSync: 'net.stateSync',
+    lobbyUpdated: 'net.lobbyUpdated',
   },
 };
 

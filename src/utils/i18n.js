@@ -16,6 +16,15 @@ const translations = {
     play: 'Play',
     language: 'Language',
     environment: 'Environment',
+    login: {
+      title: 'Welcome to Burrec',
+      desc: 'Enter your display name to start playing.',
+      proceed: 'Enter Game',
+    },
+    local: {
+      setupPrompt: 'Click empty pawn bases in 3D to claim colors.',
+      emptyBase: 'Empty base (click to join)',
+    },
     env: {
       day: 'Day',
       night: 'Night',
@@ -106,6 +115,15 @@ const translations = {
     play: 'Luaj',
     language: 'Gjuha',
     environment: 'Mjedisi',
+    login: {
+      title: 'Mirësevini në Burrec',
+      desc: 'Vendosni emrin tuaj për të filluar lojën.',
+      proceed: 'Hyr në Lojë',
+    },
+    local: {
+      setupPrompt: 'Kliko mbi bazat e zbrazëta në 3D për të marrë ngjyrën.',
+      emptyBase: 'Bazë e zbrazët (kliko për të hyrë)',
+    },
     env: {
       day: 'Ditë',
       night: 'Natë',

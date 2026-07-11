@@ -1,5 +1,5 @@
 <template>
-  <div class="menu-center">
+  <div class="menu-side-left">
     <app-panel class="menu-card menu-card--lobby">
       <h2 class="panel-title">{{ t('online.lobby') }}</h2>
 

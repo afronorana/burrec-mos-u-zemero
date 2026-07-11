@@ -21,6 +21,7 @@ export var OpCode = {
   ROLL_REQUEST: 12, // {}
   MOVE_REQUEST: 13, // { pawnIndex }
   SYNC_REQUEST: 14, // {}
+  CLAIM_SEAT: 15, // { seat: number }
 };
 
 export function encodePayload(payload) {
