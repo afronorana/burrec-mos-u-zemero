@@ -201,7 +201,6 @@ export default {
 }
 
 .chat-send-btn {
-  height: 42px;
   width: 42px;
   padding: 0 !important;
   display: flex;
