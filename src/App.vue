@@ -91,7 +91,10 @@ export default {
       this.store.gamePlayStatus.isDiceRolling = Boolean(val);
     },
     'store.currentScreen'(newScreen, oldScreen) {
-      if (newScreen === 'game-screen' && oldScreen !== 'game-screen') {
+      const isOrbitScreen = (s) => ['login-screen', 'main-menu', 'online-menu'].includes(s) || !s;
+      const isFixedScreen = (s) => ['add-players', 'lobby', 'game-screen'].includes(s);
+
+      if (isFixedScreen(newScreen) && isOrbitScreen(oldScreen)) {
         if (this.camera) {
           const fromPos = this.camera.position.clone();
           this.cameraTransition = {
@@ -100,7 +103,7 @@ export default {
             fromTarget: new THREE.Vector3(6.3, 0.4, 5),
           };
         }
-      } else if (newScreen !== 'game-screen' && oldScreen === 'game-screen') {
+      } else if (isOrbitScreen(newScreen) && isFixedScreen(oldScreen)) {
         this.menuOrbitTime = 0;
         if (this.controls) {
           this.controls.enabled = false;
@@ -2934,7 +2937,8 @@ export default {
     },
 
     isMenuMode() {
-      return this.store.currentScreen !== 'game-screen';
+      const orbitingScreens = ['login-screen', 'main-menu', 'online-menu'];
+      return orbitingScreens.includes(this.store.currentScreen);
     },
 
     updateCameraPath() {

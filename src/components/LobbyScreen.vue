@@ -30,8 +30,21 @@
       </div>
 
       <div class="menu-row">
-        <app-button :green="myReady" :slate-blue="!myReady" @click="toggleReady">
-          {{ myReady ? t('online.readyDone') : t('online.readyCheck') }}
+        <app-button
+          v-if="!mySeatObject"
+          slate-blue
+          disabled
+          style="flex: 1;"
+        >
+          {{ t('online.chooseColorPrompt') }}
+        </app-button>
+        <app-button
+          v-else
+          green
+          style="flex: 1;"
+          @click="toggleReady"
+        >
+          {{ t('online.readyDone') }}
         </app-button>
         <app-button
           v-if="isHost"
@@ -98,7 +111,9 @@ export default {
       return (this.store.online.seats || [])[index] || null;
     },
     toggleReady() {
-      MatchController.sendReady(!this.myReady);
+      if (this.mySeatObject) {
+        MatchController.requestClaimSeat(this.mySeatObject.seat);
+      }
     },
     startGame() {
       MatchController.sendStart();

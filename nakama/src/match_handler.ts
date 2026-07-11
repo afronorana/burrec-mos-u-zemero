@@ -422,19 +422,7 @@ const matchJoin = function (
       }
     }
 
-    for (let i = 0; i < MAX_SEATS; i += 1) {
-      if (!state.seats[i]) {
-        state.seats[i] = {
-          userId: presence.userId,
-          username: presence.username,
-          displayName,
-          seat: i,
-          ready: false,
-          connected: true,
-        };
-        break;
-      }
-    }
+    // Let players join as unassigned; they pick their seat/color by clicking a base in 3D.
 
     if (!state.hostUserId) {
       state.hostUserId = presence.userId;
@@ -556,19 +544,44 @@ const matchLoop = function (
       case OpCode.CLAIM_SEAT: {
         const senderSeat = seatOfUser(state, sender.userId);
         const targetSeatIndex = typeof payload.seat === 'number' ? payload.seat : -1;
-        if (
-          state.phase === 'lobby' &&
-          senderSeat &&
-          targetSeatIndex >= 0 &&
-          targetSeatIndex < MAX_SEATS &&
-          state.seats[targetSeatIndex] === null
-        ) {
-          const oldIndex = senderSeat.seat;
-          senderSeat.seat = targetSeatIndex;
-          senderSeat.ready = false;
-          state.seats[targetSeatIndex] = senderSeat;
-          state.seats[oldIndex] = null;
-          broadcast(dispatcher, OpCode.LOBBY_STATE, lobbyStatePayload(state));
+        if (state.phase === 'lobby' && targetSeatIndex >= 0 && targetSeatIndex < MAX_SEATS) {
+          if (senderSeat) {
+            if (senderSeat.seat === targetSeatIndex) {
+              // Clicked own seat: toggle back to UNASSIGNED (unclaim)
+              state.seats[targetSeatIndex] = null;
+              broadcast(dispatcher, OpCode.LOBBY_STATE, lobbyStatePayload(state));
+            } else if (state.seats[targetSeatIndex] === null) {
+              // Move to new empty seat
+              const oldIndex = senderSeat.seat;
+              state.seats[oldIndex] = null;
+
+              senderSeat.seat = targetSeatIndex;
+              senderSeat.ready = true; // Claiming color makes player ready
+              state.seats[targetSeatIndex] = senderSeat;
+              broadcast(dispatcher, OpCode.LOBBY_STATE, lobbyStatePayload(state));
+            }
+          } else {
+            // Unassigned player claiming an empty seat
+            if (state.seats[targetSeatIndex] === null) {
+              let displayName = '';
+              try {
+                const account = nk.accountGetId(sender.userId);
+                displayName = (account.user.displayName || account.user.username || 'Player').slice(0, 24);
+              } catch (error) {
+                displayName = sender.username || 'Player';
+              }
+
+              state.seats[targetSeatIndex] = {
+                userId: sender.userId,
+                username: sender.username,
+                displayName,
+                seat: targetSeatIndex,
+                ready: true, // Claiming color makes player ready
+                connected: true,
+              };
+              broadcast(dispatcher, OpCode.LOBBY_STATE, lobbyStatePayload(state));
+            }
+          }
         }
         break;
       }
