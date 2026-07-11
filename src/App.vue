@@ -168,6 +168,7 @@ export default {
       overlayCtx: null,
       homeBaseHelpers: null,
       grassMeshes: null,
+      treeGroups: null,
       isMobile: false,
       sharedGeometries: markRaw({}),
       sharedMaterials: markRaw({}),
@@ -1826,6 +1827,26 @@ export default {
       this.renderer.setPixelRatio(rendererPixelRatio);
       this.renderer.shadowMap.enabled = preset.shadowsEnabled;
 
+      if (this.scene) {
+        this.scene.traverse((child) => {
+          if (child.userData.isOutlineShell) {
+            child.visible = preset.outlinesEnabled !== false;
+          }
+        });
+
+        const showDecorations = preset.decorationsEnabled !== false;
+        if (this.treeGroups) {
+          this.treeGroups.forEach((group) => {
+            group.visible = showDecorations;
+          });
+        }
+        if (this.grassMeshes) {
+          this.grassMeshes.forEach((mesh) => {
+            mesh.visible = showDecorations;
+          });
+        }
+      }
+
       if (this.shadowLight) {
         this.shadowLight.castShadow = preset.shadowsEnabled;
 
@@ -2256,6 +2277,7 @@ export default {
     },
 
     createGrassAndTrees() {
+      this.treeGroups = [];
       const treePositions = [
         [-3.2, 3], [-3.8, 8.5], [3.2, -2.8], [9.8, -3.2],
         [15.5, 1.8], [15.2, 9.2], [9.5, 13.5], [14.0, 13.2],
@@ -2305,6 +2327,7 @@ export default {
       treeGroup.position.set(x, -1.18, z);
       treeGroup.scale.set(scale, scale, scale);
       this.scene.add(treeGroup);
+      this.treeGroups.push(treeGroup);
     },
 
     createGrass(x, z, scale = 1) {

@@ -11,12 +11,16 @@
     "nakama:build": "pnpm --dir nakama build",
     "nakama:test": "pnpm --dir nakama test",
     "nakama:up": "docker compose -f nakama/docker-compose.yml up -d",
-    "nakama:down": "docker compose -f nakama/docker-compose.yml down"
+    "nakama:down": "docker compose -f nakama/docker-compose.yml down",
+    "ios:sync": "npx cap sync",
+    "ios:open": "npx cap open ios"
   },
   "keywords": [],
   "author": "Afron Orana <afron.orana@gmail.com> (https://afronorana.com)",
   "license": "ISC",
   "devDependencies": {
+    "@capacitor/cli": "^8.4.1",
+    "@capacitor/ios": "^8.4.1",
     "@vitejs/plugin-vue": "^6.0.4",
     "@vue/compiler-sfc": "^3.5.29",
     "cross-env": "^10.1.0",
@@ -31,6 +35,7 @@
     ]
   },
   "dependencies": {
+    "@capacitor/core": "^8.4.1",
     "@heroiclabs/nakama-js": "^2.8.0",
     "@lucide/vue": "^1.24.0",
     "afrons-game-ui": "link:../afrons-game-ui",

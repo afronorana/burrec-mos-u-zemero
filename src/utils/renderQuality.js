@@ -4,10 +4,12 @@ export const RENDER_QUALITY_MAX = 3;
 const RENDER_QUALITY_PRESETS = {
   1: {
     label: 'Low',
-    pixelRatioScale: 0.72,
-    maxPixelRatio: 1.1,
+    pixelRatioScale: 0.65,
+    maxPixelRatio: 1.0,
     shadowsEnabled: false,
     shadowMapSize: 0,
+    outlinesEnabled: false,
+    decorationsEnabled: false,
   },
   2: {
     label: 'Balanced',
@@ -15,6 +17,8 @@ const RENDER_QUALITY_PRESETS = {
     maxPixelRatio: 1.5,
     shadowsEnabled: true,
     shadowMapSize: 768,
+    outlinesEnabled: true,
+    decorationsEnabled: true,
   },
   3: {
     label: 'High',
@@ -22,6 +26,8 @@ const RENDER_QUALITY_PRESETS = {
     maxPixelRatio: 2,
     shadowsEnabled: true,
     shadowMapSize: 1024,
+    outlinesEnabled: true,
+    decorationsEnabled: true,
   },
 };
 
