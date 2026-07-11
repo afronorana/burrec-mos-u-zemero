@@ -1,17 +1,23 @@
 <template>
   <div class="chat-panel">
-    <div ref="messageList" class="chat-messages">
-      <p v-if="!messages.length" class="chat-empty">{{ t('online.emptyChat') }}</p>
-      <div
-        v-for="message in messages"
-        :key="message.id"
-        class="chat-message"
-        :class="{ 'chat-message--own': message.senderId === selfId }"
-      >
-        <span class="chat-sender">{{ getSenderName(message) }}</span>
-        <span class="chat-text">{{ message.message }}</span>
+    <app-scrollable
+      ref="scrollable"
+      max-height="200px"
+      class="chat-messages-scroll"
+    >
+      <div class="chat-messages-list">
+        <p v-if="!messages.length" class="chat-empty">{{ t('online.emptyChat') }}</p>
+        <div
+          v-for="message in messages"
+          :key="message.id"
+          class="chat-message"
+          :class="{ 'chat-message--own': message.senderId === selfId }"
+        >
+          <span class="chat-sender">{{ getSenderName(message) }}</span>
+          <span class="chat-text">{{ message.message }}</span>
+        </div>
       </div>
-    </div>
+    </app-scrollable>
 
     <!-- Quick Presets -->
     <div class="chat-presets">
@@ -28,15 +34,15 @@
     </div>
 
     <form class="chat-input-row" @submit.prevent="submit" @keyup.enter="submit">
-      <input
+      <app-input
         v-model="draft"
-        type="text"
-        class="input chat-input"
+        label=""
         :placeholder="t('online.chatPlaceholder')"
         maxlength="200"
-      >
+        class="chat-input"
+      />
       <app-button blue class="chat-send-btn" :disabled="!draft.trim()" @click="submit">
-        {{ t('online.send') }}
+        <send-icon :size="18" />
       </app-button>
     </form>
   </div>
@@ -45,8 +51,10 @@
 <script>
 import ApplicationStore from '../utils/ApplicationStore';
 import { t } from '../utils/i18n';
+import { Send } from '@lucide/vue';
 
 export default {
+  components: { SendIcon: Send },
   props: {
     messages: {
       type: Array,
@@ -78,9 +86,9 @@ export default {
   watch: {
     'messages.length'() {
       this.$nextTick(() => {
-        const list = this.$refs.messageList;
-        if (list) {
-          list.scrollTop = list.scrollHeight;
+        const scroller = this.$refs.scrollable;
+        if (scroller && scroller.viewportEl) {
+          scroller.viewportEl.scrollTop = scroller.viewportEl.scrollHeight;
         }
       });
     },
@@ -122,14 +130,16 @@ export default {
   min-height: 0;
 }
 
-.chat-messages {
+.chat-messages-scroll {
   flex: 1;
   min-height: 120px;
   max-height: 200px;
-  overflow-y: auto;
-  padding: 8px;
   background: rgba(0, 0, 0, 0.35);
   border-radius: 4px;
+  padding: 8px;
+}
+
+.chat-messages-list {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -173,21 +183,26 @@ export default {
 
 .chat-input-row {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: 8px;
 }
 
 .chat-input {
   flex: 1;
   min-width: 0;
+}
+
+.chat-input :deep(.input-wrapper) {
   margin-top: 0;
-  margin-bottom: 0;
 }
 
 .chat-send-btn {
-  height: 38px;
+  height: 42px;
+  width: 42px;
+  padding: 0 !important;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 </style>
