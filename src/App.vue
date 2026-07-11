@@ -170,6 +170,7 @@ export default {
       cameraTransition: null,
       overlayCtx: null,
       homeBaseHelpers: null,
+      homeBaseRippleRings: null,
       grassMeshes: null,
       treeGroups: null,
       isMobile: false,
@@ -925,25 +926,37 @@ export default {
         }
 
         if (this.homeBaseHelpers && (this.store.currentScreen === 'add-players' || this.store.currentScreen === 'lobby')) {
-          const time = performance.now() * 0.004;
-          this.homeBaseHelpers.forEach((mesh, idx) => {
-            mesh.visible = true;
+          const nowTime = performance.now() * 0.0012;
+          this.homeBaseHelpers.forEach((group, baseIdx) => {
+            group.visible = true;
             let isEmpty = false;
             if (this.store.currentScreen === 'add-players') {
-              isEmpty = !this.store.localSetupActive[idx];
+              isEmpty = !this.store.localSetupActive[baseIdx];
             } else {
-              isEmpty = !this.store.online.seats[idx];
+              isEmpty = !this.store.online.seats[baseIdx];
             }
 
-            if (isEmpty) {
-              mesh.material.opacity = 0.15 + Math.sin(time) * 0.08;
-            } else {
-              mesh.material.opacity = 0.38;
+            const rings = this.homeBaseRippleRings[baseIdx];
+            if (rings) {
+              rings.forEach((ring, ringIdx) => {
+                if (isEmpty) {
+                  const phase = (nowTime + ringIdx * 0.5) % 1.0;
+                  const scale = 0.2 + phase * 1.15;
+                  ring.scale.set(scale, scale, 1);
+                  ring.material.opacity = (1 - phase) * 0.65;
+                  ring.visible = true;
+                } else {
+                  const scale = ringIdx === 0 ? 0.95 : 0.7;
+                  ring.scale.set(scale, scale, 1);
+                  ring.material.opacity = 0.5;
+                  ring.visible = true;
+                }
+              });
             }
           });
         } else if (this.homeBaseHelpers) {
-          this.homeBaseHelpers.forEach((mesh) => {
-            mesh.visible = false;
+          this.homeBaseHelpers.forEach((group) => {
+            group.visible = false;
           });
         }
         
@@ -2259,23 +2272,34 @@ export default {
         new THREE.Vector3(0.5, 0.51, 9.5),   // Green (seat 3)
       ];
 
-      const geo = markRaw(new THREE.CylinderGeometry(1.15, 1.15, 0.04, 32));
+      const ringGeo = this.getSharedGeometry('home-base-ripple-ring', () => new THREE.RingGeometry(0.85, 0.95, 32));
       this.homeBaseHelpers = [];
+      this.homeBaseRippleRings = [];
 
-      centers.forEach((center, idx) => {
-        const color = PLAYER_COLORS[idx];
-        const mat = markRaw(new THREE.MeshBasicMaterial({
-          color: color,
-          transparent: true,
-          opacity: 0.15,
-          depthWrite: false,
-        }));
+      centers.forEach((center, baseIdx) => {
+        const color = PLAYER_COLORS[baseIdx];
+        const group = markRaw(new THREE.Group());
+        group.position.copy(center);
+        group.rotation.x = -Math.PI / 2;
+        group.name = `home-base-helper-${baseIdx}`;
 
-        const mesh = markRaw(new THREE.Mesh(geo, mat));
-        mesh.position.copy(center);
-        mesh.name = `home-base-helper-${idx}`;
-        this.scene.add(mesh);
-        this.homeBaseHelpers.push(mesh);
+        const baseRings = [];
+        for (let r = 0; r < 2; r++) {
+          const mat = markRaw(new THREE.MeshBasicMaterial({
+            color: color,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+            transparent: true,
+            opacity: 0,
+          }));
+          const mesh = markRaw(new THREE.Mesh(ringGeo, mat));
+          group.add(mesh);
+          baseRings.push(mesh);
+        }
+
+        this.scene.add(group);
+        this.homeBaseHelpers.push(group);
+        this.homeBaseRippleRings.push(baseRings);
       });
     },
 
