@@ -2253,10 +2253,10 @@ export default {
 
     createHomeBaseHelpers() {
       const centers = [
-        new THREE.Vector3(9.5, 0.51, 0.5),  // Red
-        new THREE.Vector3(0.5, 0.51, 9.5),  // Green
-        new THREE.Vector3(0.5, 0.51, 0.5),  // Yellow
-        new THREE.Vector3(9.5, 0.51, 9.5),  // Blue
+        new THREE.Vector3(0.5, 0.51, 0.5),   // Red (seat 0)
+        new THREE.Vector3(9.5, 0.51, 0.5),   // Yellow (seat 1)
+        new THREE.Vector3(9.5, 0.51, 9.5),   // Blue (seat 2)
+        new THREE.Vector3(0.5, 0.51, 9.5),   // Green (seat 3)
       ];
 
       const geo = markRaw(new THREE.CylinderGeometry(1.15, 1.15, 0.04, 32));

@@ -83,6 +83,41 @@
     </transition>
 
     <game-interface v-if="store.currentScreen === 'game-screen'" />
+
+    <!-- Global Settings Button (Always Visible) -->
+    <button
+      class="global-settings-trigger"
+      @click="openGlobalSettings"
+      :title="t('graphics')"
+    >
+      <settings-icon :size="20" />
+    </button>
+
+    <!-- Global Settings Modal -->
+    <div v-if="showGlobalSettings" class="global-settings-modal-backdrop" @click.self="showGlobalSettings = false">
+      <app-panel class="global-settings-card">
+        <h3 class="panel-title" style="margin-bottom: 16px;">{{ t('graphics') }}</h3>
+        
+        <div class="form-row">
+          <label class="select-label">{{ t('online.yourName') }}</label>
+          <app-input v-model="globalName" />
+        </div>
+
+        <div class="form-row">
+          <label class="select-label">{{ t('language') }}</label>
+          <app-tabs
+            v-model="store.settings.locale"
+            :options="[{ value: 'en', label: 'English' }, { value: 'sq', label: 'Shqip' }]"
+            @update:modelValue="saveLocale"
+          />
+        </div>
+
+        <div class="menu-row" style="margin-top: 20px;">
+          <app-button slate-blue @click="showGlobalSettings = false">{{ t('back') }}</app-button>
+          <app-button green :disabled="!globalName.trim()" @click="confirmGlobalSettings">{{ t('play') }}</app-button>
+        </div>
+      </app-panel>
+    </div>
   </div>
 </template>
 
@@ -93,18 +128,22 @@ import LobbyScreen from './LobbyScreen.vue';
 import OutlineAppearanceSelect from './OutlineAppearanceSelect.vue';
 import RenderQualitySlider from './RenderQualitySlider.vue';
 import ApplicationStore from '../utils/ApplicationStore';
+import MatchController from '../network/MatchController';
 import EventBus from '../utils/eventhandler';
 import EventKeys from '../utils/EventKeys';
 import { PLAYER_COLORS } from '../utils/playerColors';
 import { t } from '../utils/i18n';
+import { Settings } from '@lucide/vue';
 
 export default {
-  components: { GameInterface, OnlineMenu, LobbyScreen, OutlineAppearanceSelect, RenderQualitySlider },
+  components: { GameInterface, OnlineMenu, LobbyScreen, OutlineAppearanceSelect, RenderQualitySlider, SettingsIcon: Settings },
   data() {
     return {
       store: ApplicationStore,
       loginName: ApplicationStore.online.displayName || '',
       playerColors: PLAYER_COLORS,
+      showGlobalSettings: false,
+      globalName: '',
     };
   },
   computed: {
@@ -132,6 +171,29 @@ export default {
     },
     startGame() {
       EventBus.fire(EventKeys.game.start);
+    },
+    openGlobalSettings() {
+      this.globalName = this.store.online.displayName || '';
+      this.showGlobalSettings = true;
+    },
+    confirmGlobalSettings() {
+      const name = this.globalName.trim();
+      if (!name) return;
+      this.store.online.displayName = name;
+      window.localStorage.setItem('burrec.online.displayName', name);
+      
+      if (this.store.localSetupActive && this.store.localSetupActive[0] && this.store.localSetupTypes[0] === 'local') {
+        this.store.localSetupNames[0] = name;
+      }
+
+      const mySeatObject = (this.store.online.seats || []).find(
+        (s) => s && s.userId === this.store.online.selfUserId
+      );
+      if (this.store.currentScreen === 'lobby' && mySeatObject) {
+        MatchController.requestClaimSeat(mySeatObject.seat);
+      }
+      
+      this.showGlobalSettings = false;
     },
   },
 };
