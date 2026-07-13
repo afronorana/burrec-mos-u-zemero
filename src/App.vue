@@ -27,17 +27,19 @@ import MatchController from './network/MatchController';
 
 const OUTLINE_COLOR = '#1b1411';
 const BOARD_CENTER = { x: 5, z: 5 };
-const DICE_SIZE = 0.9;
+const DICE_SIZE = 0.45;
 const BOARD_BASE_SIZE = 12.6;
 const BOARD_TOP_SIZE = 11.3;
-const DICE_TRAY = {
-  center: { x: 16.1, y: -1.08, z: 4.2 },
-  floor: { width: 3.35, height: 0.12, depth: 2.9 },
-  wallThickness: 0.18,
-  wallHeight: 0.86,
-  guardPadding: 0.42,
-  guardThickness: 0.42,
-  guardHeight: 3.2,
+// Central round dice platform — a raised "sumo ring" in the middle of the
+// board. Its walls are invisible (an octagon of static physics boxes), so
+// the dice looks free but can never leave the disc.
+const DICE_PLATFORM = {
+  center: { x: 5, z: 5 },
+  radius: 1.3,
+  height: 0.24,
+  topY: 0.3,
+  wallRadius: 1.29,
+  wallHeight: 3.2,
 };
 const TABLE_PHYSICS = {
   center: { x: BOARD_CENTER.x, z: BOARD_CENTER.z },
@@ -104,7 +106,7 @@ export default {
           this.cameraTransition = {
             start: performance.now(),
             fromPosition: fromPos,
-            fromTarget: new THREE.Vector3(6.3, 0.4, 5),
+            fromTarget: new THREE.Vector3(5, 0.4, 5),
           };
         }
       } else if (isOrbitScreen(newScreen) && isFixedScreen(oldScreen)) {
@@ -314,8 +316,8 @@ export default {
           0.1,
           1000,
       );
-      camera.position.set(7.2, 12.2, 16.1);
-      camera.lookAt(new THREE.Vector3(6.3, 0, 5));
+      camera.position.set(5.6, 12.4, 16.2);
+      camera.lookAt(new THREE.Vector3(5, 0.4, 5));
 
       const renderer = new THREE.WebGLRenderer({
         antialias: true,
@@ -336,7 +338,11 @@ export default {
       controls.maxDistance = 24;
       controls.minPolarAngle = Math.PI / 5;
       controls.maxPolarAngle = Math.PI / 2.15;
-      controls.target.set(6.3, 0.4, 5);
+      // Restricted view: the board is meant to be seen from the player's
+      // side, not orbited fully.
+      controls.minAzimuthAngle = -Math.PI / 6;
+      controls.maxAzimuthAngle = Math.PI / 6;
+      controls.target.set(5, 0.4, 5);
       controls.update();
 
       this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
@@ -412,15 +418,19 @@ export default {
       boardTop.position.set(BOARD_CENTER.x, 0.02, BOARD_CENTER.z);
       this.scene.add(boardTop);
 
-      this.createDiceTray();
+      this.createDicePlatform();
 
       const fieldGeometry = this.getSharedGeometry(
           'field-cylinder',
-          () => new THREE.CylinderGeometry(0.37, 0.42, 0.08, 20),
+          () => new THREE.CylinderGeometry(0.27, 0.31, 0.08, 20),
       );
       const startGeometry = this.getSharedGeometry(
           'start-cylinder',
-          () => new THREE.CylinderGeometry(0.42, 0.46, 0.1, 20),
+          () => new THREE.CylinderGeometry(0.31, 0.35, 0.1, 20),
+      );
+      const homeGeometry = this.getSharedGeometry(
+          'home-cylinder',
+          () => new THREE.CylinderGeometry(0.37, 0.42, 0.08, 20),
       );
 
       const pathTiles = this.createOutlinedInstancedSet(
@@ -450,16 +460,21 @@ export default {
               outlineThickness: 0.0072,
             },
         );
-        const playerTiles = this.createOutlinedInstancedSet(
-            fieldGeometry,
+        const homeTiles = this.createOutlinedInstancedSet(
+            homeGeometry,
             playerFieldMaterial,
-            [
-              ...home.fields.map((field) => ({ x: field.x, y: FIELD_CENTER_Y, z: field.z })),
-              ...this.store.fields.target[playerIndex].fields.map((field) => ({ x: field.x, y: FIELD_CENTER_Y, z: field.z })),
-            ],
+            home.fields.map((field) => ({ x: field.x, y: FIELD_CENTER_Y, z: field.z })),
             { outlineScale: { x: 1.062, y: 1.01, z: 1.062 }, receiveShadow: true },
         );
-        this.scene.add(playerTiles);
+        this.scene.add(homeTiles);
+
+        const targetTiles = this.createOutlinedInstancedSet(
+            fieldGeometry,
+            playerFieldMaterial,
+            this.store.fields.target[playerIndex].fields.map((field) => ({ x: field.x, y: FIELD_CENTER_Y, z: field.z })),
+            { outlineScale: { x: 1.062, y: 1.01, z: 1.062 }, receiveShadow: true },
+        );
+        this.scene.add(targetTiles);
 
         const startField = this.store.fields.path[playerIndex * 10];
         const startMesh = this.createOutlinedInstancedSet(
@@ -637,7 +652,7 @@ export default {
       sunLight.shadow.normalBias = 0.025;
 
       fillLight.position.set(16, 7.5, 14.5);
-      trayLight.position.set(DICE_TRAY.center.x, 2.6, DICE_TRAY.center.z);
+      trayLight.position.set(DICE_PLATFORM.center.x, 2.6, DICE_PLATFORM.center.z);
       
       this.shadowLight = sunLight;
       this.ambientLight = ambientLight;
@@ -656,97 +671,33 @@ export default {
       this.applyEnvironment();
     },
 
-    createDiceTray() {
-      const trayGroup = markRaw(new THREE.Group());
-      const floorMaterial = this.createToonMaterial('dice-tray-floor-material', {
-        color: '#f8d38c',
-        roughness: 0.8,
-        metalness: 0.03,
-      }, {
-        outlineThickness: 0.01,
-        outlineColor: '#5a3319',
-      });
-      const wallMaterial = this.createToonMaterial('dice-tray-wall-material', {
-        color: '#c37d42',
-        roughness: 0.74,
-        metalness: 0.04,
-      }, {
-        outlineThickness: 0.01,
-        outlineColor: '#4b2a18',
-      });
-      const floor = this.createOutlinedMesh(
+    createDicePlatform() {
+      const platform = this.createOutlinedMesh(
           this.getSharedGeometry(
-              'dice-tray-floor',
-              () => new THREE.BoxGeometry(
-                  DICE_TRAY.floor.width,
-                  DICE_TRAY.floor.height,
-                  DICE_TRAY.floor.depth,
+              'dice-platform',
+              () => new THREE.CylinderGeometry(
+                  DICE_PLATFORM.radius,
+                  DICE_PLATFORM.radius * 1.08,
+                  DICE_PLATFORM.height,
+                  40,
               ),
           ),
-          floorMaterial,
-          { outlineScale: { x: 1.03, y: 1.005, z: 1.03 }, receiveShadow: true },
+          this.createToonMaterial('dice-platform-material', {
+            color: '#58b368',
+            roughness: 0.85,
+            metalness: 0.02,
+          }, {
+            outlineThickness: 0.01,
+            outlineColor: '#1f4d2a',
+          }),
+          { outlineScale: { x: 1.03, y: 1.02, z: 1.03 }, castShadow: true, receiveShadow: true },
       );
-      floor.position.set(DICE_TRAY.center.x, DICE_TRAY.center.y, DICE_TRAY.center.z);
-      trayGroup.add(floor);
-
-      const wallHeightCenter = DICE_TRAY.center.y + (DICE_TRAY.floor.height / 2) + (DICE_TRAY.wallHeight / 2);
-      const wallZOffset = (DICE_TRAY.floor.depth / 2) + (DICE_TRAY.wallThickness / 2);
-      const wallXOffset = (DICE_TRAY.floor.width / 2) + (DICE_TRAY.wallThickness / 2);
-      const northWall = this.createOutlinedMesh(
-          this.getSharedGeometry(
-              'dice-tray-wall-z',
-              () => new THREE.BoxGeometry(
-                  DICE_TRAY.floor.width + DICE_TRAY.wallThickness,
-                  DICE_TRAY.wallHeight,
-                  DICE_TRAY.wallThickness,
-              ),
-          ),
-          wallMaterial,
-          { outlineScale: 1.04, castShadow: true, receiveShadow: true },
+      platform.position.set(
+          DICE_PLATFORM.center.x,
+          DICE_PLATFORM.topY - (DICE_PLATFORM.height / 2),
+          DICE_PLATFORM.center.z,
       );
-      northWall.position.set(DICE_TRAY.center.x, wallHeightCenter, DICE_TRAY.center.z - wallZOffset);
-      trayGroup.add(northWall);
-
-      const southWall = this.createOutlinedMesh(
-          this.getSharedGeometry('dice-tray-wall-z', () => new THREE.BoxGeometry(
-              DICE_TRAY.floor.width + DICE_TRAY.wallThickness,
-              DICE_TRAY.wallHeight,
-              DICE_TRAY.wallThickness,
-          )),
-          wallMaterial,
-          { outlineScale: 1.04, castShadow: true, receiveShadow: true },
-      );
-      southWall.position.set(DICE_TRAY.center.x, wallHeightCenter, DICE_TRAY.center.z + wallZOffset);
-      trayGroup.add(southWall);
-
-      const westWall = this.createOutlinedMesh(
-          this.getSharedGeometry(
-              'dice-tray-wall-x',
-              () => new THREE.BoxGeometry(
-                  DICE_TRAY.wallThickness,
-                  DICE_TRAY.wallHeight,
-                  DICE_TRAY.floor.depth - DICE_TRAY.wallThickness,
-              ),
-          ),
-          wallMaterial,
-          { outlineScale: 1.04, castShadow: true, receiveShadow: true },
-      );
-      westWall.position.set(DICE_TRAY.center.x - wallXOffset, wallHeightCenter, DICE_TRAY.center.z);
-      trayGroup.add(westWall);
-
-      const eastWall = this.createOutlinedMesh(
-          this.getSharedGeometry('dice-tray-wall-x', () => new THREE.BoxGeometry(
-              DICE_TRAY.wallThickness,
-              DICE_TRAY.wallHeight,
-              DICE_TRAY.floor.depth - DICE_TRAY.wallThickness,
-          )),
-          wallMaterial,
-          { outlineScale: 1.04, castShadow: true, receiveShadow: true },
-      );
-      eastWall.position.set(DICE_TRAY.center.x + wallXOffset, wallHeightCenter, DICE_TRAY.center.z);
-      trayGroup.add(eastWall);
-
-      this.scene.add(trayGroup);
+      this.scene.add(platform);
     },
 
     createPhysicsWorld() {
@@ -758,20 +709,20 @@ export default {
       world.defaultContactMaterial.friction = 0.24;
       world.defaultContactMaterial.restitution = 0.24;
 
-      const floorBody = new CANNON.Body({
+      const platformBody = new CANNON.Body({
         mass: 0,
         shape: new CANNON.Box(new CANNON.Vec3(
-            DICE_TRAY.floor.width / 2,
-            DICE_TRAY.floor.height / 2,
-            DICE_TRAY.floor.depth / 2,
+            DICE_PLATFORM.radius + 0.2,
+            0.06,
+            DICE_PLATFORM.radius + 0.2,
         )),
         position: new CANNON.Vec3(
-            DICE_TRAY.center.x,
-            DICE_TRAY.center.y,
-            DICE_TRAY.center.z,
+            DICE_PLATFORM.center.x,
+            DICE_PLATFORM.topY - 0.06,
+            DICE_PLATFORM.center.z,
         ),
       });
-      world.addBody(floorBody);
+      world.addBody(platformBody);
 
       const tableBody = new CANNON.Body({
         mass: 0,
@@ -796,93 +747,23 @@ export default {
       safetyFloor.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
       world.addBody(safetyFloor);
 
-      const wallY = DICE_TRAY.center.y + (DICE_TRAY.floor.height / 2) + (DICE_TRAY.wallHeight / 2);
-      const wallZOffset = (DICE_TRAY.floor.depth / 2) + (DICE_TRAY.wallThickness / 2);
-      const wallXOffset = (DICE_TRAY.floor.width / 2) + (DICE_TRAY.wallThickness / 2);
-      const wallBodies = [
-        new CANNON.Body({
+      // Invisible sumo-ring walls: eight tall boxes forming an octagon
+      // around the platform edge. Tangent orientation: rotating a +x-long
+      // box by -(angle + 90°) about Y lines it up with the rim.
+      for (let i = 0; i < 8; i += 1) {
+        const angle = (i * Math.PI) / 4;
+        const wall = new CANNON.Body({
           mass: 0,
-          shape: new CANNON.Box(new CANNON.Vec3(
-              (DICE_TRAY.floor.width + DICE_TRAY.wallThickness) / 2,
-              DICE_TRAY.wallHeight / 2,
-              DICE_TRAY.wallThickness / 2,
-          )),
-          position: new CANNON.Vec3(DICE_TRAY.center.x, wallY, DICE_TRAY.center.z - wallZOffset),
-        }),
-        new CANNON.Body({
-          mass: 0,
-          shape: new CANNON.Box(new CANNON.Vec3(
-              (DICE_TRAY.floor.width + DICE_TRAY.wallThickness) / 2,
-              DICE_TRAY.wallHeight / 2,
-              DICE_TRAY.wallThickness / 2,
-          )),
-          position: new CANNON.Vec3(DICE_TRAY.center.x, wallY, DICE_TRAY.center.z + wallZOffset),
-        }),
-        new CANNON.Body({
-          mass: 0,
-          shape: new CANNON.Box(new CANNON.Vec3(
-              DICE_TRAY.wallThickness / 2,
-              DICE_TRAY.wallHeight / 2,
-              (DICE_TRAY.floor.depth - DICE_TRAY.wallThickness) / 2,
-          )),
-          position: new CANNON.Vec3(DICE_TRAY.center.x - wallXOffset, wallY, DICE_TRAY.center.z),
-        }),
-        new CANNON.Body({
-          mass: 0,
-          shape: new CANNON.Box(new CANNON.Vec3(
-              DICE_TRAY.wallThickness / 2,
-              DICE_TRAY.wallHeight / 2,
-              (DICE_TRAY.floor.depth - DICE_TRAY.wallThickness) / 2,
-          )),
-          position: new CANNON.Vec3(DICE_TRAY.center.x + wallXOffset, wallY, DICE_TRAY.center.z),
-        }),
-      ];
-
-      wallBodies.forEach((body) => world.addBody(body));
-
-      const guardWallY = DICE_TRAY.center.y + (DICE_TRAY.guardHeight / 2);
-      const guardZOffset = (DICE_TRAY.floor.depth / 2) + DICE_TRAY.guardPadding + (DICE_TRAY.guardThickness / 2);
-      const guardXOffset = (DICE_TRAY.floor.width / 2) + DICE_TRAY.guardPadding + (DICE_TRAY.guardThickness / 2);
-      const guardWalls = [
-        new CANNON.Body({
-          mass: 0,
-          shape: new CANNON.Box(new CANNON.Vec3(
-              (DICE_TRAY.floor.width + (DICE_TRAY.guardPadding * 2) + DICE_TRAY.guardThickness) / 2,
-              DICE_TRAY.guardHeight / 2,
-              DICE_TRAY.guardThickness / 2,
-          )),
-          position: new CANNON.Vec3(DICE_TRAY.center.x, guardWallY, DICE_TRAY.center.z - guardZOffset),
-        }),
-        new CANNON.Body({
-          mass: 0,
-          shape: new CANNON.Box(new CANNON.Vec3(
-              (DICE_TRAY.floor.width + (DICE_TRAY.guardPadding * 2) + DICE_TRAY.guardThickness) / 2,
-              DICE_TRAY.guardHeight / 2,
-              DICE_TRAY.guardThickness / 2,
-          )),
-          position: new CANNON.Vec3(DICE_TRAY.center.x, guardWallY, DICE_TRAY.center.z + guardZOffset),
-        }),
-        new CANNON.Body({
-          mass: 0,
-          shape: new CANNON.Box(new CANNON.Vec3(
-              DICE_TRAY.guardThickness / 2,
-              DICE_TRAY.guardHeight / 2,
-              (DICE_TRAY.floor.depth + (DICE_TRAY.guardPadding * 2)) / 2,
-          )),
-          position: new CANNON.Vec3(DICE_TRAY.center.x - guardXOffset, guardWallY, DICE_TRAY.center.z),
-        }),
-        new CANNON.Body({
-          mass: 0,
-          shape: new CANNON.Box(new CANNON.Vec3(
-              DICE_TRAY.guardThickness / 2,
-              DICE_TRAY.guardHeight / 2,
-              (DICE_TRAY.floor.depth + (DICE_TRAY.guardPadding * 2)) / 2,
-          )),
-          position: new CANNON.Vec3(DICE_TRAY.center.x + guardXOffset, guardWallY, DICE_TRAY.center.z),
-        }),
-      ];
-
-      guardWalls.forEach((body) => world.addBody(body));
+          shape: new CANNON.Box(new CANNON.Vec3(0.65, DICE_PLATFORM.wallHeight / 2, 0.1)),
+          position: new CANNON.Vec3(
+              DICE_PLATFORM.center.x + (DICE_PLATFORM.wallRadius * Math.cos(angle)),
+              DICE_PLATFORM.topY + (DICE_PLATFORM.wallHeight / 2),
+              DICE_PLATFORM.center.z + (DICE_PLATFORM.wallRadius * Math.sin(angle)),
+          ),
+        });
+        wall.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), -angle - (Math.PI / 2));
+        world.addBody(wall);
+      }
 
       this.physicsWorld = world;
       this.physicsLastTime = performance.now();
@@ -2371,10 +2252,10 @@ export default {
       if (this.diceMesh && this.store.gamePlayStatus.isRolling && !this.isMobile) {
         targets.push({
           x: this.diceMesh.position.x,
-          y: DICE_TRAY.center.y + (DICE_TRAY.floor.height / 2) + 0.01,
+          y: DICE_PLATFORM.topY + 0.01,
           z: this.diceMesh.position.z,
           color: '#ff7700',
-          scale: 1,
+          scale: 0.6,
         });
       }
 
@@ -2700,24 +2581,27 @@ export default {
 
       this.clearDiceBodyMotion();
       this.dicePhysicsBody.position.set(
-          DICE_TRAY.center.x,
-          DICE_TRAY.center.y + (DICE_TRAY.floor.height / 2) + (DICE_SIZE / 2),
-          DICE_TRAY.center.z,
+          DICE_PLATFORM.center.x,
+          DICE_PLATFORM.topY + (DICE_SIZE / 2),
+          DICE_PLATFORM.center.z,
       );
       this.dicePhysicsBody.quaternion.set(0, 0, 0, 1);
       this.dicePhysicsBody.sleep();
     },
 
     getDiceTrayRestY() {
-      return DICE_TRAY.center.y + (DICE_TRAY.floor.height / 2) + (DICE_SIZE / 2);
+      return DICE_PLATFORM.topY + (DICE_SIZE / 2);
     },
 
+    // Square clamp inscribed in the platform, used only to re-center a
+    // stray dice before a throw.
     getDiceTrayBounds() {
+      const reach = DICE_PLATFORM.wallRadius - (DICE_SIZE * 0.9);
       return {
-        minX: DICE_TRAY.center.x - ((DICE_TRAY.floor.width / 2) - (DICE_SIZE * 0.56)),
-        maxX: DICE_TRAY.center.x + ((DICE_TRAY.floor.width / 2) - (DICE_SIZE * 0.56)),
-        minZ: DICE_TRAY.center.z - ((DICE_TRAY.floor.depth / 2) - (DICE_SIZE * 0.56)),
-        maxZ: DICE_TRAY.center.z + ((DICE_TRAY.floor.depth / 2) - (DICE_SIZE * 0.56)),
+        minX: DICE_PLATFORM.center.x - reach,
+        maxX: DICE_PLATFORM.center.x + reach,
+        minZ: DICE_PLATFORM.center.z - reach,
+        maxZ: DICE_PLATFORM.center.z + reach,
       };
     },
 
@@ -2775,10 +2659,12 @@ export default {
       randomAxis.normalize();
       body.quaternion.setFromAxisAngle(randomAxis, Math.random() * Math.PI * 2);
 
-      const centerBiasX = (DICE_TRAY.center.x - body.position.x) * 1.25;
-      const centerBiasZ = (DICE_TRAY.center.z - body.position.z) * 1.25;
-      const horizontalX = centerBiasX + ((Math.random() - 0.5) * 3.4);
-      const horizontalZ = centerBiasZ + ((Math.random() - 0.5) * 3.1);
+      const centerBiasX = (DICE_PLATFORM.center.x - body.position.x) * 1.25;
+      const centerBiasZ = (DICE_PLATFORM.center.z - body.position.z) * 1.25;
+      // Gentler sideways throw than the old table-side tray — this one is
+      // small enough that a hard throw just slams the walls.
+      const horizontalX = centerBiasX + ((Math.random() - 0.5) * 2.2);
+      const horizontalZ = centerBiasZ + ((Math.random() - 0.5) * 2.2);
       body.angularVelocity.set(
           (Math.random() - 0.5) * 30,
           (Math.random() - 0.5) * 10,
@@ -3100,7 +2986,7 @@ export default {
         }
         this.menuOrbitTime += 0.0025; // slow cinematic orbit speed
         const radius = 9.5;
-        const target = new THREE.Vector3(6.3, 0.4, 5);
+        const target = new THREE.Vector3(5, 0.4, 5);
         this.camera.position.x = target.x + Math.sin(this.menuOrbitTime) * radius;
         this.camera.position.z = target.z + Math.cos(this.menuOrbitTime) * radius;
         this.camera.position.y = 4.2 + Math.sin(this.menuOrbitTime * 2.2) * 1.5; // low and high wave
@@ -3117,8 +3003,8 @@ export default {
         // Cubic ease-in-out
         const ease = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
         
-        const targetPos = new THREE.Vector3(7.2, 12.2, 16.1);
-        const targetLook = new THREE.Vector3(6.3, 0.4, 5);
+        const targetPos = new THREE.Vector3(5.6, 12.4, 16.2);
+        const targetLook = new THREE.Vector3(5, 0.4, 5);
         
         this.camera.position.lerpVectors(this.cameraTransition.fromPosition, targetPos, ease);
         

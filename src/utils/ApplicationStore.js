@@ -3,6 +3,60 @@ import * as THREE from 'three';
 
 const vector = (x, y, z) => markRaw(new THREE.Vector3(x, y, z));
 
+// Ring path, hand-tuned in Figma: junction fields sit at the four edge
+// midpoints (path 9/19/29/39) and each target lane hangs from "its"
+// junction, running straight toward the central dice platform. From a
+// start field the run dives inward and arcs around the inner side of the
+// player's neighbouring base before reaching the next junction.
+const PATH_CENTER = { x: 5, z: 5 };
+
+// Canonical run: yellow's fields 10..19 (start → right-edge junction),
+// digitized from the designer's SVG. Other quarters are 90° rotations.
+const QUARTER_RUN = [
+  [6.468, 0.041], // start field
+  [6.370, 0.773],
+  [6.410, 1.550],
+  [6.559, 2.290],
+  [6.943, 2.910],
+  [7.520, 3.468],
+  [8.270, 3.700],
+  [9.028, 3.840],
+  [9.730, 3.840],
+  [10.099, 5.000], // junction at the edge midpoint
+];
+
+const rotate90 = ([x, z]) => [
+  PATH_CENTER.x - (z - PATH_CENTER.z),
+  PATH_CENTER.z + (x - PATH_CENTER.x),
+];
+
+const buildPathFields = () => {
+  const fields = [];
+  for (let quarter = 0; quarter < 4; quarter += 1) {
+    // Quarter 0 is red's run (fields 0..9) = the canonical yellow run
+    // rotated -90°; yellow (1) is the canonical itself, and so on.
+    const turns = (quarter + 3) % 4;
+    QUARTER_RUN.forEach((point) => {
+      let p = point;
+      for (let r = 0; r < turns; r += 1) {
+        p = rotate90(p);
+      }
+      fields.push(vector(p[0], 0.5, p[1]));
+    });
+  }
+  return fields;
+};
+
+// Target lanes run straight from each edge-midpoint junction toward the
+// center, stopping short of the dice platform (radii from the SVG).
+const TARGET_LANE_RADII = [4.32, 3.473, 2.627, 1.78];
+
+const buildTargetFields = (dirX, dirZ) => TARGET_LANE_RADII.map((radius) => vector(
+    PATH_CENTER.x + (dirX * radius),
+    0.5,
+    PATH_CENTER.z + (dirZ * radius),
+));
+
 const ApplicationStore = reactive({
   currentScreen: 'login-screen',
   diceData: {
@@ -65,64 +119,23 @@ const ApplicationStore = reactive({
     ],
     target: [
       {
-        fields: [vector(1, 0.5, 5), vector(2, 0.5, 5), vector(3, 0.5, 5), vector(4, 0.5, 5)],
+        fields: buildTargetFields(-1, 0),
         color: '#CE0000',
       },
       {
-        fields: [vector(5, 0.5, 1), vector(5, 0.5, 2), vector(5, 0.5, 3), vector(5, 0.5, 4)],
+        fields: buildTargetFields(0, -1),
         color: '#F7D708',
       },
       {
-        fields: [vector(9, 0.5, 5), vector(8, 0.5, 5), vector(7, 0.5, 5), vector(6, 0.5, 5)],
+        fields: buildTargetFields(1, 0),
         color: '#009ECE',
       },
       {
-        fields: [vector(5, 0.5, 9), vector(5, 0.5, 8), vector(5, 0.5, 7), vector(5, 0.5, 6)],
+        fields: buildTargetFields(0, 1),
         color: '#9CCF31',
       },
     ],
-    path: [
-      vector(0, 0.5, 4),
-      vector(1, 0.5, 4),
-      vector(2, 0.5, 4),
-      vector(3, 0.5, 4),
-      vector(4, 0.5, 4),
-      vector(4, 0.5, 3),
-      vector(4, 0.5, 2),
-      vector(4, 0.5, 1),
-      vector(4, 0.5, 0),
-      vector(5, 0.5, 0),
-      vector(6, 0.5, 0),
-      vector(6, 0.5, 1),
-      vector(6, 0.5, 2),
-      vector(6, 0.5, 3),
-      vector(6, 0.5, 4),
-      vector(7, 0.5, 4),
-      vector(8, 0.5, 4),
-      vector(9, 0.5, 4),
-      vector(10, 0.5, 4),
-      vector(10, 0.5, 5),
-      vector(10, 0.5, 6),
-      vector(9, 0.5, 6),
-      vector(8, 0.5, 6),
-      vector(7, 0.5, 6),
-      vector(6, 0.5, 6),
-      vector(6, 0.5, 7),
-      vector(6, 0.5, 8),
-      vector(6, 0.5, 9),
-      vector(6, 0.5, 10),
-      vector(5, 0.5, 10),
-      vector(4, 0.5, 10),
-      vector(4, 0.5, 9),
-      vector(4, 0.5, 8),
-      vector(4, 0.5, 7),
-      vector(4, 0.5, 6),
-      vector(3, 0.5, 6),
-      vector(2, 0.5, 6),
-      vector(1, 0.5, 6),
-      vector(0, 0.5, 6),
-      vector(0, 0.5, 5),
-    ],
+    path: buildPathFields(),
   },
   players: [],
   currentPlayerId: -1,
