@@ -1,14 +1,35 @@
 import { MATCH_MODULE } from '../../shared/protocol.js';
 
-// No ambiguous characters (0/O, 1/I/L excluded).
-const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-const CODE_LENGTH = 5;
+// Letters only (same alphabet Shtet Qytet uses for room codes).
+const CODE_ALPHABET = 'ABDEFGHIJKLMNOPQRSTUVWZ';
+const CODE_LENGTH = 4;
+
+// 4-letter combinations a code must never spell (Albanian + English),
+// ported from Shtet Qytet's room-code list.
+const NASTY_CODES: { [code: string]: boolean } = {};
+[
+  'KARI', 'RAKI', 'RAKU', 'KAAR', 'KARR', 'KARE', 'KARO', 'KKAR',
+  'MUTI', 'MUTA', 'MMUT', 'MUUT', 'MUTT', 'MUET',
+  'QIRU', 'QIJU', 'QIHU', 'QIHE', 'QIJE', 'QIJA', 'QIVA', 'QIVI', 'QIVE',
+  'CIRU', 'CIJU', 'CIHU', 'CIHE', 'CIJE', 'CIJA', 'CIVA', 'CIVI', 'CIVE',
+  'BOTH', 'BETH', 'BYTH',
+  'PIDH', 'PILL', 'PILI', 'PIQK', 'PICK', 'PIZD', 'DHIP', 'LLIP',
+  'KURV', 'KRVA',
+  'KOQE', 'KOCE', 'BOLE', 'TOPE',
+  'VDEK', 'GJAK', 'PORN', 'TAQI', 'MAQI', 'NAQI', 'GEJA', 'GEJI', 'HAMA', 'MAHA',
+  'DICK', 'KILL',
+].forEach((word) => {
+  NASTY_CODES[word] = true;
+});
 
 function generateCode(): string {
   let code = '';
-  for (let i = 0; i < CODE_LENGTH; i += 1) {
-    code += CODE_ALPHABET.charAt(Math.floor(Math.random() * CODE_ALPHABET.length));
-  }
+  do {
+    code = '';
+    for (let i = 0; i < CODE_LENGTH; i += 1) {
+      code += CODE_ALPHABET.charAt(Math.floor(Math.random() * CODE_ALPHABET.length));
+    }
+  } while (NASTY_CODES[code]);
   return code;
 }
 

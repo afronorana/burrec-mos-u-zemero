@@ -30,12 +30,13 @@
             <div class="online-join-row">
               <app-game-code
                 v-model="joinCode"
-                :length="5"
+                :length="4"
+                letters-only
                 :label="t('online.lobbyCode')"
                 class="online-code-input"
                 @keyup.enter="joinLobby"
               />
-              <app-button blue class="online-join-btn" :disabled="!canSubmit || joinCode.length !== 5" @click="joinLobby">
+              <app-button blue class="online-join-btn" :disabled="!canSubmit || joinCode.length !== 4" @click="joinLobby">
                 {{ t('online.join') }}
               </app-button>
             </div>
