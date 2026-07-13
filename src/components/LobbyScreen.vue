@@ -20,13 +20,6 @@
 
       <div class="menu-row lobby-actions">
         <app-button
-          v-if="mySeatObject"
-          green
-          @click="toggleReady"
-        >
-          {{ t('online.readyDone') }}
-        </app-button>
-        <app-button
           v-if="isHost"
           green
           :disabled="!canStart"
@@ -53,12 +46,9 @@
         <template v-if="seatAt(index)">
           <span class="lobby-seat-chip-text">
             <span class="lobby-seat-chip-name">{{ seatAt(index).displayName }}</span>
-            <span class="lobby-seat-chip-meta">
+            <span v-if="seatAt(index).userId === store.online.hostUserId || !seatAt(index).connected" class="lobby-seat-chip-meta">
               <span v-if="seatAt(index).userId === store.online.hostUserId" class="lobby-tag">(host)</span>
               <span v-if="!seatAt(index).connected" class="lobby-tag lobby-tag--offline">(offline)</span>
-              <span class="lobby-ready" :class="{ 'lobby-ready--yes': seatAt(index).ready }">
-                {{ seatAt(index).ready ? t('online.ready') : t('online.waiting') }}
-              </span>
             </span>
           </span>
         </template>
@@ -117,11 +107,6 @@ export default {
     claimSeat(index) {
       if (!this.seatAt(index)) {
         MatchController.requestClaimSeat(index);
-      }
-    },
-    toggleReady() {
-      if (this.mySeatObject) {
-        MatchController.requestClaimSeat(this.mySeatObject.seat);
       }
     },
     startGame() {
@@ -239,8 +224,8 @@ export default {
 }
 
 .lobby-seat-chip--corner-0 { top: 16px; left: 16px; }
-.lobby-seat-chip--corner-1 { top: 16px; right: 72px; } /* clears the settings gear */
-.lobby-seat-chip--corner-2 { bottom: 16px; right: 72px; } /* clears the chat toggle */
+.lobby-seat-chip--corner-1 { top: 16px; right: 16px; }
+.lobby-seat-chip--corner-2 { bottom: 16px; right: 16px; }
 .lobby-seat-chip--corner-3 { bottom: 16px; left: 16px; }
 
 .lobby-seat-chip-text {
@@ -280,11 +265,6 @@ export default {
   color: var(--agu-color-red, #e9576f);
 }
 
-.lobby-ready--yes {
-  color: var(--agu-color-green, #71bd26);
-  font-weight: 700;
-}
-
 /* ── Small screens: 2x2 grid pinned to the bottom ────────── */
 @media (max-width: 768px) {
   .lobby-seats-layer {
@@ -307,11 +287,6 @@ export default {
 
   .lobby-code {
     --agu-code-cell-size: 38px;
-  }
-
-  /* Keep the chat toggle clear of the bottom seat grid. */
-  .lobby-layer :deep(.chat-drawer) {
-    bottom: 136px;
   }
 }
 
