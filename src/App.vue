@@ -55,6 +55,10 @@ const DICE_FACE_NORMALS = {
   6: new THREE.Vector3(0, -1, 0),
 };
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
+// Slightly wide lens so the whole board stays in frame at all times.
+const CAMERA_FOV_LANDSCAPE = 50;
+const CAMERA_FOV_PORTRAIT = 66;
+const RIPPLE_TIME_SCALE = 0.0006;
 const DICE_SETTLE_RULES = {
   minimumMotionMs: 500,
   faceUpDotThreshold: 0.94,
@@ -171,6 +175,7 @@ export default {
       overlayCtx: null,
       homeBaseHelpers: null,
       homeBaseRippleRings: null,
+      clickableRipples: null,
       grassMeshes: null,
       treeGroups: null,
       isMobile: false,
@@ -304,7 +309,7 @@ export default {
       scene.background = this.getSkyGradientTexture(this.store.settings.environment);
 
       const camera = new THREE.PerspectiveCamera(
-          45,
+          CAMERA_FOV_LANDSCAPE,
           window.innerWidth / window.innerHeight,
           0.1,
           1000,
@@ -925,8 +930,9 @@ export default {
           });
         }
 
+        const rippleTime = performance.now() * RIPPLE_TIME_SCALE;
+
         if (this.homeBaseHelpers && (this.store.currentScreen === 'add-players' || this.store.currentScreen === 'lobby')) {
-          const nowTime = performance.now() * 0.0012;
           this.homeBaseHelpers.forEach((group, baseIdx) => {
             group.visible = true;
             let isEmpty = false;
@@ -940,7 +946,7 @@ export default {
             if (rings) {
               rings.forEach((ring, ringIdx) => {
                 if (isEmpty) {
-                  const phase = (nowTime + ringIdx * 0.5) % 1.0;
+                  const phase = (rippleTime + ringIdx * 0.5) % 1.0;
                   const scale = 0.2 + phase * 1.15;
                   ring.scale.set(scale, scale, 1);
                   ring.material.opacity = (1 - phase) * 0.65;
@@ -959,7 +965,9 @@ export default {
             group.visible = false;
           });
         }
-        
+
+        this.animateClickableRipples(rippleTime);
+
         if (this.controls && !this.isMenuMode() && !this.cameraTransition) {
           this.controls.update();
         }
@@ -1283,16 +1291,15 @@ export default {
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      const now = performance.now();
-      const idleOpacity = 0.45 + 0.35 * Math.sin(now * 0.0032);
-
-      if (this.diceMesh && this.store.gamePlayStatus.isRolling && this.isHumanTurn()) {
-        const hovered = this.hoveredTarget === 'dice';
+      // Idle "clickable" cues are the ground ripples (animateClickableRipples);
+      // the 2D hull outline is hover feedback only.
+      if (this.diceMesh && this.store.gamePlayStatus.isRolling && this.isHumanTurn()
+          && this.hoveredTarget === 'dice') {
         this.drawObjectHighlight2D(
           ctx, canvas,
           [this.getDiceOutlinePoints()],
-          hovered ? 0.95 : idleOpacity,
-          hovered ? '#ffaa22' : '#ff7700',
+          0.95,
+          '#ffaa22',
         );
       }
 
@@ -1300,13 +1307,12 @@ export default {
         player.pawns.forEach((pawn) => {
           if (!this.store.gamePlayStatus.isMoving || !this.isHumanTurn() || !pawn.isActive) return;
           const mesh = this.pawnMeshes[pawn.id];
-          if (!mesh) return;
-          const hovered = this.hoveredTarget === mesh.name;
+          if (!mesh || this.hoveredTarget !== mesh.name) return;
           this.drawObjectHighlight2D(
             ctx, canvas,
             [this.getPawnBodyOutlinePoints(mesh), this.getPawnHeadOutlinePoints(mesh)],
-            hovered ? 0.95 : idleOpacity,
-            hovered ? '#ffaa22' : '#ff7700',
+            0.95,
+            '#ffaa22',
           );
         });
       });
@@ -1938,9 +1944,9 @@ export default {
       this.camera.aspect = width / height;
 
       if (width < height) {
-        this.camera.fov = 60;
+        this.camera.fov = CAMERA_FOV_PORTRAIT;
       } else {
-        this.camera.fov = 45;
+        this.camera.fov = CAMERA_FOV_LANDSCAPE;
       }
 
       this.camera.updateProjectionMatrix();
@@ -1993,7 +1999,14 @@ export default {
 
       if (this.store.currentScreen === 'add-players' || this.store.currentScreen === 'lobby') {
         if (this.homeBaseHelpers) {
-          interactiveObjects.push(...this.homeBaseHelpers);
+          this.homeBaseHelpers.forEach((group, baseIdx) => {
+            // In the lobby only free seats are claimable; keep taken ones out
+            // so they don't advertise a pointer cursor for a dead click.
+            if (this.store.currentScreen === 'lobby' && this.store.online.seats[baseIdx]) {
+              return;
+            }
+            interactiveObjects.push(group);
+          });
         }
       }
 
@@ -2273,6 +2286,14 @@ export default {
       ];
 
       const ringGeo = this.getSharedGeometry('home-base-ripple-ring', () => new THREE.RingGeometry(0.85, 0.95, 32));
+      // Invisible disc spanning the whole 2x2 base so clicking/hovering a base
+      // works anywhere on it, not just on the thin ripple rings.
+      const hitGeo = this.getSharedGeometry('home-base-hit-disc', () => new THREE.CircleGeometry(1.3, 24));
+      const hitMat = this.getSharedMaterial('home-base-hit-disc-mat', () => new THREE.MeshBasicMaterial({
+        colorWrite: false,
+        depthWrite: false,
+        transparent: true,
+      }));
       this.homeBaseHelpers = [];
       this.homeBaseRippleRings = [];
 
@@ -2282,6 +2303,9 @@ export default {
         group.position.copy(center);
         group.rotation.x = -Math.PI / 2;
         group.name = `home-base-helper-${baseIdx}`;
+
+        const hitDisc = markRaw(new THREE.Mesh(hitGeo, hitMat));
+        group.add(hitDisc);
 
         const baseRings = [];
         for (let r = 0; r < 2; r++) {
@@ -2300,6 +2324,108 @@ export default {
         this.scene.add(group);
         this.homeBaseHelpers.push(group);
         this.homeBaseRippleRings.push(baseRings);
+      });
+
+      this.createClickableRipplePool();
+    },
+
+    // A small pool of ground ripple rings (same look as the home-base ones)
+    // that get repositioned each frame under whatever is currently clickable:
+    // up to four movable pawns plus the dice.
+    createClickableRipplePool() {
+      // Thicker band than the home-base rings: these get scaled down under
+      // pawns, where a thin ring reads as a hairline and disappears.
+      const ringGeo = this.getSharedGeometry('clickable-ripple-ring', () => new THREE.RingGeometry(0.6, 0.95, 32));
+      this.clickableRipples = [];
+
+      for (let poolIdx = 0; poolIdx < 5; poolIdx++) {
+        const group = markRaw(new THREE.Group());
+        group.rotation.x = -Math.PI / 2;
+        group.visible = false;
+
+        const rings = [];
+        for (let r = 0; r < 2; r++) {
+          const mat = markRaw(new THREE.MeshBasicMaterial({
+            color: '#ffffff',
+            side: THREE.DoubleSide,
+            depthWrite: false,
+            transparent: true,
+            opacity: 0,
+          }));
+          const mesh = markRaw(new THREE.Mesh(ringGeo, mat));
+          group.add(mesh);
+          rings.push(mesh);
+        }
+
+        this.scene.add(group);
+        this.clickableRipples.push(markRaw({ group, rings }));
+      }
+    },
+
+    getClickableRippleTargets() {
+      const targets = [];
+      if (!this.isHumanTurn()) {
+        return targets;
+      }
+
+      if (this.diceMesh && this.store.gamePlayStatus.isRolling && !this.isMobile) {
+        targets.push({
+          x: this.diceMesh.position.x,
+          y: DICE_TRAY.center.y + (DICE_TRAY.floor.height / 2) + 0.01,
+          z: this.diceMesh.position.z,
+          color: '#ff7700',
+          scale: 1,
+        });
+      }
+
+      if (this.store.gamePlayStatus.isMoving) {
+        this.store.players.forEach((player) => {
+          player.pawns.forEach((pawn) => {
+            if (!pawn.isActive) return;
+            const mesh = this.pawnMeshes[pawn.id];
+            if (!mesh) return;
+            targets.push({
+              x: mesh.position.x,
+              // Just above the tallest field disc (start fields: center 0.132
+              // + half height 0.05) so the ring isn't occluded by the discs.
+              y: START_FIELD_CENTER_Y + 0.058,
+              z: mesh.position.z,
+              // The shared "clickable" orange, not the player color — a
+              // player-colored ring vanishes on the player's own home discs.
+              color: '#ff7700',
+              scale: 0.6,
+            });
+          });
+        });
+      }
+
+      return targets;
+    },
+
+    animateClickableRipples(rippleTime) {
+      if (!this.clickableRipples) {
+        return;
+      }
+
+      const targets = this.getClickableRippleTargets();
+      this.clickableRipples.forEach((ripple, poolIdx) => {
+        const target = targets[poolIdx];
+        if (!target) {
+          ripple.group.visible = false;
+          return;
+        }
+
+        ripple.group.visible = true;
+        ripple.group.position.set(target.x, target.y, target.z);
+        ripple.rings.forEach((ring, ringIdx) => {
+          const phase = (rippleTime + ringIdx * 0.5) % 1.0;
+          // Start at ~the pawn's base radius so the ring never wastes part of
+          // its cycle hidden underneath the object it's highlighting.
+          const scale = (0.45 + phase * 0.9) * target.scale;
+          ring.scale.set(scale, scale, 1);
+          ring.material.color.set(target.color);
+          ring.material.opacity = (1 - phase) * 0.9;
+        });
       });
     },
 
