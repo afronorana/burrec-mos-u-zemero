@@ -25,18 +25,20 @@
             {{ t('online.createLobby') }}
           </app-button>
 
-          <div class="online-join-row">
-            <app-input
-              v-model="joinCode"
-              :label="t('online.lobbyCode')"
-              :max-length="5"
-              class="online-code-input"
-              @input="joinCode = joinCode.toUpperCase()"
-              @keyup.enter="joinLobby"
-            />
-            <app-button blue class="online-join-btn" :disabled="!canSubmit || joinCode.length !== 5" @click="joinLobby">
-              {{ t('online.join') }}
-            </app-button>
+          <div class="online-join-block">
+            <label class="select-label">{{ t('online.lobbyCode') }}</label>
+            <div class="online-join-row">
+              <app-game-code
+                v-model="joinCode"
+                :length="5"
+                :label="t('online.lobbyCode')"
+                class="online-code-input"
+                @keyup.enter="joinLobby"
+              />
+              <app-button blue class="online-join-btn" :disabled="!canSubmit || joinCode.length !== 5" @click="joinLobby">
+                {{ t('online.join') }}
+              </app-button>
+            </div>
           </div>
         </div>
 
@@ -119,24 +121,27 @@ export default {
   margin-top: 18px;
 }
 
+.online-join-block .select-label {
+  margin-bottom: 8px;
+}
+
 .online-join-row {
   display: flex;
-  align-items: flex-end;
+  align-items: stretch;
   gap: 10px;
 }
 
 .online-code-input {
-  flex: 1;
-  min-width: 0;
-  margin-top: 0;
-  margin-bottom: 0;
+  --agu-code-cell-size: 44px;
+  --agu-code-gap: 6px;
 }
 
 .online-join-btn {
-  height: 38px;
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
+  margin-bottom: 0;
 }
 
 .online-error {

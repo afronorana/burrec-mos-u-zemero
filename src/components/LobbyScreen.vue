@@ -1,47 +1,27 @@
 <template>
-  <div class="menu-side-left">
-    <app-panel class="menu-card menu-card--lobby">
+  <div class="lobby-layer">
+    <app-panel class="lobby-card">
       <h2 class="panel-title">{{ t('online.lobby') }}</h2>
 
       <div v-if="store.online.mode === 'private' && store.online.joinCode" class="lobby-code-row">
-        <span class="lobby-code-label">{{ t('online.code') }}</span>
-        <span class="lobby-code">{{ store.online.joinCode }}</span>
+        <app-game-code
+          :model-value="store.online.joinCode"
+          readonly
+          class="lobby-code"
+        />
         <app-button small slate-blue class="lobby-copy-btn" @click="copyCode" :title="copied ? t('online.copied') : t('online.copy')">
           <component :is="copied ? 'CheckIcon' : 'CopyIcon'" :size="14" />
         </app-button>
       </div>
 
-      <div class="lobby-seats">
-        <div v-for="index in 4" :key="index" class="lobby-seat">
-          <span class="player-dot" :style="{ background: playerColors[index - 1] }"></span>
-          <template v-if="seatAt(index - 1)">
-            <span class="lobby-seat-name">
-              {{ seatAt(index - 1).displayName }}
-              <span v-if="seatAt(index - 1).userId === store.online.selfUserId" class="lobby-tag">({{ t('online.ready').toLowerCase() }})</span>
-              <span v-if="seatAt(index - 1).userId === store.online.hostUserId" class="lobby-tag">(host)</span>
-              <span v-if="!seatAt(index - 1).connected" class="lobby-tag lobby-tag--offline">(offline)</span>
-            </span>
-            <span class="lobby-ready" :class="{ 'lobby-ready--yes': seatAt(index - 1).ready }">
-              {{ seatAt(index - 1).ready ? t('online.ready') : t('online.waiting') }}
-            </span>
-          </template>
-          <span v-else class="lobby-seat-name lobby-seat-name--empty">{{ t('online.waiting') }}</span>
-        </div>
-      </div>
+      <p v-if="!mySeatObject" class="lobby-tip">
+        {{ t('online.chooseColorPrompt') }}
+      </p>
 
-      <div class="menu-row">
+      <div class="menu-row lobby-actions">
         <app-button
-          v-if="!mySeatObject"
-          slate-blue
-          disabled
-          style="flex: 1;"
-        >
-          {{ t('online.chooseColorPrompt') }}
-        </app-button>
-        <app-button
-          v-else
+          v-if="mySeatObject"
           green
-          style="flex: 1;"
           @click="toggleReady"
         >
           {{ t('online.readyDone') }}
@@ -54,38 +34,65 @@
         >
           {{ t('online.start') }}
         </app-button>
-      </div>
-
-      <chat-panel
-        class="lobby-chat"
-        :messages="store.online.chat"
-        :self-id="store.online.selfUserId"
-        @send="sendChat"
-      />
-
-      <div class="menu-row">
-        <app-button red class="menu-btn-full" @click="leave">{{ t('online.leaveLobby') }}</app-button>
+        <app-button red @click="leave">{{ t('online.leaveLobby') }}</app-button>
       </div>
     </app-panel>
+
+    <!-- Seats: pinned to the 4 screen corners on desktop, 2x2 grid at the
+         bottom on small screens. Free slots double as claim buttons. -->
+    <div class="lobby-seats-layer">
+      <button
+        v-for="index in seatDisplayOrder"
+        :key="index"
+        type="button"
+        class="lobby-seat-chip"
+        :class="[`lobby-seat-chip--corner-${index}`, seatAt(index) ? 'lobby-seat-chip--taken' : 'lobby-seat-chip--free']"
+        @click="claimSeat(index)"
+      >
+        <span class="player-dot" :style="{ background: playerColors[index] }"></span>
+        <template v-if="seatAt(index)">
+          <span class="lobby-seat-chip-text">
+            <span class="lobby-seat-chip-name">{{ seatAt(index).displayName }}</span>
+            <span class="lobby-seat-chip-meta">
+              <span v-if="seatAt(index).userId === store.online.hostUserId" class="lobby-tag">(host)</span>
+              <span v-if="!seatAt(index).connected" class="lobby-tag lobby-tag--offline">(offline)</span>
+              <span class="lobby-ready" :class="{ 'lobby-ready--yes': seatAt(index).ready }">
+                {{ seatAt(index).ready ? t('online.ready') : t('online.waiting') }}
+              </span>
+            </span>
+          </span>
+        </template>
+        <template v-else>
+          <span class="lobby-seat-chip-text">
+            <span class="lobby-seat-chip-name lobby-seat-chip-name--free">{{ t('online.freeSlot') }}</span>
+            <span class="lobby-seat-chip-meta">{{ t('online.clickToJoin') }}</span>
+          </span>
+        </template>
+      </button>
+    </div>
+
+    <chat-drawer />
   </div>
 </template>
 
 <script>
-import ChatPanel from './ChatPanel.vue';
+import ChatDrawer from './ChatDrawer.vue';
 import ApplicationStore from '../utils/ApplicationStore';
 import MatchController from '../network/MatchController';
-import ChatController from '../network/ChatController';
 import { PLAYER_COLORS } from '../utils/playerColors';
 import { t } from '../utils/i18n';
 import { Copy, Check } from '@lucide/vue';
 
 export default {
-  components: { ChatPanel, CopyIcon: Copy, CheckIcon: Check },
+  components: { ChatDrawer, CopyIcon: Copy, CheckIcon: Check },
   data() {
     return {
       store: ApplicationStore,
       playerColors: PLAYER_COLORS,
       copied: false,
+      // Mirrors how the bases read from the fixed camera:
+      // red top-left, yellow top-right / green bottom-left, blue bottom-right.
+      seatDisplayOrder: [0, 1, 3, 2],
     };
   },
   computed: {
@@ -93,9 +100,6 @@ export default {
       return (this.store.online.seats || []).find(
           (seat) => seat && seat.userId === this.store.online.selfUserId,
       ) || null;
-    },
-    myReady() {
-      return Boolean(this.mySeatObject?.ready);
     },
     isHost() {
       return this.store.online.hostUserId === this.store.online.selfUserId;
@@ -110,6 +114,11 @@ export default {
     seatAt(index) {
       return (this.store.online.seats || [])[index] || null;
     },
+    claimSeat(index) {
+      if (!this.seatAt(index)) {
+        MatchController.requestClaimSeat(index);
+      }
+    },
     toggleReady() {
       if (this.mySeatObject) {
         MatchController.requestClaimSeat(this.mySeatObject.seat);
@@ -117,9 +126,6 @@ export default {
     },
     startGame() {
       MatchController.sendStart();
-    },
-    sendChat(text) {
-      ChatController.send(text);
     },
     leave() {
       MatchController.leaveMatch();
@@ -140,71 +146,178 @@ export default {
 </script>
 
 <style scoped>
-.menu-card--lobby {
-  width: min(440px, 92vw);
+.lobby-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.lobby-card {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(340px, 92vw);
+  pointer-events: all;
 }
 
 .lobby-code-row {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
   margin-bottom: 16px;
-}
-
-.lobby-code-label {
-  font-size: 11px;
-  opacity: 0.7;
 }
 
 .lobby-code {
-  font-size: 18px;
-  letter-spacing: 4px;
-  color: #f7d51d;
+  --agu-code-cell-size: 44px;
 }
 
-.lobby-copy-btn {
-  margin-left: auto;
+.lobby-tip {
+  margin: 0 0 14px;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--agu-color-base, #263f2a);
+  opacity: 0.75;
 }
 
-.lobby-seats {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 16px;
+.lobby-tip::before {
+  content: '💡 ';
 }
 
-.lobby-seat {
+.lobby-actions {
+  margin-top: 0;
+}
+
+/* ── Seat chips ──────────────────────────────────────────── */
+.lobby-seats-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.lobby-seat-chip {
+  position: absolute;
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 150px;
+  max-width: 220px;
+  min-height: 44px;
+  padding: 8px 14px;
+  background: #ffffff;
+  border: 2px solid var(--agu-color-base, #263f2a);
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
+  font-family: inherit;
   font-size: 12px;
+  text-align: left;
+  color: var(--agu-color-base, #263f2a);
+  pointer-events: all;
+  cursor: default;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.lobby-seat-name--empty {
-  opacity: 0.45;
+.lobby-seat-chip--free {
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.82);
+  border-style: dashed;
+  animation: lobby-chip-pulse 2s ease-in-out infinite;
+}
+
+.lobby-seat-chip--free:hover {
+  background: #ffffff;
+  animation-play-state: paused;
+}
+
+/* Expanding ring, echoing the ground ripples on the 3D bases. */
+@keyframes lobby-chip-pulse {
+  0% { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18), 0 0 0 0 rgba(255, 255, 255, 0.55); }
+  70% { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18), 0 0 0 9px rgba(255, 255, 255, 0); }
+  100% { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18), 0 0 0 0 rgba(255, 255, 255, 0); }
+}
+
+.lobby-seat-chip--corner-0 { top: 16px; left: 16px; }
+.lobby-seat-chip--corner-1 { top: 16px; right: 72px; } /* clears the settings gear */
+.lobby-seat-chip--corner-2 { bottom: 16px; right: 72px; } /* clears the chat toggle */
+.lobby-seat-chip--corner-3 { bottom: 16px; left: 16px; }
+
+.lobby-seat-chip-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.lobby-seat-chip-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lobby-seat-chip-name--free {
+  opacity: 0.75;
+}
+
+.lobby-seat-chip-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.7rem;
+  line-height: 1.2;
+  opacity: 0.75;
 }
 
 .lobby-tag {
-  font-size: 10px;
-  opacity: 0.7;
+  font-size: 0.7rem;
 }
 
 .lobby-tag--offline {
   color: var(--agu-color-red, #e9576f);
 }
 
-.lobby-ready {
-  margin-left: auto;
-  font-size: 10px;
-  opacity: 0.7;
-}
-
 .lobby-ready--yes {
   color: var(--agu-color-green, #71bd26);
-  opacity: 1;
+  font-weight: 700;
 }
 
-.lobby-chat {
-  margin: 14px 0;
+/* ── Small screens: 2x2 grid pinned to the bottom ────────── */
+@media (max-width: 768px) {
+  .lobby-seats-layer {
+    inset: auto 8px 8px 8px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .lobby-seat-chip {
+    position: static;
+    min-width: 0;
+    max-width: none;
+    width: 100%;
+  }
+
+  .lobby-card {
+    width: min(300px, 94vw);
+  }
+
+  .lobby-code {
+    --agu-code-cell-size: 38px;
+  }
+
+  /* Keep the chat toggle clear of the bottom seat grid. */
+  .lobby-layer :deep(.chat-drawer) {
+    bottom: 136px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lobby-seat-chip--free {
+    animation: none;
+  }
 }
 </style>
