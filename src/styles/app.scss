@@ -366,18 +366,6 @@ html, body, #app {
   pointer-events: all;
 }
 
-.hud-move-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: center;
-
-  .button {
-    margin-bottom: 0;
-    font-size: 0.9rem;
-  }
-}
-
 .hud-roll-btn {
   font-size: 1.1rem;
   padding: 12px 36px;

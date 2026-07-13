@@ -43,36 +43,11 @@
     </div>
 
     <!-- Chat: bottom-right drawer (always enabled) -->
-    <div class="hud-chat-area">
-      <transition name="settings-drop">
-        <app-panel v-if="chatOpen" class="hud-chat-panel">
-          <chat-panel
-            :messages="store.online.chat"
-            :self-id="store.online.enabled ? store.online.selfUserId : 'local-self'"
-            @send="sendChat"
-          />
-        </app-panel>
-      </transition>
-      <app-button slate-blue class="hud-icon-btn" :title="chatOpen ? 'Close chat' : 'Chat'" @click="chatOpen = !chatOpen">
-        <message-square-icon :size="20" />
-        <span v-if="unreadCount > 0" class="hud-unread-badge">{{ unreadCount }}</span>
-      </app-button>
-    </div>
+    <chat-drawer />
 
     <!-- Bottom: actions + player strip -->
     <div class="hud-bottom">
       <div class="hud-actions">
-        <div v-if="movablePawns.length" class="hud-move-row">
-          <app-button
-            v-for="pawn in movablePawns"
-            :key="pawn.id"
-            green
-            @click="movePawn(pawn)"
-          >
-            {{ t('game.pawn', { num: pawn.startingPlace }) }}
-          </app-button>
-        </div>
-
         <!-- Big UI Dice Roll Area -->
         <div class="hud-main-dice-container">
           <!-- Active Dice Button (clickable when it's our turn to roll) -->
@@ -147,30 +122,26 @@
 <script>
 import OutlineAppearanceSelect from './OutlineAppearanceSelect.vue';
 import RenderQualitySlider from './RenderQualitySlider.vue';
-import ChatPanel from './ChatPanel.vue';
+import ChatDrawer from './ChatDrawer.vue';
 import ApplicationStore from '../utils/ApplicationStore';
 import EventBus from '../utils/eventhandler';
 import EventKeys from '../utils/EventKeys';
 import MatchController from '../network/MatchController';
-import ChatController from '../network/ChatController';
 import { t } from '../utils/i18n';
-import { Settings, X, MessageSquare } from '@lucide/vue';
+import { Settings, X } from '@lucide/vue';
 
 export default {
   components: {
     OutlineAppearanceSelect,
     RenderQualitySlider,
-    ChatPanel,
+    ChatDrawer,
     SettingsIcon: Settings,
     XIcon: X,
-    MessageSquareIcon: MessageSquare
   },
   data() {
     return {
       store: ApplicationStore,
       settingsOpen: false,
-      chatOpen: false,
-      unreadCount: 0,
       speechBubbles: {}, // { [player.turn]: 'message' }
       animatedRollValue: 1,
       diceAnimInterval: null,
@@ -179,10 +150,6 @@ export default {
   computed: {
     currentPlayer() {
       return this.store.players[this.store.currentPlayerId] || null;
-    },
-    movablePawns() {
-      if (!this.currentPlayer || !this.store.gamePlayStatus.isMoving) return [];
-      return this.currentPlayer.pawns.filter((p) => p.isActive);
     },
     canRoll() {
       return this.store.gamePlayStatus.isRolling && this.isHumanTurn;
@@ -225,64 +192,34 @@ export default {
       const lastMsg = this.store.online.chat[newLength - 1];
       if (!lastMsg) return;
 
+      let player = null;
       if (this.store.online.enabled) {
         const seatObj = (this.store.online.seats || []).find(
           (s) => s && s.userId === lastMsg.senderId
         );
         if (!seatObj) return;
-
         const playerIndex = this.store.online.seatToPlayerIndex[seatObj.seat];
-        const player = this.store.players[playerIndex];
-        if (!player) return;
-
-        this.speechBubbles = {
-          ...this.speechBubbles,
-          [player.turn]: lastMsg.message
-        };
-
-        const turn = player.turn;
-        const msgText = lastMsg.message;
-        setTimeout(() => {
-          if (this.speechBubbles[turn] === msgText) {
-            const nextBubbles = { ...this.speechBubbles };
-            delete nextBubbles[turn];
-            this.speechBubbles = nextBubbles;
-          }
-        }, 4000);
-
-        if (!this.chatOpen && lastMsg.senderId !== this.store.online.selfUserId) {
-          this.unreadCount++;
-        }
+        player = this.store.players[playerIndex];
       } else {
-        // Local mode chat bubble and unread triggers
-        const player = this.store.players.find(p => p && p.name === lastMsg.username);
-        if (!player) return;
+        player = this.store.players.find(p => p && p.name === lastMsg.username);
+      }
+      if (!player) return;
 
-        this.speechBubbles = {
-          ...this.speechBubbles,
-          [player.turn]: lastMsg.message
-        };
+      this.speechBubbles = {
+        ...this.speechBubbles,
+        [player.turn]: lastMsg.message
+      };
 
-        const turn = player.turn;
-        const msgText = lastMsg.message;
-        setTimeout(() => {
-          if (this.speechBubbles[turn] === msgText) {
-            const nextBubbles = { ...this.speechBubbles };
-            delete nextBubbles[turn];
-            this.speechBubbles = nextBubbles;
-          }
-        }, 4000);
-
-        if (!this.chatOpen) {
-          this.unreadCount++;
+      const turn = player.turn;
+      const msgText = lastMsg.message;
+      setTimeout(() => {
+        if (this.speechBubbles[turn] === msgText) {
+          const nextBubbles = { ...this.speechBubbles };
+          delete nextBubbles[turn];
+          this.speechBubbles = nextBubbles;
         }
-      }
+      }, 4000);
     },
-    chatOpen(val) {
-      if (val) {
-        this.unreadCount = 0;
-      }
-    }
   },
   beforeUnmount() {
     this.stopDiceAnim();
@@ -297,34 +234,6 @@ export default {
     },
     rollDice() {
       EventBus.fire(EventKeys.rollDice);
-    },
-    movePawn(pawn) {
-      if (!pawn.isActive) return;
-
-      if (this.store.online.enabled) {
-        this.currentPlayer?.pawns.forEach((ownPawn) => {
-          ownPawn.isActive = false;
-        });
-        this.store.gamePlayStatus.isMoving = false;
-        MatchController.requestMove(pawn.startingPlace - 1);
-        return;
-      }
-
-      pawn.move();
-    },
-    sendChat(text) {
-      if (this.store.online.enabled) {
-        ChatController.send(text);
-      } else {
-        // Push directly to matching chat queue for offline game logging
-        this.store.online.chat.push({
-          id: Math.random().toString(36).substring(2, 9),
-          senderId: 'local-self',
-          username: this.currentPlayer?.name || 'Player',
-          message: text,
-          createTime: Date.now(),
-        });
-      }
     },
     leaveOnlineGame() {
       this.settingsOpen = false;
@@ -373,44 +282,10 @@ export default {
   color: var(--agu-color-red, #e9576f);
 }
 
-.hud-chat-area {
-  position: fixed;
-  right: 16px;
-  bottom: 16px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 10px;
-  z-index: 30;
-  pointer-events: all;
-}
-
-.hud-chat-panel {
-  width: min(320px, 86vw);
-  padding: 12px;
-}
-
 .hud-chip.panel {
   padding: 8px 12px;
   margin-bottom: 0;
   position: relative;
-}
-
-.hud-unread-badge {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  background-color: var(--agu-color-red, #e9576f);
-  color: #ffffff;
-  font-size: 0.5rem;
-  font-weight: bold;
-  border-radius: 50%;
-  width: 18px;
-  height: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1.5px solid var(--agu-color-base, #263f2a);
 }
 
 .hud-speech-bubble {
