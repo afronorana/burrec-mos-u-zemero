@@ -69,8 +69,11 @@ class NakamaClientService {
       session = await client.authenticateDevice(this.getDeviceId(), true);
     }
 
+    // Always sync: online.displayName is set by the login screen before this
+    // runs, so comparing against it would skip the account update forever and
+    // seat claims would fall back to the random device username.
     const name = String(displayName || '').trim().slice(0, 24);
-    if (name && name !== online.displayName) {
+    if (name) {
       try {
         await client.updateAccount(session, { display_name: name });
       } catch (error) {
