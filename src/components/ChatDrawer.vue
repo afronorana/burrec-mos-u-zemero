@@ -1,6 +1,10 @@
 <template>
   <div class="chat-drawer">
-    <transition name="settings-drop">
+    <app-button slate-blue class="hud-icon-btn" :title="chatOpen ? 'Close chat' : 'Chat'" @click="chatOpen = !chatOpen">
+      <message-square-icon :size="20" />
+      <span v-if="unreadCount > 0" class="chat-drawer-unread">{{ unreadCount }}</span>
+    </app-button>
+    <transition name="chat-pop">
       <app-panel v-if="chatOpen" class="chat-drawer-panel">
         <chat-panel
           :messages="store.online.chat"
@@ -9,10 +13,6 @@
         />
       </app-panel>
     </transition>
-    <app-button slate-blue class="hud-icon-btn" :title="chatOpen ? 'Close chat' : 'Chat'" @click="chatOpen = !chatOpen">
-      <message-square-icon :size="20" />
-      <span v-if="unreadCount > 0" class="chat-drawer-unread">{{ unreadCount }}</span>
-    </app-button>
   </div>
 </template>
 
@@ -77,21 +77,34 @@ export default {
 </script>
 
 <style scoped>
+/* Middle-right, just below center — pairs with the settings button above. */
 .chat-drawer {
   position: fixed;
   right: 16px;
-  bottom: 16px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 10px;
+  top: calc(50% + 6px);
   z-index: 30;
   pointer-events: all;
 }
 
+/* The panel opens to the left of the toggle, vertically centered on it. */
 .chat-drawer-panel {
-  width: min(320px, 86vw);
+  position: absolute;
+  right: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  width: min(320px, calc(100vw - 86px));
   padding: 12px;
+}
+
+.chat-pop-enter-active,
+.chat-pop-leave-active {
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+
+.chat-pop-enter-from,
+.chat-pop-leave-to {
+  opacity: 0;
+  transform: translateY(-50%) translateX(8px);
 }
 
 .chat-drawer-unread {

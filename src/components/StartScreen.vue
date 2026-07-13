@@ -84,14 +84,16 @@
 
     <game-interface v-if="store.currentScreen === 'game-screen'" />
 
-    <!-- Global Settings Button (Always Visible) -->
-    <button
-      class="global-settings-trigger"
-      @click="openGlobalSettings"
+    <!-- Global Settings Button (game screen has its own settings drawer) -->
+    <app-button
+      v-if="store.currentScreen !== 'game-screen'"
+      slate-blue
+      class="hud-icon-btn global-settings-trigger"
       :title="t('graphics')"
+      @click="openGlobalSettings"
     >
       <settings-icon :size="20" />
-    </button>
+    </app-button>
 
     <!-- Global Settings Modal -->
     <div v-if="showGlobalSettings" class="global-settings-modal-backdrop" @click.self="showGlobalSettings = false">

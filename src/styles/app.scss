@@ -312,16 +312,18 @@ html, body, #app {
   }
 }
 
-/* Settings: top-right */
+/* Settings: middle-right (same slot as the global trigger on menu screens).
+   Sits above the chat toggle (z 30) so the open panel isn't poked through. */
 .hud-settings-area {
   position: absolute;
-  top: 16px;
+  top: calc(50% - 50px);
   right: 16px;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 8px;
   pointer-events: all;
+  z-index: 40;
 }
 
 .hud-icon-btn {
@@ -337,6 +339,8 @@ html, body, #app {
 
 .hud-settings-panel {
   width: min(300px, calc(100vw - 40px));
+  max-height: calc(50vh - 20px);
+  overflow-y: auto;
 }
 
 .hud-full-width {
@@ -474,29 +478,17 @@ html, body, #app {
 }
 
 /* ── Global Settings Trigger & Modal ─────────────────────── */
-.global-settings-trigger {
-  position: absolute;
-  top: 16px;
+/* Settings + chat share a vertical stack on the middle-right edge:
+   settings sits just above center, the chat toggle just below.
+   (.button qualifier: the kit's own .button sets position: relative,
+   and load order makes it win a bare equal-specificity override.) */
+.global-settings-trigger.button {
+  position: fixed;
+  top: calc(50% - 50px);
   right: 16px;
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(0, 0, 0, 0.15);
-  border-radius: 50%;
-  width: 42px;
-  height: 42px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  color: #333;
-  transition: all 0.2s ease;
+  left: auto;
   z-index: 1000;
-
-  &:hover {
-    transform: rotate(30deg) scale(1.05);
-    background: #ffffff;
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
-  }
+  pointer-events: all;
 }
 
 .global-settings-modal-backdrop {
