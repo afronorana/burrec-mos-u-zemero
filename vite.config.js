@@ -19,5 +19,16 @@ export default defineConfig({
   },
   build: {
     outDir: 'docs',
+    rollupOptions: {
+      output: {
+        // Big, rarely-updated vendors get their own chunks so app-code
+        // deploys don't invalidate them in browser caches.
+        manualChunks: {
+          three: ['three'],
+          physics: ['cannon-es'],
+          nakama: ['@heroiclabs/nakama-js'],
+        },
+      },
+    },
   },
 });

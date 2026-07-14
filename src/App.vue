@@ -13,6 +13,7 @@ import { markRaw } from 'vue';
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import StartScreen from './components/StartScreen.vue';
 import WinScreen from './components/WinScreen.vue';
 import ApplicationStore from './utils/ApplicationStore';
@@ -27,19 +28,21 @@ import MatchController from './network/MatchController';
 
 const OUTLINE_COLOR = '#1b1411';
 const BOARD_CENTER = { x: 5, z: 5 };
-const DICE_SIZE = 0.45;
+const DICE_SIZE = 0.38;
+const DICE_CORNER_RADIUS = DICE_SIZE * 0.12;
 const BOARD_BASE_SIZE = 12.6;
 const BOARD_TOP_SIZE = 11.3;
-// Central round dice platform — a raised "sumo ring" in the middle of the
-// board. Its walls are invisible (an octagon of static physics boxes), so
-// the dice looks free but can never leave the disc.
-const DICE_PLATFORM = {
+// Central dice pit — a shallow round hole sunk into the middle of the board
+// (both board slabs are extruded with a matching cutout, and the pit liner
+// hides the cut edges). Invisible walls (an octagon of static physics boxes)
+// keep the dice inside without caging it visually.
+const DICE_PIT = {
   center: { x: 5, z: 5 },
-  radius: 1.3,
-  height: 0.24,
-  topY: 0.3,
-  wallRadius: 1.29,
+  holeRadius: 1.42, // slab cutout — also the outer edge of the beveled rim
+  innerRadius: 1.3, // vertical wall below the bevel
+  wallRadius: 1.27, // physics octagon, just inside the visual wall
   wallHeight: 3.2,
+  floorY: -0.08,
 };
 const TABLE_PHYSICS = {
   center: { x: BOARD_CENTER.x, z: BOARD_CENTER.z },
@@ -57,6 +60,42 @@ const DICE_FACE_NORMALS = {
   6: new THREE.Vector3(0, -1, 0),
 };
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
+const DICE_FACE_ENTRIES = Object.entries(DICE_FACE_NORMALS)
+    .map(([value, normal]) => [Number(value), normal]);
+const CAMERA_GAME_POSITION = new THREE.Vector3(5.6, 12.4, 16.2);
+const CAMERA_GAME_TARGET = new THREE.Vector3(5, 0.4, 5);
+// Render-loop scratch objects — reused every frame to avoid GC churn.
+const _cameraLookScratch = new THREE.Vector3();
+const _diceFaceQuaternion = new THREE.Quaternion();
+const _diceFaceScratch = new THREE.Vector3();
+const _diceBestNormal = new THREE.Vector3();
+const _grassSwayEuler = new THREE.Euler();
+const _grassSwayQuaternion = new THREE.Quaternion();
+const _grassMatrix = new THREE.Matrix4();
+
+// A square board slab with the dice-pit cutout at its center. The geometry
+// origin is the bottom of the slab (extrusion runs along local +y).
+const createSlabWithPitHole = (size, thickness) => {
+  const half = size / 2;
+  const shape = new THREE.Shape();
+  shape.moveTo(-half, -half);
+  shape.lineTo(half, -half);
+  shape.lineTo(half, half);
+  shape.lineTo(-half, half);
+  shape.closePath();
+
+  const hole = new THREE.Path();
+  hole.absarc(0, 0, DICE_PIT.holeRadius, 0, Math.PI * 2, true);
+  shape.holes.push(hole);
+
+  const geometry = new THREE.ExtrudeGeometry(shape, {
+    depth: thickness,
+    bevelEnabled: false,
+    curveSegments: 48,
+  });
+  geometry.rotateX(-Math.PI / 2);
+  return geometry;
+};
 // Slightly wide lens so the whole board stays in frame at all times.
 const CAMERA_FOV_LANDSCAPE = 50;
 const CAMERA_FOV_PORTRAIT = 66;
@@ -106,7 +145,7 @@ export default {
           this.cameraTransition = {
             start: performance.now(),
             fromPosition: fromPos,
-            fromTarget: new THREE.Vector3(5, 0.4, 5),
+            fromTarget: CAMERA_GAME_TARGET.clone(),
           };
         }
       } else if (isOrbitScreen(newScreen) && isFixedScreen(oldScreen)) {
@@ -179,7 +218,9 @@ export default {
       homeBaseRippleRings: null,
       clickableRipples: null,
       grassMeshes: null,
+      grassInstances: null,
       treeGroups: null,
+      pawnOutlineSyncPending: false,
       isMobile: false,
       sharedGeometries: markRaw({}),
       sharedMaterials: markRaw({}),
@@ -200,6 +241,7 @@ export default {
       controlsChangeHandler: null,
       hoverNeedsUpdate: false,
       isPointerInsideCanvas: false,
+      overlayHasContent: false,
     };
   },
   mounted() {
@@ -326,7 +368,11 @@ export default {
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 0.98;
-      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      // PCFSoftShadowMap is deprecated in three r183+ (falls back to PCF).
+      renderer.shadowMap.type = THREE.PCFShadowMap;
+      // Shadows render on demand (requestShadowUpdate): every caster is
+      // static except the dice, the pawns, and the environment lights.
+      renderer.shadowMap.autoUpdate = false;
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
       renderer.setSize(window.innerWidth, window.innerHeight, false);
 
@@ -359,6 +405,9 @@ export default {
       this.scene = markRaw(scene);
       this.camera = markRaw(camera);
       this.renderer = markRaw(renderer);
+      if (import.meta.env.DEV) {
+        window.__burrecRenderer = renderer; // profiling hook, dev server only
+      }
       this.controls = controls;
       if (this.isMenuMode()) {
         controls.enabled = false;
@@ -388,8 +437,9 @@ export default {
       this.createCartoonSurroundings();
       this.createGroundEnvironment();
 
+      // Both slabs carry the pit cutout; origin sits at the slab bottom.
       const boardBase = this.createOutlinedMesh(
-          this.getSharedGeometry('board-base', () => new THREE.BoxGeometry(BOARD_BASE_SIZE, 0.3, BOARD_BASE_SIZE)),
+          this.getSharedGeometry('board-base-pit', () => createSlabWithPitHole(BOARD_BASE_SIZE, 0.3)),
           this.createToonMaterial('board-base-material', {
             color: '#eca95d',
             roughness: 0.72,
@@ -400,11 +450,11 @@ export default {
           }),
           { outlineScale: { x: 1.022, y: 1.008, z: 1.022 }, receiveShadow: true },
       );
-      boardBase.position.set(BOARD_CENTER.x, -0.15, BOARD_CENTER.z);
+      boardBase.position.set(BOARD_CENTER.x, -0.3, BOARD_CENTER.z);
       this.scene.add(boardBase);
 
       const boardTop = this.createOutlinedMesh(
-          this.getSharedGeometry('board-top', () => new THREE.BoxGeometry(BOARD_TOP_SIZE, 0.08, BOARD_TOP_SIZE)),
+          this.getSharedGeometry('board-top-pit', () => createSlabWithPitHole(BOARD_TOP_SIZE, 0.08)),
           this.createToonMaterial('board-top-material', {
             color: '#fff0bf',
             roughness: 0.88,
@@ -415,10 +465,10 @@ export default {
           }),
           { outlineScale: { x: 1.014, y: 1.01, z: 1.014 }, receiveShadow: true },
       );
-      boardTop.position.set(BOARD_CENTER.x, 0.02, BOARD_CENTER.z);
+      boardTop.position.set(BOARD_CENTER.x, -0.02, BOARD_CENTER.z);
       this.scene.add(boardTop);
 
-      this.createDicePlatform();
+      this.createDicePit();
 
       const fieldGeometry = this.getSharedGeometry(
           'field-cylinder',
@@ -514,49 +564,58 @@ export default {
 
       const hillGeometry = this.getSharedGeometry('surrounding-hill', () => new THREE.SphereGeometry(1, 24, 24));
       const hillConfigs = [
-        { x: -8.8, y: -0.18, z: -9.4, scale: [7.8, 2.9, 3.4], materialKey: 'hill-a', color: '#7dcb6f' },
-        { x: 5.4, y: 0.06, z: -11.8, scale: [8.8, 3.6, 3.8], materialKey: 'hill-b', color: '#8fda7d' },
-        { x: 18.4, y: -0.2, z: -8.8, scale: [6.8, 2.7, 3], materialKey: 'hill-c', color: '#6fc262' },
-        { x: -9.8, y: -0.12, z: 18.2, scale: [8.6, 3.1, 3.6], materialKey: 'hill-d', color: '#78c768' },
-        { x: 7.8, y: -0.08, z: 20.6, scale: [10.2, 3.7, 4.1], materialKey: 'hill-e', color: '#89d876' },
-        { x: 20.6, y: -0.16, z: 18.4, scale: [7.4, 2.8, 3.3], materialKey: 'hill-f', color: '#73c05e' },
+        { x: -8.8, y: -0.18, z: -9.4, scale: [7.8, 2.9, 3.4], color: '#7dcb6f' },
+        { x: 5.4, y: 0.06, z: -11.8, scale: [8.8, 3.6, 3.8], color: '#8fda7d' },
+        { x: 18.4, y: -0.2, z: -8.8, scale: [6.8, 2.7, 3], color: '#6fc262' },
+        { x: -9.8, y: -0.12, z: 18.2, scale: [8.6, 3.1, 3.6], color: '#78c768' },
+        { x: 7.8, y: -0.08, z: 20.6, scale: [10.2, 3.7, 4.1], color: '#89d876' },
+        { x: 20.6, y: -0.16, z: 18.4, scale: [7.4, 2.8, 3.3], color: '#73c05e' },
       ];
 
-      hillConfigs.forEach((hill) => {
-        const mesh = this.createOutlinedMesh(
-            hillGeometry,
-            this.createToonMaterial(`surrounding-${hill.materialKey}`, {
-              color: hill.color,
-            }, {
-              outlineThickness: 0.0092,
-              outlineColor: '#1f381a',
-            }),
+      // One instanced draw for all hills; the per-hill tint rides on
+      // instance colors over a white base material.
+      const hills = this.createStaticInstancedMesh(
+          hillGeometry,
+          this.createToonMaterial('surrounding-hill-material', { color: '#ffffff' }),
+          hillConfigs.length,
+      );
+      const matrix = new THREE.Matrix4();
+      const quaternion = new THREE.Quaternion();
+      hillConfigs.forEach((hill, index) => {
+        matrix.compose(
+            new THREE.Vector3(hill.x, hill.y, hill.z),
+            quaternion,
+            new THREE.Vector3(hill.scale[0], hill.scale[1], hill.scale[2]),
         );
-        mesh.position.set(hill.x, hill.y, hill.z);
-        mesh.scale.set(hill.scale[0], hill.scale[1], hill.scale[2]);
-        this.scene.add(mesh);
+        hills.setMatrixAt(index, matrix);
+        hills.setColorAt(index, new THREE.Color(hill.color));
       });
+      hills.instanceColor.needsUpdate = true;
+      this.finalizeInstancedMesh(hills);
 
       const bushGeometry = this.getSharedGeometry('surrounding-bush', () => new THREE.SphereGeometry(1, 20, 20));
-      const bushMaterial = this.createToonMaterial('surrounding-bush-material', {
-        color: '#4ebf63',
-      }, {
-        outlineThickness: 0.0084,
-        outlineColor: '#173617',
-      });
-      [
+      const bushConfigs = [
         { x: -2.6, y: -1.04, z: -5.4, scale: [0.9, 0.68, 0.7] },
         { x: 12.6, y: -1.02, z: -4.8, scale: [1.1, 0.72, 0.78] },
         { x: -1.8, y: -1.02, z: 14.9, scale: [1.15, 0.78, 0.84] },
         { x: 13.8, y: -1.03, z: 15.3, scale: [1.02, 0.7, 0.74] },
         { x: -5.8, y: -1.02, z: 5.6, scale: [0.96, 0.7, 0.72] },
         { x: 18.1, y: -1.02, z: 5.2, scale: [1.08, 0.76, 0.8] },
-      ].forEach((bush) => {
-        const mesh = this.createOutlinedMesh(bushGeometry, bushMaterial);
-        mesh.position.set(bush.x, bush.y, bush.z);
-        mesh.scale.set(bush.scale[0], bush.scale[1], bush.scale[2]);
-        this.scene.add(mesh);
+      ];
+      const bushes = this.createStaticInstancedMesh(
+          bushGeometry,
+          this.createToonMaterial('surrounding-bush-material', { color: '#4ebf63' }),
+          bushConfigs.length,
+      );
+      bushConfigs.forEach((bush, index) => {
+        matrix.compose(
+            new THREE.Vector3(bush.x, bush.y, bush.z),
+            quaternion,
+            new THREE.Vector3(bush.scale[0], bush.scale[1], bush.scale[2]),
+        );
+        bushes.setMatrixAt(index, matrix);
       });
+      this.finalizeInstancedMesh(bushes);
 
       const sun = this.createOutlinedMesh(
           this.getSharedGeometry('cartoon-sun', () => new THREE.SphereGeometry(1, 24, 24)),
@@ -571,10 +630,7 @@ export default {
       sun.scale.set(2.4, 2.4, 2.4);
       this.scene.add(sun);
 
-      this.createCloud({ x: -9.8, y: 9.4, z: -15.6 }, 1.35);
-      this.createCloud({ x: 3.8, y: 11.2, z: -18.4 }, 1.55);
-      this.createCloud({ x: 18.2, y: 10.1, z: -14.8 }, 1.25);
-      this.createCloud({ x: 15.6, y: 8.5, z: -6.4 }, 0.96);
+      this.createCloudsInstanced();
     },
 
     createGroundEnvironment() {
@@ -652,7 +708,7 @@ export default {
       sunLight.shadow.normalBias = 0.025;
 
       fillLight.position.set(16, 7.5, 14.5);
-      trayLight.position.set(DICE_PLATFORM.center.x, 2.6, DICE_PLATFORM.center.z);
+      trayLight.position.set(DICE_PIT.center.x, 2.6, DICE_PIT.center.z);
       
       this.shadowLight = sunLight;
       this.ambientLight = ambientLight;
@@ -671,33 +727,30 @@ export default {
       this.applyEnvironment();
     },
 
-    createDicePlatform() {
-      const platform = this.createOutlinedMesh(
-          this.getSharedGeometry(
-              'dice-platform',
-              () => new THREE.CylinderGeometry(
-                  DICE_PLATFORM.radius,
-                  DICE_PLATFORM.radius * 1.08,
-                  DICE_PLATFORM.height,
-                  40,
-              ),
-          ),
-          this.createToonMaterial('dice-platform-material', {
-            color: '#58b368',
-            roughness: 0.85,
-            metalness: 0.02,
-          }, {
-            outlineThickness: 0.01,
-            outlineColor: '#1f4d2a',
+    // Lines the pit cutout with a single lathe profile: a small lip that
+    // overlaps the board around the cutout, a beveled rim sloping into the
+    // hole, the vertical wall, and the floor the dice rests on. Neutral
+    // board tones — the lighting shades the slope and wall darker on its
+    // own, which is what makes the recess read as depth.
+    createDicePit() {
+      const surfaceY = BOARD_TOP_SURFACE_Y + 0.002;
+      const bevelBottomY = 0.004;
+      const liner = markRaw(new THREE.Mesh(
+          this.getSharedGeometry('dice-pit-liner', () => new THREE.LatheGeometry([
+            new THREE.Vector2(DICE_PIT.holeRadius + 0.06, surfaceY),
+            new THREE.Vector2(DICE_PIT.holeRadius, surfaceY),
+            new THREE.Vector2(DICE_PIT.innerRadius, bevelBottomY),
+            new THREE.Vector2(DICE_PIT.innerRadius, DICE_PIT.floorY),
+            new THREE.Vector2(0.001, DICE_PIT.floorY),
+          ], 64)),
+          this.createToonMaterial('dice-pit-liner-material', {
+            color: '#e8d8a9',
+            side: THREE.DoubleSide,
           }),
-          { outlineScale: { x: 1.03, y: 1.02, z: 1.03 }, castShadow: true, receiveShadow: true },
-      );
-      platform.position.set(
-          DICE_PLATFORM.center.x,
-          DICE_PLATFORM.topY - (DICE_PLATFORM.height / 2),
-          DICE_PLATFORM.center.z,
-      );
-      this.scene.add(platform);
+      ));
+      liner.position.set(DICE_PIT.center.x, 0, DICE_PIT.center.z);
+      liner.receiveShadow = true;
+      this.scene.add(liner);
     },
 
     createPhysicsWorld() {
@@ -706,23 +759,26 @@ export default {
       }));
       world.allowSleep = true;
       world.broadphase = new CANNON.SAPBroadphase(world);
-      world.defaultContactMaterial.friction = 0.24;
-      world.defaultContactMaterial.restitution = 0.24;
+      // The dice is the only dynamic body, so the default contact material
+      // is effectively the dice contact: low friction + a bit of bounce so
+      // it slides off edges and walls instead of sticking tilted.
+      world.defaultContactMaterial.friction = 0.08;
+      world.defaultContactMaterial.restitution = 0.3;
 
-      const platformBody = new CANNON.Body({
+      const pitFloorBody = new CANNON.Body({
         mass: 0,
         shape: new CANNON.Box(new CANNON.Vec3(
-            DICE_PLATFORM.radius + 0.2,
+            DICE_PIT.holeRadius + 0.2,
             0.06,
-            DICE_PLATFORM.radius + 0.2,
+            DICE_PIT.holeRadius + 0.2,
         )),
         position: new CANNON.Vec3(
-            DICE_PLATFORM.center.x,
-            DICE_PLATFORM.topY - 0.06,
-            DICE_PLATFORM.center.z,
+            DICE_PIT.center.x,
+            DICE_PIT.floorY - 0.06,
+            DICE_PIT.center.z,
         ),
       });
-      world.addBody(platformBody);
+      world.addBody(pitFloorBody);
 
       const tableBody = new CANNON.Body({
         mass: 0,
@@ -747,18 +803,18 @@ export default {
       safetyFloor.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
       world.addBody(safetyFloor);
 
-      // Invisible sumo-ring walls: eight tall boxes forming an octagon
-      // around the platform edge. Tangent orientation: rotating a +x-long
-      // box by -(angle + 90°) about Y lines it up with the rim.
+      // Invisible pit walls: eight tall boxes forming an octagon around the
+      // pit rim. Tangent orientation: rotating a +x-long box by
+      // -(angle + 90°) about Y lines it up with the rim.
       for (let i = 0; i < 8; i += 1) {
         const angle = (i * Math.PI) / 4;
         const wall = new CANNON.Body({
           mass: 0,
-          shape: new CANNON.Box(new CANNON.Vec3(0.65, DICE_PLATFORM.wallHeight / 2, 0.1)),
+          shape: new CANNON.Box(new CANNON.Vec3(0.65, DICE_PIT.wallHeight / 2, 0.1)),
           position: new CANNON.Vec3(
-              DICE_PLATFORM.center.x + (DICE_PLATFORM.wallRadius * Math.cos(angle)),
-              DICE_PLATFORM.topY + (DICE_PLATFORM.wallHeight / 2),
-              DICE_PLATFORM.center.z + (DICE_PLATFORM.wallRadius * Math.sin(angle)),
+              DICE_PIT.center.x + (DICE_PIT.wallRadius * Math.cos(angle)),
+              DICE_PIT.floorY + (DICE_PIT.wallHeight / 2),
+              DICE_PIT.center.z + (DICE_PIT.wallRadius * Math.sin(angle)),
           ),
         });
         wall.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), -angle - (Math.PI / 2));
@@ -771,7 +827,9 @@ export default {
 
     createDice() {
       const diceMesh = this.createOutlinedMesh(
-          this.getSharedGeometry('dice-box', () => new THREE.BoxGeometry(DICE_SIZE, DICE_SIZE, DICE_SIZE)),
+          // RoundedBoxGeometry keeps BoxGeometry's six material groups, so
+          // the per-face pip textures still map.
+          this.getSharedGeometry('dice-box', () => new RoundedBoxGeometry(DICE_SIZE, DICE_SIZE, DICE_SIZE, 3, DICE_CORNER_RADIUS)),
           this.createDiceMaterials(),
           { outlineScale: 1.09, castShadow: true, receiveShadow: true },
       );
@@ -789,6 +847,9 @@ export default {
         allowSleep: true,
         sleepSpeedLimit: 0.16,
         sleepTimeLimit: 0.35,
+        // Bleeds off residual spin so the dice flops onto a face instead of
+        // pirouetting on an edge.
+        angularDamping: 0.08,
       }));
       this.physicsWorld?.addBody(diceBody);
       this.dicePhysicsBody = diceBody;
@@ -802,14 +863,7 @@ export default {
         
         this.updateCameraPath();
 
-        if (this.grassMeshes && this.grassMeshes.length > 0) {
-          const time = performance.now() * 0.0025;
-          this.grassMeshes.forEach((grass, idx) => {
-            const wave = Math.sin(time + idx * 0.6) * 0.09;
-            grass.rotation.z = wave;
-            grass.rotation.y = wave * 0.3;
-          });
-        }
+        this.updateGrassSway(performance.now() * 0.0025);
 
         const rippleTime = performance.now() * RIPPLE_TIME_SCALE;
 
@@ -871,32 +925,55 @@ export default {
         return;
       }
 
-      this.diceMesh.position.set(
-          this.dicePhysicsBody.position.x,
-          this.dicePhysicsBody.position.y + DICE_VISUAL_FLOAT_Y,
-          this.dicePhysicsBody.position.z,
-      );
+      const mesh = this.diceMesh;
+      const body = this.dicePhysicsBody;
+      const targetY = body.position.y + DICE_VISUAL_FLOAT_Y;
+
+      if (
+        mesh.position.x !== body.position.x ||
+        mesh.position.y !== targetY ||
+        mesh.position.z !== body.position.z
+      ) {
+        mesh.position.set(body.position.x, targetY, body.position.z);
+        this.requestShadowUpdate();
+      }
 
       if (this.diceSnapTween) {
         const tween = this.diceSnapTween;
         const progress = Math.min((performance.now() - tween.start) / tween.duration, 1);
-        this.diceMesh.quaternion.slerpQuaternions(tween.from, tween.to, progress);
+        mesh.quaternion.slerpQuaternions(tween.from, tween.to, progress);
+        this.requestShadowUpdate();
         if (progress >= 1) {
           this.diceSnapTween = null;
         }
         return;
       }
 
-      this.diceMesh.quaternion.set(
-          this.dicePhysicsBody.quaternion.x,
-          this.dicePhysicsBody.quaternion.y,
-          this.dicePhysicsBody.quaternion.z,
-          this.dicePhysicsBody.quaternion.w,
-      );
+      if (
+        mesh.quaternion.x !== body.quaternion.x ||
+        mesh.quaternion.y !== body.quaternion.y ||
+        mesh.quaternion.z !== body.quaternion.z ||
+        mesh.quaternion.w !== body.quaternion.w
+      ) {
+        mesh.quaternion.set(
+            body.quaternion.x,
+            body.quaternion.y,
+            body.quaternion.z,
+            body.quaternion.w,
+        );
+        this.requestShadowUpdate();
+      }
     },
 
     stepPhysicsWorld() {
       if (!this.physicsWorld) {
+        return;
+      }
+
+      // The dice is the only dynamic body: once it sleeps with no roll in
+      // flight there is nothing left to simulate.
+      if (!this.pendingDiceRoll && this.dicePhysicsBody?.sleepState === CANNON.Body.SLEEPING) {
+        this.physicsLastTime = null;
         return;
       }
 
@@ -951,10 +1028,22 @@ export default {
           this.ensurePawnMesh(pawn);
 
           const pawnMesh = this.pawnMeshes[pawn.id];
-          pawnMesh.visible = true;
-          
-          const targetState = this.getPawnWorldState(pawn);
-          const animatedPosition = this.getAnimatedPawnPosition(pawn, targetState, now);
+          if (!pawnMesh.visible) {
+            pawnMesh.visible = true;
+            this.requestShadowUpdate();
+          }
+
+          const animatedPosition = this.getAnimatedPawnPosition(pawn, now);
+          const targetScale = pawn.isActive ? 1.1 : 1;
+
+          if (
+            pawnMesh.position.x !== animatedPosition.x ||
+            pawnMesh.position.y !== animatedPosition.y ||
+            pawnMesh.position.z !== animatedPosition.z ||
+            pawnMesh.scale.x !== targetScale
+          ) {
+            this.requestShadowUpdate();
+          }
 
           pawnMesh.position.set(
               animatedPosition.x,
@@ -962,30 +1051,22 @@ export default {
               animatedPosition.z,
           );
 
-          pawnMesh.scale.setScalar(pawn.isActive ? 1.1 : 1);
+          pawnMesh.scale.setScalar(targetScale);
         });
       });
 
       // Hide any cached pawn meshes that are no longer active in store.players
       Object.keys(this.pawnMeshes).forEach((pawnId) => {
-        if (!activePawnIds.has(pawnId)) {
+        if (!activePawnIds.has(pawnId) && this.pawnMeshes[pawnId].visible) {
           this.pawnMeshes[pawnId].visible = false;
+          this.requestShadowUpdate();
         }
       });
-    },
 
-    getPawnWorldState(pawn) {
-      const coordinates = pawn.getCoordinates(PAWN_CENTER_Y);
-
-      return {
-        key: `${pawn.position}:${pawn.globalPosition}:${pawn.isInDestinationField ? 1 : 0}`,
-        jumpHeight: this.getPawnJumpHeight(pawn),
-        position: {
-          x: coordinates.x,
-          y: coordinates.y + (pawn.isActive ? PAWN_ACTIVE_LIFT_Y : 0),
-          z: coordinates.z,
-        },
-      };
+      if (this.pawnOutlineSyncPending) {
+        this.pawnOutlineSyncPending = false;
+        this.applyOutlineAppearance();
+      }
     },
 
     getPawnJumpHeight(pawn) {
@@ -1000,59 +1081,68 @@ export default {
       return 0.34;
     },
 
-    cloneWorldPosition(position) {
-      return {
-        x: position.x,
-        y: position.y,
-        z: position.z,
-      };
-    },
+    getAnimatedPawnPosition(pawn, now) {
+      const coordinates = pawn.getCoordinates(PAWN_CENTER_Y);
+      const targetX = coordinates.x;
+      const targetY = coordinates.y + (pawn.isActive ? PAWN_ACTIVE_LIFT_Y : 0);
+      const targetZ = coordinates.z;
 
-    getAnimatedPawnPosition(pawn, targetState, now) {
-      if (!this.pawnMotionStates[pawn.id]) {
-        this.pawnMotionStates[pawn.id] = markRaw({
-          current: this.cloneWorldPosition(targetState.position),
-          from: this.cloneWorldPosition(targetState.position),
-          to: this.cloneWorldPosition(targetState.position),
-          logicalKey: targetState.key,
+      let motion = this.pawnMotionStates[pawn.id];
+      if (!motion) {
+        motion = markRaw({
+          current: { x: targetX, y: targetY, z: targetZ },
+          from: { x: targetX, y: targetY, z: targetZ },
+          to: { x: targetX, y: targetY, z: targetZ },
+          position: pawn.position,
+          globalPosition: pawn.globalPosition,
+          inDestination: pawn.isInDestinationField,
           startTime: now,
           duration: PAWN_STEP_DURATION_MS,
-          jumpHeight: targetState.jumpHeight,
+          jumpHeight: this.getPawnJumpHeight(pawn),
           isAnimating: false,
         });
+        this.pawnMotionStates[pawn.id] = motion;
       }
 
-      const motion = this.pawnMotionStates[pawn.id];
-
-      if (motion.logicalKey !== targetState.key) {
-        motion.from = this.cloneWorldPosition(motion.current);
-        motion.to = this.cloneWorldPosition(targetState.position);
-        motion.logicalKey = targetState.key;
+      if (
+        motion.position !== pawn.position ||
+        motion.globalPosition !== pawn.globalPosition ||
+        motion.inDestination !== pawn.isInDestinationField
+      ) {
+        motion.from.x = motion.current.x;
+        motion.from.y = motion.current.y;
+        motion.from.z = motion.current.z;
+        motion.to.x = targetX;
+        motion.to.y = targetY;
+        motion.to.z = targetZ;
+        motion.position = pawn.position;
+        motion.globalPosition = pawn.globalPosition;
+        motion.inDestination = pawn.isInDestinationField;
         motion.startTime = now;
-        motion.duration = PAWN_STEP_DURATION_MS;
-        motion.jumpHeight = targetState.jumpHeight;
+        motion.jumpHeight = this.getPawnJumpHeight(pawn);
         motion.isAnimating = true;
       }
 
       if (!motion.isAnimating) {
-        motion.current = this.cloneWorldPosition(targetState.position);
+        motion.current.x = targetX;
+        motion.current.y = targetY;
+        motion.current.z = targetZ;
         return motion.current;
       }
 
       const progress = Math.min((now - motion.startTime) / motion.duration, 1);
-      const current = {
-        x: motion.from.x + ((motion.to.x - motion.from.x) * progress),
-        y: motion.from.y + ((motion.to.y - motion.from.y) * progress) + (Math.sin(Math.PI * progress) * motion.jumpHeight),
-        z: motion.from.z + ((motion.to.z - motion.from.z) * progress),
-      };
-
-      motion.current = current;
-
       if (progress >= 1) {
-        motion.current = this.cloneWorldPosition(motion.to);
+        motion.current.x = motion.to.x;
+        motion.current.y = motion.to.y;
+        motion.current.z = motion.to.z;
         motion.isAnimating = false;
+        return motion.current;
       }
 
+      motion.current.x = motion.from.x + ((motion.to.x - motion.from.x) * progress);
+      motion.current.y = motion.from.y + ((motion.to.y - motion.from.y) * progress)
+          + (Math.sin(Math.PI * progress) * motion.jumpHeight);
+      motion.current.z = motion.from.z + ((motion.to.z - motion.from.z) * progress);
       return motion.current;
     },
 
@@ -1109,7 +1199,9 @@ export default {
 
       this.pawnMeshes[pawn.id] = group;
       this.scene.add(group);
-      this.applyOutlineAppearance();
+      // Batched in syncPawns: one applyOutlineAppearance traverse per frame
+      // instead of one per created pawn mesh.
+      this.pawnOutlineSyncPending = true;
     },
 
     createOutlinedMesh(geometry, material, options = {}) {
@@ -1170,33 +1262,48 @@ export default {
       const ctx = this.overlayCtx;
       if (!canvas || !ctx) return;
 
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
       // Idle "clickable" cues are the ground ripples (animateClickableRipples);
-      // the 2D hull outline is hover feedback only.
-      if (this.diceMesh && this.store.gamePlayStatus.isRolling && this.isHumanTurn()
-          && this.hoveredTarget === 'dice') {
+      // the 2D hull outline is hover feedback only, so most frames draw nothing.
+      const status = this.store.gamePlayStatus;
+      const wantsDice = Boolean(this.diceMesh && status.isRolling
+          && this.hoveredTarget === 'dice' && this.isHumanTurn());
+      const wantsPawn = Boolean(status.isMoving && this.hoveredTarget
+          && this.hoveredTarget.startsWith('cube-') && this.isHumanTurn());
+
+      if (!wantsDice && !wantsPawn) {
+        if (this.overlayHasContent) {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          this.overlayHasContent = false;
+        }
+        return;
+      }
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      let drew = false;
+
+      if (wantsDice) {
         this.drawObjectHighlight2D(
           ctx, canvas,
           [this.getDiceOutlinePoints()],
           0.95,
           '#ffaa22',
         );
-      }
-
-      this.store.players.forEach((player) => {
-        player.pawns.forEach((pawn) => {
-          if (!this.store.gamePlayStatus.isMoving || !this.isHumanTurn() || !pawn.isActive) return;
-          const mesh = this.pawnMeshes[pawn.id];
-          if (!mesh || this.hoveredTarget !== mesh.name) return;
+        drew = true;
+      } else {
+        const pawn = this.findPawnByMeshName(this.hoveredTarget);
+        const mesh = pawn?.isActive ? this.pawnMeshes[pawn.id] : null;
+        if (mesh) {
           this.drawObjectHighlight2D(
             ctx, canvas,
             [this.getPawnBodyOutlinePoints(mesh), this.getPawnHeadOutlinePoints(mesh)],
             0.95,
             '#ffaa22',
           );
-        });
-      });
+          drew = true;
+        }
+      }
+
+      this.overlayHasContent = drew;
     },
 
     getDiceOutlinePoints() {
@@ -1325,15 +1432,17 @@ export default {
       return lower.concat(upper);
     },
 
-    createToonMaterial(key, materialOptions) {
+    createToonMaterial(key, materialOptions = {}) {
       return this.getSharedMaterial(
           key,
           () => {
-            const material = markRaw(new THREE.MeshStandardMaterial({
-              roughness: 0.78,
-              metalness: 0.02,
-              ...materialOptions,
-            }));
+            // Lambert keeps the flat cartoon look the old MeshStandardMaterial
+            // produced here at a fraction of the per-fragment lighting cost.
+            // PBR params some callers still pass don't apply to it.
+            const { roughness, metalness, ...options } = materialOptions;
+            void roughness;
+            void metalness;
+            const material = markRaw(new THREE.MeshLambertMaterial(options));
             this.prepareFillMaterial(material);
             return material;
           },
@@ -1407,11 +1516,9 @@ export default {
         const material = this.getSharedMaterial(
             `dice-face-material-${faceValue}`,
             () => {
-              const faceMaterial = markRaw(new THREE.MeshStandardMaterial({
+              const faceMaterial = markRaw(new THREE.MeshLambertMaterial({
                 color: '#ffffff',
                 map: this.getDiceFaceTexture(faceValue),
-                roughness: 0.5,
-                metalness: 0.01,
               }));
               this.prepareFillMaterial(faceMaterial);
               return faceMaterial;
@@ -1653,35 +1760,54 @@ export default {
           break;
       }
 
+      this.requestShadowUpdate();
       this.hoverNeedsUpdate = true;
     },
 
-    createCloud(position, scale = 1) {
-      const cloud = markRaw(new THREE.Group());
+    createCloudsInstanced() {
       const puffGeometry = this.getSharedGeometry('cartoon-cloud-puff', () => new THREE.SphereGeometry(1, 20, 20));
-      const puffMaterial = this.createToonMaterial('cartoon-cloud-material', {
-        color: '#ffffff',
-      }, {
-        outlineThickness: 0.0082,
-        outlineColor: '#68818f',
-        outlineAlpha: 0.9,
-      });
-
-      [
+      const puffMaterial = this.createToonMaterial('cartoon-cloud-material', { color: '#ffffff' });
+      const clouds = [
+        { x: -9.8, y: 9.4, z: -15.6, scale: 1.35 },
+        { x: 3.8, y: 11.2, z: -18.4, scale: 1.55 },
+        { x: 18.2, y: 10.1, z: -14.8, scale: 1.25 },
+        { x: 15.6, y: 8.5, z: -6.4, scale: 0.96 },
+      ];
+      const puffs = [
         { x: -1.35, y: 0, z: 0.15, scale: [1.1, 0.82, 0.92] },
         { x: -0.35, y: 0.3, z: 0, scale: [1.28, 0.96, 1.02] },
         { x: 0.7, y: 0.2, z: -0.08, scale: [1.15, 0.88, 0.95] },
         { x: 1.55, y: -0.02, z: 0.1, scale: [0.92, 0.7, 0.8] },
-      ].forEach((puff) => {
-        const mesh = this.createOutlinedMesh(puffGeometry, puffMaterial);
-        mesh.position.set(puff.x, puff.y, puff.z);
-        mesh.scale.set(puff.scale[0], puff.scale[1], puff.scale[2]);
-        cloud.add(mesh);
-      });
+      ];
 
-      cloud.position.set(position.x, position.y, position.z);
-      cloud.scale.setScalar(scale);
-      this.scene.add(cloud);
+      const mesh = this.createStaticInstancedMesh(
+          puffGeometry,
+          puffMaterial,
+          clouds.length * puffs.length,
+      );
+      const matrix = new THREE.Matrix4();
+      const quaternion = new THREE.Quaternion();
+      let index = 0;
+      clouds.forEach((cloud) => {
+        puffs.forEach((puff) => {
+          matrix.compose(
+              new THREE.Vector3(
+                  cloud.x + (puff.x * cloud.scale),
+                  cloud.y + (puff.y * cloud.scale),
+                  cloud.z + (puff.z * cloud.scale),
+              ),
+              quaternion,
+              new THREE.Vector3(
+                  puff.scale[0] * cloud.scale,
+                  puff.scale[1] * cloud.scale,
+                  puff.scale[2] * cloud.scale,
+              ),
+          );
+          mesh.setMatrixAt(index, matrix);
+          index += 1;
+        });
+      });
+      this.finalizeInstancedMesh(mesh);
     },
 
     applyOutlineAppearance() {
@@ -1713,6 +1839,15 @@ export default {
             preset.lineScale,
         ));
       });
+    },
+
+    // Marks the shadow map dirty so the next renderer.render redraws it.
+    // Must be called whenever a shadow caster or a light moves/changes —
+    // shadowMap.autoUpdate is off.
+    requestShadowUpdate() {
+      if (this.renderer) {
+        this.renderer.shadowMap.needsUpdate = true;
+      }
     },
 
     applyRenderQuality() {
@@ -1768,6 +1903,7 @@ export default {
       }
 
       this.renderer.setSize(window.innerWidth, window.innerHeight, false);
+      this.requestShadowUpdate();
     },
 
     prepareFillMaterial(material) {
@@ -2050,6 +2186,7 @@ export default {
 
       this.pawnMeshes = markRaw({});
       this.pawnMotionStates = markRaw({});
+      this.requestShadowUpdate();
 
       this.pendingDiceRoll = null;
       this.onlineDice = null;
@@ -2252,7 +2389,7 @@ export default {
       if (this.diceMesh && this.store.gamePlayStatus.isRolling && !this.isMobile) {
         targets.push({
           x: this.diceMesh.position.x,
-          y: DICE_PLATFORM.topY + 0.01,
+          y: DICE_PIT.floorY + 0.012,
           z: this.diceMesh.position.z,
           color: '#ff7700',
           scale: 0.6,
@@ -2311,15 +2448,12 @@ export default {
     },
 
     createGrassAndTrees() {
-      this.treeGroups = [];
       const treePositions = [
         [-3.2, 3], [-3.8, 8.5], [3.2, -2.8], [9.8, -3.2],
         [15.5, 1.8], [15.2, 9.2], [9.5, 13.5], [14.0, 13.2],
         [2.2, 12.8], [-1.8, 11.2]
       ];
-      treePositions.forEach(([tx, tz]) => {
-        this.createTree(tx, tz, 0.75 + Math.random() * 0.35);
-      });
+      this.createTreesInstanced(treePositions);
 
       const grassPositions = [
         [-3, 4.8], [-2.5, 6.2], [-4, 2], [-1.5, -1.2], [3, -3],
@@ -2327,45 +2461,53 @@ export default {
         [15, 6.5], [14, 11.2], [11.5, 13.2], [8.5, 12.2], [5.5, 12.8],
         [1, 11.8], [-1.5, 10.2], [-4, 9], [6, 12.5], [10, -2.5]
       ];
-      this.grassMeshes = [];
-      grassPositions.forEach(([gx, gz]) => {
-        this.createGrass(gx, gz, 0.65);
-      });
+      this.createGrassInstanced(grassPositions);
     },
 
-    createTree(x, z, scale = 1) {
-      const treeGroup = markRaw(new THREE.Group());
-      
+    createStaticInstancedMesh(geometry, material, count, options = {}) {
+      const mesh = markRaw(new THREE.InstancedMesh(geometry, material, count));
+      mesh.castShadow = Boolean(options.castShadow);
+      mesh.receiveShadow = Boolean(options.receiveShadow);
+      return mesh;
+    },
+
+    // Culling for an InstancedMesh defaults to the geometry's origin-centered
+    // bounds, which would drop the whole set when the origin leaves view —
+    // recompute from the actual instance matrices once they are set.
+    finalizeInstancedMesh(mesh) {
+      mesh.instanceMatrix.needsUpdate = true;
+      mesh.computeBoundingSphere();
+      this.scene.add(mesh);
+    },
+
+    createTreesInstanced(positions) {
       const trunkGeo = this.getSharedGeometry('tree-trunk', () => new THREE.CylinderGeometry(0.12, 0.18, 0.8, 8));
-      const trunkMat = this.createToonMaterial('tree-trunk-mat', { color: '#8b5a2b', roughness: 0.9 }, { outlineThickness: 0.01 });
-      const trunk = this.createOutlinedMesh(trunkGeo, trunkMat);
-      trunk.position.y = 0.4;
-      trunk.castShadow = true;
-      trunk.receiveShadow = true;
-      treeGroup.add(trunk);
-
+      const trunkMat = this.createToonMaterial('tree-trunk-mat', { color: '#8b5a2b' });
       const foliageGeo = this.getSharedGeometry('tree-foliage', () => new THREE.ConeGeometry(0.48, 1.0, 8));
-      const foliageMat = this.createToonMaterial('tree-foliage-mat', { color: '#38761d', roughness: 0.8 }, { outlineThickness: 0.01 });
-      
-      const f1 = this.createOutlinedMesh(foliageGeo, foliageMat);
-      f1.position.y = 0.9;
-      f1.castShadow = true;
-      treeGroup.add(f1);
+      const foliageMat = this.createToonMaterial('tree-foliage-mat', { color: '#38761d' });
 
-      const f2 = this.createOutlinedMesh(foliageGeo, foliageMat);
-      f2.position.y = 1.35;
-      f2.scale.set(0.8, 0.8, 0.8);
-      f2.castShadow = true;
-      treeGroup.add(f2);
-      
-      treeGroup.position.set(x, -1.18, z);
-      treeGroup.scale.set(scale, scale, scale);
-      this.scene.add(treeGroup);
-      this.treeGroups.push(treeGroup);
+      const trunks = this.createStaticInstancedMesh(trunkGeo, trunkMat, positions.length, { castShadow: true, receiveShadow: true });
+      const lowerFoliage = this.createStaticInstancedMesh(foliageGeo, foliageMat, positions.length, { castShadow: true });
+      const upperFoliage = this.createStaticInstancedMesh(foliageGeo, foliageMat, positions.length, { castShadow: true });
+
+      const matrix = new THREE.Matrix4();
+      const quaternion = new THREE.Quaternion();
+      const groundY = -1.18;
+      positions.forEach(([x, z], index) => {
+        const s = 0.75 + Math.random() * 0.35;
+        matrix.compose(new THREE.Vector3(x, groundY + (0.4 * s), z), quaternion, new THREE.Vector3(s, s, s));
+        trunks.setMatrixAt(index, matrix);
+        matrix.compose(new THREE.Vector3(x, groundY + (0.9 * s), z), quaternion, new THREE.Vector3(s, s, s));
+        lowerFoliage.setMatrixAt(index, matrix);
+        matrix.compose(new THREE.Vector3(x, groundY + (1.35 * s), z), quaternion, new THREE.Vector3(0.8 * s, 0.8 * s, 0.8 * s));
+        upperFoliage.setMatrixAt(index, matrix);
+      });
+
+      this.treeGroups = [trunks, lowerFoliage, upperFoliage];
+      this.treeGroups.forEach((mesh) => this.finalizeInstancedMesh(mesh));
     },
 
-    createGrass(x, z, scale = 1) {
-      const grassGroup = markRaw(new THREE.Group());
+    createGrassInstanced(positions) {
       const bladeGeo = this.getSharedGeometry('grass-blade', () => {
         const geom = new THREE.BufferGeometry();
         const vertices = new Float32Array([
@@ -2380,26 +2522,48 @@ export default {
 
       const grassMat = this.createToonMaterial('grass-blade-mat', {
         color: '#5ea24e',
-        roughness: 0.9,
-        side: THREE.DoubleSide
-      }, {
-        outlineThickness: 0.008,
-        outlineColor: '#2b5220'
+        side: THREE.DoubleSide,
       });
 
-      for (let i = 0; i < 3; i++) {
-        const blade = this.createOutlinedMesh(bladeGeo, grassMat);
-        blade.rotation.y = (i * Math.PI) / 3;
-        blade.rotation.x = 0.08 + Math.random() * 0.08;
-        grassGroup.add(blade);
+      const bladesPerClump = 3;
+      const mesh = this.createStaticInstancedMesh(bladeGeo, grassMat, positions.length * bladesPerClump);
+      const clumps = positions.map(([gx, gz]) => {
+        const s = 0.65 * (0.8 + (Math.random() * 0.4));
+        return {
+          position: new THREE.Vector3(gx, -1.18, gz),
+          scale: new THREE.Vector3(s, s, s),
+          bladeRotations: Array.from({ length: bladesPerClump }, (_, bladeIdx) => new THREE.Matrix4().makeRotationFromEuler(
+              new THREE.Euler(0.08 + (Math.random() * 0.08), (bladeIdx * Math.PI) / 3, 0),
+          )),
+        };
+      });
+
+      this.grassInstances = markRaw({ mesh, clumps });
+      this.grassMeshes = [mesh];
+      this.updateGrassSway(0);
+      this.finalizeInstancedMesh(mesh);
+    },
+
+    // The same wave the old per-clump Groups ran, written into instance
+    // matrices instead: world = T(clump) * R(sway) * S(clump) * R(blade).
+    updateGrassSway(time) {
+      const grass = this.grassInstances;
+      if (!grass || !grass.mesh.visible) {
+        return;
       }
 
-      grassGroup.position.set(x, -1.18, z);
-      const s = scale * (0.8 + Math.random() * 0.4);
-      grassGroup.scale.set(s, s, s);
-      
-      this.scene.add(grassGroup);
-      this.grassMeshes.push(grassGroup);
+      let index = 0;
+      grass.clumps.forEach((clump, clumpIdx) => {
+        const wave = Math.sin(time + (clumpIdx * 0.6)) * 0.09;
+        _grassSwayEuler.set(0, wave * 0.3, wave);
+        _grassSwayQuaternion.setFromEuler(_grassSwayEuler);
+        clump.bladeRotations.forEach((bladeRotation) => {
+          _grassMatrix.compose(clump.position, _grassSwayQuaternion, clump.scale).multiply(bladeRotation);
+          grass.mesh.setMatrixAt(index, _grassMatrix);
+          index += 1;
+        });
+      });
+      grass.mesh.instanceMatrix.needsUpdate = true;
     },
 
     // ---- Online game flow (server-authoritative) ----
@@ -2417,12 +2581,12 @@ export default {
         // to the seat; the array index can differ when seats are sparse.
         seatToPlayerIndex[seat.seat] = this.store.players.length;
         this.store.players.push(
-            new Player(
+            markRaw(new Player(
                 seat.displayName || seat.username || `Player ${seat.seat + 1}`,
                 PLAYER_COLORS[seat.seat],
                 seat.seat + 1,
                 seat.seat === this.store.online.mySeat ? 'local' : 'remote',
-            ),
+            )),
         );
       });
 
@@ -2581,27 +2745,27 @@ export default {
 
       this.clearDiceBodyMotion();
       this.dicePhysicsBody.position.set(
-          DICE_PLATFORM.center.x,
-          DICE_PLATFORM.topY + (DICE_SIZE / 2),
-          DICE_PLATFORM.center.z,
+          DICE_PIT.center.x,
+          this.getDiceTrayRestY(),
+          DICE_PIT.center.z,
       );
       this.dicePhysicsBody.quaternion.set(0, 0, 0, 1);
       this.dicePhysicsBody.sleep();
     },
 
     getDiceTrayRestY() {
-      return DICE_PLATFORM.topY + (DICE_SIZE / 2);
+      return DICE_PIT.floorY + (DICE_SIZE / 2);
     },
 
-    // Square clamp inscribed in the platform, used only to re-center a
+    // Square clamp inscribed in the pit, used only to re-center a
     // stray dice before a throw.
     getDiceTrayBounds() {
-      const reach = DICE_PLATFORM.wallRadius - (DICE_SIZE * 0.9);
+      const reach = DICE_PIT.wallRadius - (DICE_SIZE * 0.9);
       return {
-        minX: DICE_PLATFORM.center.x - reach,
-        maxX: DICE_PLATFORM.center.x + reach,
-        minZ: DICE_PLATFORM.center.z - reach,
-        maxZ: DICE_PLATFORM.center.z + reach,
+        minX: DICE_PIT.center.x - reach,
+        maxX: DICE_PIT.center.x + reach,
+        minZ: DICE_PIT.center.z - reach,
+        maxZ: DICE_PIT.center.z + reach,
       };
     },
 
@@ -2659,8 +2823,8 @@ export default {
       randomAxis.normalize();
       body.quaternion.setFromAxisAngle(randomAxis, Math.random() * Math.PI * 2);
 
-      const centerBiasX = (DICE_PLATFORM.center.x - body.position.x) * 1.25;
-      const centerBiasZ = (DICE_PLATFORM.center.z - body.position.z) * 1.25;
+      const centerBiasX = (DICE_PIT.center.x - body.position.x) * 1.25;
+      const centerBiasZ = (DICE_PIT.center.z - body.position.z) * 1.25;
       // Gentler sideways throw than the old table-side tray — this one is
       // small enough that a hard throw just slams the walls.
       const horizontalX = centerBiasX + ((Math.random() - 0.5) * 2.2);
@@ -2836,7 +3000,7 @@ export default {
         };
       }
 
-      const quaternion = new THREE.Quaternion(
+      _diceFaceQuaternion.set(
           this.dicePhysicsBody.quaternion.x,
           this.dicePhysicsBody.quaternion.y,
           this.dicePhysicsBody.quaternion.z,
@@ -2844,24 +3008,23 @@ export default {
       );
       let bestFace = 1;
       let bestDot = -Infinity;
-      let bestWorldNormal = WORLD_UP.clone();
 
-      Object.entries(DICE_FACE_NORMALS).forEach(([faceValue, normal]) => {
-        const worldNormal = normal.clone().applyQuaternion(quaternion);
-        const dot = worldNormal.dot(WORLD_UP);
+      DICE_FACE_ENTRIES.forEach(([faceValue, normal]) => {
+        const dot = _diceFaceScratch.copy(normal).applyQuaternion(_diceFaceQuaternion).dot(WORLD_UP);
 
         if (dot > bestDot) {
           bestDot = dot;
-          bestFace = Number(faceValue);
-          bestWorldNormal = worldNormal;
+          bestFace = faceValue;
         }
       });
 
+      // worldNormal/quaternion are shared scratch objects — callers clone
+      // anything they keep past the current call.
       return {
         value: bestFace,
         dot: bestDot,
-        worldNormal: bestWorldNormal,
-        quaternion,
+        worldNormal: _diceBestNormal.copy(DICE_FACE_NORMALS[bestFace]).applyQuaternion(_diceFaceQuaternion),
+        quaternion: _diceFaceQuaternion,
       };
     },
 
@@ -2986,7 +3149,7 @@ export default {
         }
         this.menuOrbitTime += 0.0025; // slow cinematic orbit speed
         const radius = 9.5;
-        const target = new THREE.Vector3(5, 0.4, 5);
+        const target = CAMERA_GAME_TARGET;
         this.camera.position.x = target.x + Math.sin(this.menuOrbitTime) * radius;
         this.camera.position.z = target.z + Math.cos(this.menuOrbitTime) * radius;
         this.camera.position.y = 4.2 + Math.sin(this.menuOrbitTime * 2.2) * 1.5; // low and high wave
@@ -3003,19 +3166,16 @@ export default {
         // Cubic ease-in-out
         const ease = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
         
-        const targetPos = new THREE.Vector3(5.6, 12.4, 16.2);
-        const targetLook = new THREE.Vector3(5, 0.4, 5);
-        
-        this.camera.position.lerpVectors(this.cameraTransition.fromPosition, targetPos, ease);
-        
-        const currentLook = new THREE.Vector3().lerpVectors(this.cameraTransition.fromTarget, targetLook, ease);
+        this.camera.position.lerpVectors(this.cameraTransition.fromPosition, CAMERA_GAME_POSITION, ease);
+
+        const currentLook = _cameraLookScratch.lerpVectors(this.cameraTransition.fromTarget, CAMERA_GAME_TARGET, ease);
         this.camera.lookAt(currentLook);
-        
+
         if (t >= 1) {
           this.cameraTransition = null;
           if (this.controls) {
             this.controls.enabled = true;
-            this.controls.target.copy(targetLook);
+            this.controls.target.copy(CAMERA_GAME_TARGET);
             this.controls.update();
           }
         }
