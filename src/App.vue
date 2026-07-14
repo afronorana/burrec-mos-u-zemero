@@ -41,6 +41,7 @@ const BOARD_TOP_CORNER_RADIUS = 0.55;
 // (both board slabs are extruded with a matching cutout, and the pit liner
 // hides the cut edges). Invisible walls (an octagon of static physics boxes)
 // keep the dice inside without caging it visually.
+const DICE_PIT_NEUTRAL_COLOR = '#e8d8a9';
 const DICE_PIT = {
   center: { x: 5, z: 5 },
   holeRadius: 1.42, // slab cutout — also the outer edge of the beveled rim
@@ -147,6 +148,9 @@ export default {
     pendingDiceRoll(val) {
       this.store.gamePlayStatus.isDiceRolling = Boolean(val);
     },
+    'store.currentPlayerId'() {
+      this.applyPitRimColor();
+    },
     'store.currentScreen'(newScreen, oldScreen) {
       const isOrbitScreen = (s) => ['login-screen', 'main-menu', 'online-menu'].includes(s) || !s;
       const isFixedScreen = (s) => ['add-players', 'lobby', 'game-screen'].includes(s);
@@ -166,6 +170,8 @@ export default {
           this.controls.enabled = false;
         }
       }
+
+      this.applyPitRimColor();
 
       if (newScreen === 'add-players') {
         this.store.localSetupActive = [true, true, false, false];
@@ -222,6 +228,7 @@ export default {
       onlineDice: null,
       diceSnapTween: null,
       dicePitMesh: null,
+      dicePitRimMaterial: null,
       pawnMeshes: markRaw({}),
       pawnMotionStates: markRaw({}),
       menuOrbitTime: 0,
@@ -727,32 +734,64 @@ export default {
       this.applyEnvironment();
     },
 
-    // Lines the pit cutout with a single lathe profile: a small lip that
-    // overlaps the board around the cutout, a beveled rim sloping into the
-    // hole, the vertical wall, and the floor the dice rests on. Neutral
-    // board tones — the lighting shades the slope and wall darker on its
-    // own, which is what makes the recess read as depth.
+    // Lines the pit cutout in two parts: the rim (lip overlapping the board
+    // plus the beveled slope into the hole) and the neutral bowl (vertical
+    // wall + floor). The rim has its own unshared material so it can wear
+    // the active player's color as a turn indicator; both meshes live in a
+    // single 'dice-pit' group so the whole pit stays one click target.
     createDicePit() {
       const surfaceY = BOARD_TOP_SURFACE_Y + 0.002;
       const bevelBottomY = 0.004;
-      const liner = markRaw(new THREE.Mesh(
-          this.getSharedGeometry('dice-pit-liner', () => new THREE.LatheGeometry([
+
+      const group = markRaw(new THREE.Group());
+      group.name = 'dice-pit';
+      group.position.set(DICE_PIT.center.x, 0, DICE_PIT.center.z);
+
+      const rimMaterial = markRaw(new THREE.MeshLambertMaterial({
+        color: DICE_PIT_NEUTRAL_COLOR,
+        side: THREE.DoubleSide,
+      }));
+      this.prepareFillMaterial(rimMaterial);
+      this.dicePitRimMaterial = rimMaterial;
+
+      const rim = markRaw(new THREE.Mesh(
+          this.getSharedGeometry('dice-pit-rim', () => new THREE.LatheGeometry([
             new THREE.Vector2(DICE_PIT.holeRadius + 0.06, surfaceY),
             new THREE.Vector2(DICE_PIT.holeRadius, surfaceY),
+            new THREE.Vector2(DICE_PIT.innerRadius, bevelBottomY),
+          ], 64)),
+          rimMaterial,
+      ));
+      rim.receiveShadow = true;
+      group.add(rim);
+
+      const bowl = markRaw(new THREE.Mesh(
+          this.getSharedGeometry('dice-pit-bowl', () => new THREE.LatheGeometry([
             new THREE.Vector2(DICE_PIT.innerRadius, bevelBottomY),
             new THREE.Vector2(DICE_PIT.innerRadius, DICE_PIT.floorY),
             new THREE.Vector2(0.001, DICE_PIT.floorY),
           ], 64)),
           this.createToonMaterial('dice-pit-liner-material', {
-            color: '#e8d8a9',
+            color: DICE_PIT_NEUTRAL_COLOR,
             side: THREE.DoubleSide,
           }),
       ));
-      liner.name = 'dice-pit';
-      liner.position.set(DICE_PIT.center.x, 0, DICE_PIT.center.z);
-      liner.receiveShadow = true;
-      this.dicePitMesh = liner;
-      this.scene.add(liner);
+      bowl.receiveShadow = true;
+      group.add(bowl);
+
+      this.dicePitMesh = group;
+      this.scene.add(group);
+    },
+
+    // The pit rim doubles as a turn indicator: the active player's color
+    // during a game, the neutral board tone everywhere else.
+    applyPitRimColor() {
+      if (!this.dicePitRimMaterial) {
+        return;
+      }
+      const player = this.store.players[this.store.currentPlayerId];
+      const useColor = this.store.currentScreen === 'game-screen' && player;
+      this.dicePitRimMaterial.color.set(useColor ? player.color : DICE_PIT_NEUTRAL_COLOR);
     },
 
     createPhysicsWorld() {
