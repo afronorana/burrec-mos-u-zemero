@@ -28,7 +28,7 @@ import MatchController from './network/MatchController';
 
 const OUTLINE_COLOR = '#1b1411';
 const BOARD_CENTER = { x: 5, z: 5 };
-const DICE_SIZE = 0.38;
+const DICE_SIZE = 0.456;
 const DICE_CORNER_RADIUS = DICE_SIZE * 0.12;
 const BOARD_BASE_SIZE = 12.6;
 const BOARD_TOP_SIZE = 11.3;
