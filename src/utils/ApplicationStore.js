@@ -161,7 +161,8 @@ const ApplicationStore = reactive({
   online: {
     enabled: false,
     connectionState: 'idle', // idle | connecting | connected | reconnecting | disconnected
-    displayName: '',
+    // Remembered across sessions — the login screen prefills from here.
+    displayName: window.localStorage.getItem('burrec.online.displayName') || '',
     selfUserId: null,
     matchId: null,
     mode: null, // 'private' | 'quick'
