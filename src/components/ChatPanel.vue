@@ -41,7 +41,7 @@
         label=""
         :required="false"
         :placeholder="t('online.chatPlaceholder')"
-        maxlength="200"
+        :maxlength="maxLength"
         class="chat-input"
       >
         <template #append>
@@ -77,6 +77,7 @@ export default {
     return {
       store: ApplicationStore,
       draft: '',
+      maxLength: 200,
     };
   },
   computed: {
@@ -91,6 +92,12 @@ export default {
     }
   },
   watch: {
+    // Hard cap regardless of whether the input forwards its maxlength attr.
+    draft(val) {
+      if (val.length > this.maxLength) {
+        this.draft = val.slice(0, this.maxLength);
+      }
+    },
     'messages.length'() {
       this.$nextTick(() => {
         const scroller = this.$refs.scrollable;
@@ -103,7 +110,7 @@ export default {
   methods: {
     t,
     submit() {
-      const text = this.draft.trim();
+      const text = this.draft.trim().slice(0, this.maxLength);
       if (!text) {
         return;
       }

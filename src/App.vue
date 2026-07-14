@@ -375,6 +375,13 @@ export default {
         return;
       }
 
+      // Typing in the chat (or any input) must keep its spaces — the
+      // spacebar is only a roll shortcut outside editable elements.
+      const target = event.target;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+
       event.preventDefault();
       this.rollDice();
     },
