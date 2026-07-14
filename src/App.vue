@@ -128,14 +128,21 @@ const CAMERA_FOV_LANDSCAPE = 50;
 const CAMERA_FOV_PORTRAIT = 66;
 const RIPPLE_TIME_SCALE = 0.0006;
 // Every clickable cue (ground ring + hover outline) shares one crisp
-// two-tone UI-orange pulse: a hard color flip each half period plus a
-// small scale wobble — no soft glow, no fading tails.
+// two-tone UI-orange pulse: the color breathes smoothly between the two
+// oranges with a small scale wobble — no soft glow, no fading tails.
 const CLICKABLE_PULSE_COLORS = ['#ff7700', '#fdc25b'];
-const CLICKABLE_PULSE_PERIOD_MS = 800;
+const CLICKABLE_PULSE_PERIOD_MS = 1600;
+const _pulseColorA = new THREE.Color(CLICKABLE_PULSE_COLORS[0]);
+const _pulseColorB = new THREE.Color(CLICKABLE_PULSE_COLORS[1]);
+const _pulseColorScratch = new THREE.Color();
 const getClickablePulse = (now) => {
   const phase = (now % CLICKABLE_PULSE_PERIOD_MS) / CLICKABLE_PULSE_PERIOD_MS;
+  const wave = 0.5 + (0.5 * Math.sin(phase * Math.PI * 2));
+  _pulseColorScratch.copy(_pulseColorA).lerp(_pulseColorB, wave);
   return {
-    color: CLICKABLE_PULSE_COLORS[phase < 0.5 ? 0 : 1],
+    // Shared scratch color — consumers use it within the same frame only.
+    color: `#${_pulseColorScratch.getHexString()}`,
+    threeColor: _pulseColorScratch,
     scale: 0.92 + (0.1 * Math.sin(phase * Math.PI * 2)),
   };
 };
@@ -1449,8 +1456,8 @@ export default {
 
       if (!hulls.length) return;
 
-      // Crisp stroke — no shadow blur; the "pulse" is the caller flipping
-      // the color between the two UI oranges each half period.
+      // Crisp stroke — no shadow blur; the "pulse" is the caller breathing
+      // the color between the two UI oranges.
       ctx.save();
       ctx.globalAlpha = opacity;
       ctx.lineWidth = 7;
@@ -2530,7 +2537,7 @@ export default {
           ring.visible = true;
           const scale = pulse.scale * target.scale;
           ring.scale.set(scale, scale, 1);
-          ring.material.color.set(pulse.color);
+          ring.material.color.copy(pulse.threeColor);
           ring.material.opacity = 0.95;
         });
       });
