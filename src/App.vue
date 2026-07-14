@@ -79,10 +79,7 @@ const _grassSwayEuler = new THREE.Euler();
 const _grassSwayQuaternion = new THREE.Quaternion();
 const _grassMatrix = new THREE.Matrix4();
 
-// A square board slab with rounded outer corners and the dice-pit cutout
-// at its center. The geometry origin is the bottom of the slab (extrusion
-// runs along local +y).
-const createSlabWithPitHole = (size, thickness, cornerRadius) => {
+const createRoundedRectShape = (size, cornerRadius) => {
   const half = size / 2;
   const r = cornerRadius;
   const shape = new THREE.Shape();
@@ -96,11 +93,10 @@ const createSlabWithPitHole = (size, thickness, cornerRadius) => {
   shape.lineTo(-half, -half + r);
   shape.quadraticCurveTo(-half, -half, -half + r, -half);
   shape.closePath();
+  return shape;
+};
 
-  const hole = new THREE.Path();
-  hole.absarc(0, 0, DICE_PIT.holeRadius, 0, Math.PI * 2, true);
-  shape.holes.push(hole);
-
+const extrudeSlab = (shape, thickness) => {
   const geometry = new THREE.ExtrudeGeometry(shape, {
     depth: thickness,
     bevelEnabled: false,
@@ -108,6 +104,24 @@ const createSlabWithPitHole = (size, thickness, cornerRadius) => {
   });
   geometry.rotateX(-Math.PI / 2);
   return geometry;
+};
+
+// A rounded-corner slab; geometry origin is the bottom of the slab
+// (extrusion runs along local +y).
+const createRoundedSlab = (size, thickness, cornerRadius) => extrudeSlab(
+    createRoundedRectShape(size, cornerRadius),
+    thickness,
+);
+
+// Same slab with the dice-pit cutout at its center.
+const createSlabWithPitHole = (size, thickness, cornerRadius) => {
+  const shape = createRoundedRectShape(size, cornerRadius);
+
+  const hole = new THREE.Path();
+  hole.absarc(0, 0, DICE_PIT.holeRadius, 0, Math.PI * 2, true);
+  shape.holes.push(hole);
+
+  return extrudeSlab(shape, thickness);
 };
 // Slightly wide lens so the whole board stays in frame at all times.
 const CAMERA_FOV_LANDSCAPE = 50;
@@ -673,13 +687,15 @@ export default {
     },
 
     createGroundEnvironment() {
+      // Rounded corners concentric with the board base: the table extends
+      // 0.8 past the base per side, so its radius is the base's + 0.8.
       const tableTop = this.createOutlinedMesh(
           this.getSharedGeometry(
-              'table-top',
-              () => new THREE.BoxGeometry(
+              'table-top-rounded',
+              () => createRoundedSlab(
                   TABLE_PHYSICS.topSize.width,
                   TABLE_PHYSICS.topSize.height,
-                  TABLE_PHYSICS.topSize.depth,
+                  BOARD_BASE_CORNER_RADIUS + 0.8,
               ),
           ),
           this.createToonMaterial('table-top-material', {
@@ -692,13 +708,17 @@ export default {
           }),
           { receiveShadow: true },
       );
-      tableTop.position.set(TABLE_PHYSICS.center.x, TABLE_PHYSICS.topY, TABLE_PHYSICS.center.z);
+      tableTop.position.set(
+          TABLE_PHYSICS.center.x,
+          TABLE_PHYSICS.topY - (TABLE_PHYSICS.topSize.height / 2),
+          TABLE_PHYSICS.center.z,
+      );
       this.scene.add(tableTop);
 
       // The support runs all the way down into the meadow — there is no
       // floor slab under the table anymore, the board sits on the grass.
       const tableSupport = this.createOutlinedMesh(
-          this.getSharedGeometry('table-support', () => new THREE.BoxGeometry(11, 0.56, 11)),
+          this.getSharedGeometry('table-support-rounded', () => createRoundedSlab(11, 0.56, 0.55)),
           this.createToonMaterial('table-support-material', {
             color: '#8f6037',
             roughness: 0.82,
@@ -709,7 +729,7 @@ export default {
           }),
           { receiveShadow: true },
       );
-      tableSupport.position.set(TABLE_PHYSICS.center.x, -1.11, TABLE_PHYSICS.center.z);
+      tableSupport.position.set(TABLE_PHYSICS.center.x, -1.39, TABLE_PHYSICS.center.z);
       this.scene.add(tableSupport);
     },
 
