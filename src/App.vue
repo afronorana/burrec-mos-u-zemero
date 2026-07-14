@@ -2837,10 +2837,17 @@ export default {
       // small enough that a hard throw just slams the walls.
       const horizontalX = centerBiasX + ((Math.random() - 0.5) * 2.2);
       const horizontalZ = centerBiasZ + ((Math.random() - 0.5) * 2.2);
+      // Both horizontal axes always get real spin: a near-zero X/Z angular
+      // velocity leaves the dice pirouetting flat around Y with the top face
+      // never changing, which reads as a fake roll.
+      const tumble = (min, max) => {
+        const magnitude = min + (Math.random() * (max - min));
+        return Math.random() < 0.5 ? -magnitude : magnitude;
+      };
       body.angularVelocity.set(
-          (Math.random() - 0.5) * 30,
-          (Math.random() - 0.5) * 10,
-          (Math.random() - 0.5) * 30,
+          tumble(9, 15),
+          (Math.random() - 0.5) * 8,
+          tumble(9, 15),
       );
 
       body.applyImpulse(
