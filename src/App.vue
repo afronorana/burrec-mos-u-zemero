@@ -667,8 +667,10 @@ export default {
       tableTop.position.set(TABLE_PHYSICS.center.x, TABLE_PHYSICS.topY, TABLE_PHYSICS.center.z);
       this.scene.add(tableTop);
 
+      // The support runs all the way down into the meadow — there is no
+      // floor slab under the table anymore, the board sits on the grass.
       const tableSupport = this.createOutlinedMesh(
-          this.getSharedGeometry('table-support', () => new THREE.BoxGeometry(11, 0.26, 11)),
+          this.getSharedGeometry('table-support', () => new THREE.BoxGeometry(11, 0.56, 11)),
           this.createToonMaterial('table-support-material', {
             color: '#8f6037',
             roughness: 0.82,
@@ -679,23 +681,8 @@ export default {
           }),
           { receiveShadow: true },
       );
-      tableSupport.position.set(TABLE_PHYSICS.center.x, -0.96, TABLE_PHYSICS.center.z);
+      tableSupport.position.set(TABLE_PHYSICS.center.x, -1.11, TABLE_PHYSICS.center.z);
       this.scene.add(tableSupport);
-
-      const floor = this.createOutlinedMesh(
-          this.getSharedGeometry('table-floor', () => new THREE.BoxGeometry(26, 0.08, 18.5)),
-          this.createToonMaterial('table-floor-material', {
-            color: '#e9d39d',
-            roughness: 0.92,
-            metalness: 0,
-          }, {
-            outlineThickness: 0.01,
-            outlineColor: '#705537',
-          }),
-          { receiveShadow: true },
-      );
-      floor.position.set(6.2, -1.18, 5);
-      this.scene.add(floor);
     },
 
     createLights() {
@@ -2510,7 +2497,7 @@ export default {
 
       const matrix = new THREE.Matrix4();
       const quaternion = new THREE.Quaternion();
-      const groundY = -1.18;
+      const groundY = -1.37; // meadow surface — the dirt floor slab is gone
       positions.forEach(([x, z], index) => {
         const s = 0.75 + Math.random() * 0.35;
         matrix.compose(new THREE.Vector3(x, groundY + (0.4 * s), z), quaternion, new THREE.Vector3(s, s, s));
@@ -2548,7 +2535,7 @@ export default {
       const clumps = positions.map(([gx, gz]) => {
         const s = 0.65 * (0.8 + (Math.random() * 0.4));
         return {
-          position: new THREE.Vector3(gx, -1.18, gz),
+          position: new THREE.Vector3(gx, -1.37, gz),
           scale: new THREE.Vector3(s, s, s),
           bladeRotations: Array.from({ length: bladesPerClump }, (_, bladeIdx) => new THREE.Matrix4().makeRotationFromEuler(
               new THREE.Euler(0.08 + (Math.random() * 0.08), (bladeIdx * Math.PI) / 3, 0),
