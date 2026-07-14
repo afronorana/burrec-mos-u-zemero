@@ -2927,17 +2927,6 @@ export default {
 
       this.store.online.diceInFlight = false;
       EventBus.fire(EventKeys.net.diceResolved);
-
-      // Single legal pawn for our own seat: send the move automatically.
-      if (
-        payload &&
-        payload.seat === this.store.online.mySeat &&
-        payload.seat === currentSeat &&
-        Array.isArray(payload.legalPawns) &&
-        payload.legalPawns.length === 1
-      ) {
-        window.setTimeout(() => MatchController.requestMove(payload.legalPawns[0]), 350);
-      }
     },
 
     // Rotates the settled dice so `value` faces up, with a short visual tween

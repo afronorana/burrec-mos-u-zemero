@@ -148,12 +148,14 @@ class Player {
     }
   }
 
+  // AI only — humans always pick their pawn themselves, even when a single
+  // move is legal.
   movePawnAutomatically() {
     if (ApplicationStore.online.enabled) {
       return;
     }
 
-    if (this.pawnsAvailable() == 1 || this.isComputer) {
+    if (this.isComputer) {
       let pawnMoved = false;
       this.pawns.forEach(function(pawn) {
         if (pawn.isActive && !pawnMoved) {
