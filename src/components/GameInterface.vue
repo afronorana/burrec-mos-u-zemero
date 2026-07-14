@@ -1,18 +1,7 @@
 <template>
   <div class="hud">
-    <!-- Status card: top-left -->
-    <app-panel class="hud-status">
-      <div class="hud-player-row">
-        <span class="hud-dot" :style="{ background: currentPlayer?.color || '#888' }"></span>
-        <span class="hud-player-name">{{ currentPlayer?.name || t('game.waiting') }}</span>
-        <span class="hud-round">R{{ store.currentRound }}</span>
-      </div>
-      <p v-if="statusMessage" class="hud-msg">{{ statusMessage }}</p>
-      <p v-if="store.lastRolledDice !== 'Start'" class="hud-last-roll">
-        {{ t('game.rolled', { val: store.lastRolledDice }) }}
-      </p>
-      <p v-if="connectionMessage" class="hud-msg hud-connection">{{ connectionMessage }}</p>
-    </app-panel>
+    <!-- Connection trouble is the only global status worth a banner -->
+    <div v-if="connectionMessage" class="hud-connection-banner">{{ connectionMessage }}</div>
 
     <!-- Settings: middle-right trigger, centered modal -->
     <div class="hud-settings-area">
@@ -120,23 +109,6 @@ export default {
     };
   },
   computed: {
-    currentPlayer() {
-      return this.store.players[this.store.currentPlayerId] || null;
-    },
-    isHumanTurn() {
-      return Boolean(this.currentPlayer && this.currentPlayer.controller === 'local');
-    },
-    statusMessage() {
-      if (!this.currentPlayer) return t('game.setupBoard');
-      if (!this.isHumanTurn) {
-        return this.currentPlayer.controller === 'remote'
-          ? t('game.waitingForPlayer', { name: this.currentPlayer.name })
-          : t('game.playerThinking', { name: this.currentPlayer.name });
-      }
-      if (this.store.gamePlayStatus.isMoving) return t('game.pickPawn');
-      if (this.store.gamePlayStatus.isRolling) return t('game.rollDicePrompt');
-      return '';
-    },
     connectionMessage() {
       if (!this.store.online.enabled) return '';
       const state = this.store.online.connectionState;
@@ -263,8 +235,20 @@ export default {
 </script>
 
 <style scoped>
-.hud-connection {
-  color: var(--agu-color-red, #e9576f);
+.hud-connection-banner {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  background: var(--agu-color-red, #e9576f);
+  color: #ffffff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border: 2px solid var(--agu-color-base, #263f2a);
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
+  pointer-events: none;
 }
 
 /* ── Corner seat chips (same look as the lobby's) ────────── */

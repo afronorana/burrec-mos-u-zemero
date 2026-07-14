@@ -247,23 +247,6 @@ html, body, #app {
   pointer-events: none;
 }
 
-/* Status card: top-center (the corners belong to the player seat chips) */
-.hud-status {
-  position: absolute;
-  top: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: min(270px, calc(100vw - 96px));
-  pointer-events: all;
-}
-
-.hud-player-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
 .hud-dot {
   width: 12px;
   height: 12px;
@@ -277,41 +260,6 @@ html, body, #app {
   height: 9px;
 }
 
-.hud-player-name {
-  font-size: 1rem;
-  font-weight: 700;
-  line-height: 1.4;
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.hud-round {
-  font-size: 0.85rem;
-  font-weight: 600;
-  opacity: 0.58;
-  flex-shrink: 0;
-}
-
-.hud-msg {
-  font-size: 0.9rem;
-  line-height: 1.6;
-  opacity: 0.85;
-  margin: 0 0 6px;
-  min-height: 1.2em;
-}
-
-.hud-last-roll {
-  font-size: 0.85rem;
-  opacity: 0.65;
-  margin: 0;
-
-  strong {
-    opacity: 1;
-    color: #ffd080;
-  }
-}
 
 /* Settings: middle-right (same slot as the global trigger on menu screens).
    Sits above the chat toggle (z 30) so the open panel isn't poked through. */
