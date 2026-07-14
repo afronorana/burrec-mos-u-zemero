@@ -75,6 +75,7 @@ const _cameraLookScratch = new THREE.Vector3();
 const _diceFaceQuaternion = new THREE.Quaternion();
 const _diceFaceScratch = new THREE.Vector3();
 const _diceBestNormal = new THREE.Vector3();
+const _diceDisplayQuaternion = new THREE.Quaternion();
 const _grassSwayEuler = new THREE.Euler();
 const _grassSwayQuaternion = new THREE.Quaternion();
 const _grassMatrix = new THREE.Matrix4();
@@ -123,6 +124,91 @@ const createSlabWithPitHole = (size, thickness, cornerRadius) => {
 
   return extrudeSlab(shape, thickness);
 };
+// The dice arena: physics world with all static colliders (pit floor,
+// table, safety floor, octagon walls). Built by a free function so the
+// hidden landing-prediction world is an exact clone of the live one.
+const createDiceArenaWorld = () => {
+  const world = markRaw(new CANNON.World({
+    gravity: new CANNON.Vec3(0, -18, 0),
+  }));
+  world.allowSleep = true;
+  world.broadphase = new CANNON.SAPBroadphase(world);
+  // The dice is the only dynamic body, so the default contact material
+  // is effectively the dice contact: low friction + a bit of bounce so
+  // it slides off edges and walls instead of sticking tilted.
+  world.defaultContactMaterial.friction = 0.08;
+  world.defaultContactMaterial.restitution = 0.3;
+
+  const pitFloorBody = new CANNON.Body({
+    mass: 0,
+    shape: new CANNON.Box(new CANNON.Vec3(
+        DICE_PIT.holeRadius + 0.2,
+        0.06,
+        DICE_PIT.holeRadius + 0.2,
+    )),
+    position: new CANNON.Vec3(
+        DICE_PIT.center.x,
+        DICE_PIT.floorY - 0.06,
+        DICE_PIT.center.z,
+    ),
+  });
+  world.addBody(pitFloorBody);
+
+  const tableBody = new CANNON.Body({
+    mass: 0,
+    shape: new CANNON.Box(new CANNON.Vec3(
+        TABLE_PHYSICS.topSize.width / 2,
+        TABLE_PHYSICS.topSize.height / 2,
+        TABLE_PHYSICS.topSize.depth / 2,
+    )),
+    position: new CANNON.Vec3(
+        TABLE_PHYSICS.center.x,
+        TABLE_PHYSICS.topY,
+        TABLE_PHYSICS.center.z,
+    ),
+  });
+  world.addBody(tableBody);
+
+  const safetyFloor = new CANNON.Body({
+    mass: 0,
+    shape: new CANNON.Plane(),
+    position: new CANNON.Vec3(0, TABLE_PHYSICS.floorY, 0),
+  });
+  safetyFloor.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+  world.addBody(safetyFloor);
+
+  // Invisible pit walls: eight tall boxes forming an octagon around the
+  // pit rim. Tangent orientation: rotating a +x-long box by
+  // -(angle + 90°) about Y lines it up with the rim.
+  for (let i = 0; i < 8; i += 1) {
+    const angle = (i * Math.PI) / 4;
+    const wall = new CANNON.Body({
+      mass: 0,
+      shape: new CANNON.Box(new CANNON.Vec3(0.65, DICE_PIT.wallHeight / 2, 0.1)),
+      position: new CANNON.Vec3(
+          DICE_PIT.center.x + (DICE_PIT.wallRadius * Math.cos(angle)),
+          DICE_PIT.floorY + (DICE_PIT.wallHeight / 2),
+          DICE_PIT.center.z + (DICE_PIT.wallRadius * Math.sin(angle)),
+      ),
+    });
+    wall.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), -angle - (Math.PI / 2));
+    world.addBody(wall);
+  }
+
+  return world;
+};
+
+const createDicePhysicsBody = () => markRaw(new CANNON.Body({
+  mass: 1,
+  shape: new CANNON.Box(new CANNON.Vec3(DICE_SIZE / 2, DICE_SIZE / 2, DICE_SIZE / 2)),
+  allowSleep: true,
+  sleepSpeedLimit: 0.16,
+  sleepTimeLimit: 0.35,
+  // Bleeds off residual spin so the dice flops onto a face instead of
+  // pirouetting on an edge.
+  angularDamping: 0.08,
+}));
+
 // Slightly wide lens so the whole board stays in frame at all times.
 const CAMERA_FOV_LANDSCAPE = 50;
 const CAMERA_FOV_PORTRAIT = 66;
@@ -260,6 +346,13 @@ export default {
       pendingDiceRoll: null,
       onlineDice: null,
       diceSnapTween: null,
+      // Mesh-local rotation that remaps the pips so a rigged online roll
+      // lands on the server value (identity in local games). Applied on top
+      // of the physics orientation in syncDice; always a cube symmetry, so
+      // the die still rests axis-aligned.
+      diceVisualOffset: markRaw(new THREE.Quaternion()),
+      diceOffsetTween: null,
+      dicePredictionSim: null,
       dicePitMesh: null,
       dicePitRimMaterial: null,
       pawnMeshes: markRaw({}),
@@ -356,6 +449,7 @@ export default {
 
     this.dicePhysicsBody = null;
     this.physicsWorld = null;
+    this.dicePredictionSim = null;
     this.physicsLastTime = null;
     this.pendingDiceRoll = null;
     this.shadowLight = null;
@@ -467,6 +561,7 @@ export default {
       this.renderer = markRaw(renderer);
       if (import.meta.env.DEV) {
         window.__burrecRenderer = renderer; // profiling hook, dev server only
+        window.__burrecApp = this; // e2e/debug hook, dev server only
       }
       this.controls = controls;
       if (this.isMenuMode()) {
@@ -841,74 +936,7 @@ export default {
     },
 
     createPhysicsWorld() {
-      const world = markRaw(new CANNON.World({
-        gravity: new CANNON.Vec3(0, -18, 0),
-      }));
-      world.allowSleep = true;
-      world.broadphase = new CANNON.SAPBroadphase(world);
-      // The dice is the only dynamic body, so the default contact material
-      // is effectively the dice contact: low friction + a bit of bounce so
-      // it slides off edges and walls instead of sticking tilted.
-      world.defaultContactMaterial.friction = 0.08;
-      world.defaultContactMaterial.restitution = 0.3;
-
-      const pitFloorBody = new CANNON.Body({
-        mass: 0,
-        shape: new CANNON.Box(new CANNON.Vec3(
-            DICE_PIT.holeRadius + 0.2,
-            0.06,
-            DICE_PIT.holeRadius + 0.2,
-        )),
-        position: new CANNON.Vec3(
-            DICE_PIT.center.x,
-            DICE_PIT.floorY - 0.06,
-            DICE_PIT.center.z,
-        ),
-      });
-      world.addBody(pitFloorBody);
-
-      const tableBody = new CANNON.Body({
-        mass: 0,
-        shape: new CANNON.Box(new CANNON.Vec3(
-            TABLE_PHYSICS.topSize.width / 2,
-            TABLE_PHYSICS.topSize.height / 2,
-            TABLE_PHYSICS.topSize.depth / 2,
-        )),
-        position: new CANNON.Vec3(
-            TABLE_PHYSICS.center.x,
-            TABLE_PHYSICS.topY,
-            TABLE_PHYSICS.center.z,
-        ),
-      });
-      world.addBody(tableBody);
-
-      const safetyFloor = new CANNON.Body({
-        mass: 0,
-        shape: new CANNON.Plane(),
-        position: new CANNON.Vec3(0, TABLE_PHYSICS.floorY, 0),
-      });
-      safetyFloor.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
-      world.addBody(safetyFloor);
-
-      // Invisible pit walls: eight tall boxes forming an octagon around the
-      // pit rim. Tangent orientation: rotating a +x-long box by
-      // -(angle + 90°) about Y lines it up with the rim.
-      for (let i = 0; i < 8; i += 1) {
-        const angle = (i * Math.PI) / 4;
-        const wall = new CANNON.Body({
-          mass: 0,
-          shape: new CANNON.Box(new CANNON.Vec3(0.65, DICE_PIT.wallHeight / 2, 0.1)),
-          position: new CANNON.Vec3(
-              DICE_PIT.center.x + (DICE_PIT.wallRadius * Math.cos(angle)),
-              DICE_PIT.floorY + (DICE_PIT.wallHeight / 2),
-              DICE_PIT.center.z + (DICE_PIT.wallRadius * Math.sin(angle)),
-          ),
-        });
-        wall.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), -angle - (Math.PI / 2));
-        world.addBody(wall);
-      }
-
-      this.physicsWorld = world;
+      this.physicsWorld = createDiceArenaWorld();
       this.physicsLastTime = performance.now();
     },
 
@@ -928,16 +956,7 @@ export default {
       }
       this.scene.add(diceMesh);
 
-      const diceBody = markRaw(new CANNON.Body({
-        mass: 1,
-        shape: new CANNON.Box(new CANNON.Vec3(DICE_SIZE / 2, DICE_SIZE / 2, DICE_SIZE / 2)),
-        allowSleep: true,
-        sleepSpeedLimit: 0.16,
-        sleepTimeLimit: 0.35,
-        // Bleeds off residual spin so the dice flops onto a face instead of
-        // pirouetting on an edge.
-        angularDamping: 0.08,
-      }));
+      const diceBody = createDicePhysicsBody();
       this.physicsWorld?.addBody(diceBody);
       this.dicePhysicsBody = diceBody;
       this.resetDiceBody();
@@ -1037,18 +1056,26 @@ export default {
         return;
       }
 
-      if (
-        mesh.quaternion.x !== body.quaternion.x ||
-        mesh.quaternion.y !== body.quaternion.y ||
-        mesh.quaternion.z !== body.quaternion.z ||
-        mesh.quaternion.w !== body.quaternion.w
-      ) {
-        mesh.quaternion.set(
-            body.quaternion.x,
-            body.quaternion.y,
-            body.quaternion.z,
-            body.quaternion.w,
-        );
+      // Blend a pending rig offset in while the dice still tumbles.
+      if (this.diceOffsetTween) {
+        const tween = this.diceOffsetTween;
+        const progress = Math.min((performance.now() - tween.start) / tween.duration, 1);
+        this.diceVisualOffset.slerpQuaternions(tween.from, tween.to, progress);
+        if (progress >= 1) {
+          this.diceOffsetTween = null;
+        }
+      }
+
+      // Displayed orientation = physics orientation ∘ rig offset.
+      _diceDisplayQuaternion.set(
+          body.quaternion.x,
+          body.quaternion.y,
+          body.quaternion.z,
+          body.quaternion.w,
+      ).multiply(this.diceVisualOffset);
+
+      if (!mesh.quaternion.equals(_diceDisplayQuaternion)) {
+        mesh.quaternion.copy(_diceDisplayQuaternion);
         this.requestShadowUpdate();
       }
     },
@@ -2966,6 +2993,12 @@ export default {
         this.resetDiceBody();
       }
 
+      // A fresh throw starts unrigged — the orientation is being randomized
+      // anyway, so the reset is invisible. Local rolls must stay at identity
+      // (their game value comes from the physical face).
+      this.diceVisualOffset.identity();
+      this.diceOffsetTween = null;
+
       body.wakeUp();
       this.clearDiceBodyMotion();
       body.position.set(
@@ -3021,6 +3054,107 @@ export default {
       };
     },
 
+    getDicePredictionSim() {
+      if (!this.dicePredictionSim) {
+        const world = createDiceArenaWorld();
+        const body = createDicePhysicsBody();
+        world.addBody(body);
+        this.dicePredictionSim = markRaw({ world, body });
+      }
+      return this.dicePredictionSim;
+    },
+
+    // Fast-forwards a hidden clone of the arena from the live dice state at
+    // the same fixed 1/60 timestep the visible world uses, so both worlds
+    // walk the identical step sequence. Returns the face that will end up
+    // on top, or null if the clone never settles cleanly.
+    predictDiceLandingFace() {
+      const source = this.dicePhysicsBody;
+      if (!source) {
+        return null;
+      }
+
+      const sim = this.getDicePredictionSim();
+      const body = sim.body;
+      body.position.copy(source.position);
+      body.quaternion.copy(source.quaternion);
+      body.velocity.copy(source.velocity);
+      body.angularVelocity.copy(source.angularVelocity);
+      body.force.setZero();
+      body.torque.setZero();
+      body.wakeUp();
+
+      // 20 simulated seconds cap; a throw settles in well under 5.
+      for (let i = 0; i < 1200; i += 1) {
+        sim.world.step(1 / 60);
+        if (body.sleepState === CANNON.Body.SLEEPING) {
+          break;
+        }
+      }
+
+      if (body.sleepState !== CANNON.Body.SLEEPING) {
+        return null;
+      }
+
+      _diceFaceQuaternion.set(
+          body.quaternion.x,
+          body.quaternion.y,
+          body.quaternion.z,
+          body.quaternion.w,
+      );
+      let bestFace = 0;
+      let bestDot = -Infinity;
+      DICE_FACE_ENTRIES.forEach(([faceValue, normal]) => {
+        const dot = _diceFaceScratch.copy(normal).applyQuaternion(_diceFaceQuaternion).dot(WORLD_UP);
+        if (dot > bestDot) {
+          bestDot = dot;
+          bestFace = faceValue;
+        }
+      });
+
+      // A tilted rest would trigger recovery nudges live (which re-rig), so
+      // only a clean face-up prediction is worth acting on.
+      return bestDot >= DICE_SETTLE_RULES.faceUpDotThreshold ? bestFace : null;
+    },
+
+    // Rig the tumbling dice so the server's value comes up naturally:
+    // predict the landing face, then remap the pips with a constant
+    // mesh-local rotation (always a cube symmetry — face normal to face
+    // normal), blended in over a quarter second while the dice still spins
+    // fast enough that the correction can't be seen.
+    rigOnlineDiceToValue(value) {
+      const body = this.dicePhysicsBody;
+      if (!body || !this.pendingDiceRoll || !DICE_FACE_NORMALS[value]) {
+        return false;
+      }
+
+      // Nearly settled: a blend would read as a wobble — let the snap
+      // fallback handle this rare case instead.
+      if (body.angularVelocity.lengthSquared() < 4) {
+        return false;
+      }
+
+      const predictedFace = this.predictDiceLandingFace();
+      if (!predictedFace) {
+        return false;
+      }
+
+      const targetOffset = predictedFace === value
+        ? new THREE.Quaternion()
+        : new THREE.Quaternion().setFromUnitVectors(
+            DICE_FACE_NORMALS[value],
+            DICE_FACE_NORMALS[predictedFace],
+        );
+
+      this.diceOffsetTween = markRaw({
+        from: this.diceVisualOffset.clone(),
+        to: markRaw(targetOffset),
+        start: performance.now(),
+        duration: 260,
+      });
+      return true;
+    },
+
     // The physical dice came to rest. Local mode resolves with the physical
     // face; online mode waits for the server's DICE_RESULT value instead —
     // the physical face (including the fell-off-table fallback) must never
@@ -3058,6 +3192,9 @@ export default {
 
       this.onlineDice.serverValue = payload.value;
       this.onlineDice.payload = payload;
+      if (this.pendingDiceRoll) {
+        this.rigOnlineDiceToValue(payload.value);
+      }
       this.tryResolveOnlineDice();
     },
 
@@ -3083,22 +3220,33 @@ export default {
       EventBus.fire(EventKeys.net.diceResolved);
     },
 
-    // Rotates the settled dice so `value` faces up, with a short visual tween
-    // that reads as a final wobble.
+    // Fallback for a missed rig: rotates the settled dice so `value` faces
+    // up, with a short visual tween that reads as a final wobble. Judges
+    // and corrects the DISPLAYED orientation (physics ∘ rig offset), then
+    // bakes the result into the body and resets the offset.
     snapDiceToValue(value) {
       if (!this.dicePhysicsBody || !this.diceMesh || !DICE_FACE_NORMALS[value]) {
         return;
       }
 
-      const current = this.getDiceTopFaceData();
       const fromQuaternion = new THREE.Quaternion(
           this.dicePhysicsBody.quaternion.x,
           this.dicePhysicsBody.quaternion.y,
           this.dicePhysicsBody.quaternion.z,
           this.dicePhysicsBody.quaternion.w,
-      );
+      ).multiply(this.diceVisualOffset);
 
-      if (current.value === value) {
+      let displayedFace = 0;
+      let bestDot = -Infinity;
+      DICE_FACE_ENTRIES.forEach(([faceValue, normal]) => {
+        const dot = _diceFaceScratch.copy(normal).applyQuaternion(fromQuaternion).dot(WORLD_UP);
+        if (dot > bestDot) {
+          bestDot = dot;
+          displayedFace = faceValue;
+        }
+      });
+
+      if (displayedFace === value) {
         return;
       }
 
@@ -3108,8 +3256,11 @@ export default {
           .multiply(fromQuaternion.clone())
           .normalize();
 
-      // Body gets the final orientation immediately (it is asleep); the mesh
-      // slerps toward it in syncDice.
+      // Body gets the final displayed orientation immediately (it is
+      // asleep) and the offset folds away; the mesh slerps toward it in
+      // syncDice.
+      this.diceVisualOffset.identity();
+      this.diceOffsetTween = null;
       this.dicePhysicsBody.quaternion.set(
           snappedQuaternion.x,
           snappedQuaternion.y,
@@ -3261,6 +3412,11 @@ export default {
       this.pendingDiceRoll.startedAt = now;
       this.pendingDiceRoll.lastRecoveryAt = now;
       this.pendingDiceRoll.recoveryAttempts += 1;
+
+      // The nudge changed the trajectory — re-run the landing prediction.
+      if (this.store.online.enabled && this.onlineDice?.serverValue != null) {
+        this.rigOnlineDiceToValue(this.onlineDice.serverValue);
+      }
     },
 
     rollDice(amount) {
