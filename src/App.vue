@@ -113,6 +113,18 @@ const createSlabWithPitHole = (size, thickness, cornerRadius) => {
 const CAMERA_FOV_LANDSCAPE = 50;
 const CAMERA_FOV_PORTRAIT = 66;
 const RIPPLE_TIME_SCALE = 0.0006;
+// Every clickable cue (ground ring + hover outline) shares one crisp
+// two-tone UI-orange pulse: a hard color flip each half period plus a
+// small scale wobble — no soft glow, no fading tails.
+const CLICKABLE_PULSE_COLORS = ['#ff7700', '#fdc25b'];
+const CLICKABLE_PULSE_PERIOD_MS = 800;
+const getClickablePulse = (now) => {
+  const phase = (now % CLICKABLE_PULSE_PERIOD_MS) / CLICKABLE_PULSE_PERIOD_MS;
+  return {
+    color: CLICKABLE_PULSE_COLORS[phase < 0.5 ? 0 : 1],
+    scale: 0.92 + (0.1 * Math.sin(phase * Math.PI * 2)),
+  };
+};
 const DICE_SETTLE_RULES = {
   minimumMotionMs: 500,
   faceUpDotThreshold: 0.94,
@@ -942,7 +954,7 @@ export default {
           });
         }
 
-        this.animateClickableRipples(rippleTime);
+        this.animateClickableRipples(performance.now());
 
         if (this.controls && !this.isMenuMode() && !this.cameraTransition) {
           this.controls.update();
@@ -1323,13 +1335,14 @@ export default {
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       let drew = false;
+      const pulseColor = getClickablePulse(performance.now()).color;
 
       if (wantsDice) {
         this.drawObjectHighlight2D(
           ctx, canvas,
           [this.getDiceOutlinePoints()],
-          0.95,
-          '#ffaa22',
+          1,
+          pulseColor,
         );
         drew = true;
       } else {
@@ -1339,8 +1352,8 @@ export default {
           this.drawObjectHighlight2D(
             ctx, canvas,
             [this.getPawnBodyOutlinePoints(mesh), this.getPawnHeadOutlinePoints(mesh)],
-            0.95,
-            '#ffaa22',
+            1,
+            pulseColor,
           );
           drew = true;
         }
@@ -1409,13 +1422,13 @@ export default {
 
       if (!hulls.length) return;
 
+      // Crisp stroke — no shadow blur; the "pulse" is the caller flipping
+      // the color between the two UI oranges each half period.
       ctx.save();
       ctx.globalAlpha = opacity;
-      ctx.lineWidth = 12;
+      ctx.lineWidth = 7;
       ctx.lineJoin = 'round';
       ctx.strokeStyle = color;
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 10;
 
       for (const hull of hulls) {
         ctx.beginPath();
@@ -2439,7 +2452,6 @@ export default {
           x: this.diceMesh.position.x,
           y: DICE_PIT.floorY + 0.012,
           z: this.diceMesh.position.z,
-          color: '#ff7700',
           scale: 0.6,
         });
       }
@@ -2456,9 +2468,6 @@ export default {
               // + half height 0.05) so the ring isn't occluded by the discs.
               y: START_FIELD_CENTER_Y + 0.058,
               z: mesh.position.z,
-              // The shared "clickable" orange, not the player color — a
-              // player-colored ring vanishes on the player's own home discs.
-              color: '#ff7700',
               scale: 0.6,
             });
           });
@@ -2468,12 +2477,13 @@ export default {
       return targets;
     },
 
-    animateClickableRipples(rippleTime) {
+    animateClickableRipples(now) {
       if (!this.clickableRipples) {
         return;
       }
 
       const targets = this.getClickableRippleTargets();
+      const pulse = getClickablePulse(now);
       this.clickableRipples.forEach((ripple, poolIdx) => {
         const target = targets[poolIdx];
         if (!target) {
@@ -2483,14 +2493,18 @@ export default {
 
         ripple.group.visible = true;
         ripple.group.position.set(target.x, target.y, target.z);
+        // One sharp ring per target: full opacity, hard two-tone color flip,
+        // small scale wobble. The old expanding/fading pair read as a glow.
         ripple.rings.forEach((ring, ringIdx) => {
-          const phase = (rippleTime + ringIdx * 0.5) % 1.0;
-          // Start at ~the pawn's base radius so the ring never wastes part of
-          // its cycle hidden underneath the object it's highlighting.
-          const scale = (0.45 + phase * 0.9) * target.scale;
+          if (ringIdx > 0) {
+            ring.visible = false;
+            return;
+          }
+          ring.visible = true;
+          const scale = pulse.scale * target.scale;
           ring.scale.set(scale, scale, 1);
-          ring.material.color.set(target.color);
-          ring.material.opacity = (1 - phase) * 0.9;
+          ring.material.color.set(pulse.color);
+          ring.material.opacity = 0.95;
         });
       });
     },
