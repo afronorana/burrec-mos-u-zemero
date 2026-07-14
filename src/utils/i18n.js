@@ -14,8 +14,15 @@ const translations = {
     renderQuality: 'Render Quality',
     back: 'Back',
     play: 'Play',
+    save: 'Save',
     language: 'Language',
     environment: 'Environment',
+    settings: {
+      title: 'Settings',
+      sound: 'Sound',
+      soundOn: 'On',
+      soundOff: 'Off',
+    },
     login: {
       title: 'Welcome to Burrec',
       desc: 'Enter your display name to start playing.',
@@ -116,8 +123,15 @@ const translations = {
     renderQuality: 'Cilësia e Renderimit',
     back: 'Mbrapa',
     play: 'Luaj',
+    save: 'Ruaj',
     language: 'Gjuha',
     environment: 'Mjedisi',
+    settings: {
+      title: 'Cilësimet',
+      sound: 'Zëri',
+      soundOn: 'Ndezur',
+      soundOff: 'Fikur',
+    },
     login: {
       title: 'Mirësevini në Burrec',
       desc: 'Vendosni emrin tuaj për të filluar lojën.',

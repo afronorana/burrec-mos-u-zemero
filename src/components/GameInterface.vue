@@ -14,32 +14,44 @@
       <p v-if="connectionMessage" class="hud-msg hud-connection">{{ connectionMessage }}</p>
     </app-panel>
 
-    <!-- Settings: top-right -->
+    <!-- Settings: middle-right trigger, centered modal -->
     <div class="hud-settings-area">
       <app-button
         slate-blue
         class="hud-icon-btn"
         :title="settingsOpen ? 'Close' : 'Settings'"
-        @click="settingsOpen = !settingsOpen"
+        @click="toggleSettings"
       >
         <component :is="settingsOpen ? 'XIcon' : 'SettingsIcon'" :size="20" />
       </app-button>
-      <transition name="settings-drop">
-        <app-panel v-if="settingsOpen" class="hud-settings-panel">
-          <div class="form-row">
-            <label class="select-label">{{ t('language') }}</label>
-            <app-tabs v-model="store.settings.locale" :options="[{ value: 'en', label: 'English' }, { value: 'sq', label: 'Shqip' }]" @update:modelValue="saveLocale" />
-          </div>
-          <div class="form-row">
-            <label class="select-label">{{ t('environment') }}</label>
-            <app-tabs v-model="store.settings.environment" :options="[{ value: 'day', label: t('env.day') }, { value: 'night', label: t('env.night') }, { value: 'dusk', label: t('env.dusk') }, { value: 'dawn', label: t('env.dawn') }]" @update:modelValue="saveEnvironment" />
-          </div>
-          <outline-appearance-select :label="t('outlineStyle')" select-id="outline-style-hud" />
-          <render-quality-slider :label="t('renderQuality')" slider-id="render-quality-hud" />
-          <app-button v-if="!store.online.enabled" orange class="hud-full-width" @click="goToSetup">{{ t('online.newGame') }}</app-button>
-          <app-button v-else red class="hud-full-width" @click="leaveOnlineGame">{{ t('online.leaveGame') }}</app-button>
-        </app-panel>
-      </transition>
+    </div>
+
+    <div v-if="settingsOpen" class="global-settings-modal-backdrop" @click.self="settingsOpen = false">
+      <app-panel class="global-settings-card">
+        <h3 class="panel-title" style="margin-bottom: 16px;">{{ t('settings.title') }}</h3>
+
+        <div class="form-row">
+          <app-input v-model="settingsName" :label="t('online.yourName')" />
+        </div>
+
+        <div class="form-row">
+          <label class="select-label">{{ t('language') }}</label>
+          <app-tabs v-model="store.settings.locale" :options="[{ value: 'en', label: 'English' }, { value: 'sq', label: 'Shqip' }]" @update:modelValue="saveLocale" />
+        </div>
+
+        <div class="form-row">
+          <label class="select-label">{{ t('settings.sound') }}</label>
+          <app-tabs v-model="soundSetting" :options="[{ value: 'on', label: t('settings.soundOn') }, { value: 'off', label: t('settings.soundOff') }]" />
+        </div>
+
+        <app-button v-if="!store.online.enabled" orange class="hud-full-width" @click="goToSetup">{{ t('online.newGame') }}</app-button>
+        <app-button v-else red class="hud-full-width" @click="leaveOnlineGame">{{ t('online.leaveGame') }}</app-button>
+
+        <div class="menu-row" style="margin-top: 16px;">
+          <app-button slate-blue @click="settingsOpen = false">{{ t('back') }}</app-button>
+          <app-button green :disabled="!settingsName.trim()" @click="saveSettings">{{ t('save') }}</app-button>
+        </div>
+      </app-panel>
     </div>
 
     <!-- Chat: bottom-right drawer (always enabled) -->
@@ -133,8 +145,6 @@
 </template>
 
 <script>
-import OutlineAppearanceSelect from './OutlineAppearanceSelect.vue';
-import RenderQualitySlider from './RenderQualitySlider.vue';
 import ChatDrawer from './ChatDrawer.vue';
 import ApplicationStore from '../utils/ApplicationStore';
 import EventBus from '../utils/eventhandler';
@@ -146,8 +156,6 @@ import { Settings, X } from '@lucide/vue';
 
 export default {
   components: {
-    OutlineAppearanceSelect,
-    RenderQualitySlider,
     ChatDrawer,
     SettingsIcon: Settings,
     XIcon: X,
@@ -156,6 +164,7 @@ export default {
     return {
       store: ApplicationStore,
       settingsOpen: false,
+      settingsName: '',
       speechBubbles: {}, // { [player.turn]: 'message' }
       animatedRollValue: 1,
       diceAnimInterval: null,
@@ -203,6 +212,15 @@ export default {
       const timer = this.store.turnTimer;
       if (!timer.running) return null;
       return Math.max(0, Math.ceil((timer.duration - (this.timerNow - timer.startedAt)) / 1000));
+    },
+    soundSetting: {
+      get() {
+        return this.store.settings.soundEnabled ? 'on' : 'off';
+      },
+      set(val) {
+        this.store.settings.soundEnabled = val === 'on';
+        window.localStorage.setItem('burrec.settings.sound', val === 'on' ? '1' : '0');
+      },
     },
   },
   watch: {
@@ -274,8 +292,30 @@ export default {
     saveLocale(val) {
       window.localStorage.setItem('burrec.settings.locale', val);
     },
-    saveEnvironment(val) {
-      window.localStorage.setItem('burrec.settings.environment', val);
+    toggleSettings() {
+      if (!this.settingsOpen) {
+        this.settingsName = this.store.online.displayName || '';
+      }
+      this.settingsOpen = !this.settingsOpen;
+    },
+    saveSettings() {
+      const name = this.settingsName.trim();
+      if (name) {
+        this.store.online.displayName = name;
+        window.localStorage.setItem('burrec.online.displayName', name);
+        // Live-rename the local human in offline games; online names are
+        // seat data owned by the server.
+        if (!this.store.online.enabled) {
+          const localPlayer = this.store.players.find((player) => player.controller === 'local');
+          if (localPlayer) {
+            localPlayer.name = name;
+          }
+          if (this.store.localSetupActive[0] && this.store.localSetupTypes[0] === 'local') {
+            this.store.localSetupNames[0] = name;
+          }
+        }
+      }
+      this.settingsOpen = false;
     },
     rollDice() {
       EventBus.fire(EventKeys.rollDice);

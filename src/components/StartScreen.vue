@@ -98,11 +98,10 @@
     <!-- Global Settings Modal -->
     <div v-if="showGlobalSettings" class="global-settings-modal-backdrop" @click.self="showGlobalSettings = false">
       <app-panel class="global-settings-card">
-        <h3 class="panel-title" style="margin-bottom: 16px;">{{ t('graphics') }}</h3>
-        
+        <h3 class="panel-title" style="margin-bottom: 16px;">{{ t('settings.title') }}</h3>
+
         <div class="form-row">
-          <label class="select-label">{{ t('online.yourName') }}</label>
-          <app-input v-model="globalName" />
+          <app-input v-model="globalName" :label="t('online.yourName')" />
         </div>
 
         <div class="form-row">
@@ -114,9 +113,17 @@
           />
         </div>
 
+        <div class="form-row">
+          <label class="select-label">{{ t('settings.sound') }}</label>
+          <app-tabs
+            v-model="soundSetting"
+            :options="[{ value: 'on', label: t('settings.soundOn') }, { value: 'off', label: t('settings.soundOff') }]"
+          />
+        </div>
+
         <div class="menu-row" style="margin-top: 20px;">
           <app-button slate-blue @click="showGlobalSettings = false">{{ t('back') }}</app-button>
-          <app-button green :disabled="!globalName.trim()" @click="confirmGlobalSettings">{{ t('play') }}</app-button>
+          <app-button green :disabled="!globalName.trim()" @click="confirmGlobalSettings">{{ t('save') }}</app-button>
         </div>
       </app-panel>
     </div>
@@ -151,6 +158,15 @@ export default {
   computed: {
     activePlayersCount() {
       return this.store.localSetupActive.filter(Boolean).length;
+    },
+    soundSetting: {
+      get() {
+        return this.store.settings.soundEnabled ? 'on' : 'off';
+      },
+      set(val) {
+        this.store.settings.soundEnabled = val === 'on';
+        window.localStorage.setItem('burrec.settings.sound', val === 'on' ? '1' : '0');
+      },
     },
   },
   methods: {
