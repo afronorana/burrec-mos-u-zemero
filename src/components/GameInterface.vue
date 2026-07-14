@@ -45,7 +45,33 @@
     <!-- Chat: bottom-right drawer (always enabled) -->
     <chat-drawer />
 
-    <!-- Bottom: actions + player strip -->
+    <!-- Player seats pinned to the 4 screen corners, mirroring the lobby
+         chips (seat = player.turn - 1). -->
+    <div class="hud-seats-layer">
+      <div
+        v-for="player in store.players"
+        :key="player.turn"
+        class="hud-seat-chip"
+        :class="[`hud-seat-chip--corner-${player.turn - 1}`, { 'hud-seat-chip--active': player.isPlaying }]"
+        :style="{ '--chip-color': player.color }"
+      >
+        <!-- Speech bubble popup: below top-corner chips, above bottom ones -->
+        <transition name="speech-fade">
+          <div
+            v-if="speechBubbles[player.turn]"
+            class="hud-speech-bubble"
+            :class="{ 'hud-speech-bubble--below': player.turn - 1 <= 1 }"
+          >
+            {{ speechBubbles[player.turn] }}
+          </div>
+        </transition>
+
+        <span class="hud-dot hud-dot--sm" :style="{ background: player.color }"></span>
+        <span class="hud-seat-chip-name">{{ player.name }}</span>
+      </div>
+    </div>
+
+    <!-- Bottom: actions -->
     <div class="hud-bottom">
       <div class="hud-actions">
         <!-- Big UI Dice Roll Area -->
@@ -93,28 +119,6 @@
         </div>
       </div>
 
-      <div class="hud-player-strip">
-        <app-panel
-          v-for="player in store.players"
-          :key="player.turn"
-          class="hud-chip"
-          :class="{ 'hud-chip--active': player.isPlaying }"
-          :style="player.isPlaying ? { '--chip-color': player.color, '--agu-panel-bg': player.color, '--agu-panel-shadow': 'rgba(0,0,0,0.15)' } : {}"
-        >
-          <!-- Speech bubble popup -->
-          <transition name="speech-fade">
-            <div v-if="speechBubbles[player.turn]" class="hud-speech-bubble">
-              {{ speechBubbles[player.turn] }}
-            </div>
-          </transition>
-
-          <span class="hud-dot hud-dot--sm" :style="{ background: player.color }"></span>
-          <div class="hud-chip-text">
-            <span class="hud-chip-name">{{ player.name }}</span>
-            <span class="hud-chip-meta">{{ formatPlayerState(player) }}</span>
-          </div>
-        </app-panel>
-      </div>
     </div>
   </div>
 </template>
@@ -243,13 +247,6 @@ export default {
       this.settingsOpen = false;
       this.store.currentScreen = 'add-players';
     },
-    formatPlayerState(player) {
-      return player.pawns.map((pawn) => {
-        if (pawn.position === 0) return 'H';
-        if (pawn.position > 40) return 'G';
-        return String(pawn.globalPosition + 1);
-      }).join('·');
-    },
     shouldShowDot(value, cellIndex) {
       const val = Number(value);
       if (isNaN(val)) return false;
@@ -282,10 +279,49 @@ export default {
   color: var(--agu-color-red, #e9576f);
 }
 
-.hud-chip.panel {
-  padding: 8px 12px;
-  margin-bottom: 0;
-  position: relative;
+/* ── Corner seat chips (same look as the lobby's) ────────── */
+.hud-seats-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.hud-seat-chip {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 150px;
+  max-width: 220px;
+  min-height: 44px;
+  padding: 8px 14px;
+  background: #ffffff;
+  border: 2px solid var(--agu-color-base, #263f2a);
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
+  font-size: 12px;
+  color: var(--agu-color-base, #263f2a);
+  pointer-events: all;
+  box-sizing: border-box;
+}
+
+.hud-seat-chip--active {
+  border-color: var(--chip-color, #263f2a);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18), 0 0 0 3px var(--chip-color, rgba(255, 255, 255, 0.25));
+}
+
+.hud-seat-chip--corner-0 { top: 16px; left: 16px; }
+.hud-seat-chip--corner-1 { top: 16px; right: 16px; }
+.hud-seat-chip--corner-2 { bottom: 16px; right: 16px; }
+.hud-seat-chip--corner-3 { bottom: 16px; left: 16px; }
+
+.hud-seat-chip-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .hud-speech-bubble {
@@ -326,6 +362,27 @@ export default {
   border: 6px solid transparent;
   border-top-color: var(--agu-color-base, #263f2a);
   z-index: -1;
+}
+
+/* Top-corner chips flip the bubble underneath, arrows pointing up. */
+.hud-speech-bubble--below {
+  bottom: auto;
+  top: calc(100% + 8px);
+}
+
+.hud-speech-bubble--below::after {
+  top: auto;
+  bottom: 100%;
+  border-top-color: transparent;
+  border-bottom-color: #ffffff;
+}
+
+.hud-speech-bubble--below::before {
+  top: auto;
+  bottom: 100%;
+  transform: translateX(-50%) translateY(-2px);
+  border-top-color: transparent;
+  border-bottom-color: var(--agu-color-base, #263f2a);
 }
 
 .speech-fade-enter-active,

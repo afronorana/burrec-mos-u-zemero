@@ -247,11 +247,12 @@ html, body, #app {
   pointer-events: none;
 }
 
-/* Status card: top-left */
+/* Status card: top-center (the corners belong to the player seat chips) */
 .hud-status {
   position: absolute;
   top: 16px;
-  left: 16px;
+  left: 50%;
+  transform: translateX(-50%);
   width: min(270px, calc(100vw - 96px));
   pointer-events: all;
 }
@@ -376,58 +377,6 @@ html, body, #app {
   margin-bottom: 0;
 }
 
-/* Player strip */
-.hud-player-strip {
-  display: flex;
-  gap: 10px;
-  justify-content: center;
-  flex-wrap: wrap;
-  padding: 0 16px;
-  pointer-events: all;
-  width: 100%;
-  max-width: 900px;
-  box-sizing: border-box;
-}
-
-.hud-chip {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 110px;
-  max-width: 200px;
-  transition: transform 140ms ease, box-shadow 140ms ease;
-}
-
-.hud-chip--active {
-  transform: translateY(-5px);
-  box-shadow: 0 0 0 3px var(--chip-color, rgba(255, 255, 255, 0.25));
-}
-
-.hud-chip-text {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  gap: 4px;
-}
-
-.hud-chip-name {
-  font-size: 0.95rem;
-  font-weight: 700;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  line-height: 1.2;
-}
-
-.hud-chip-meta {
-  font-size: 0.75rem;
-  font-weight: 500;
-  opacity: 0.68;
-  white-space: nowrap;
-  line-height: 1.2;
-}
-
 /* ── Mobile block ────────────────────────────────────────── */
 .mobile-block-overlay {
   display: none;
@@ -457,20 +406,6 @@ html, body, #app {
 
 /* ── Responsive ──────────────────────────────────────────── */
 @media (max-width: 500px) {
-  .hud-player-strip {
-    gap: 6px !important;
-    padding: 0 8px !important;
-  }
-  .hud-chip.panel {
-    padding: 6px 10px !important;
-    min-width: 80px !important;
-  }
-  .hud-chip-name {
-    font-size: 0.82rem !important;
-  }
-  .hud-chip-meta {
-    font-size: 0.68rem !important;
-  }
   .hud-dot--sm {
     width: 7px !important;
     height: 7px !important;
