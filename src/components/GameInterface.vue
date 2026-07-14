@@ -389,12 +389,19 @@ export default {
 .hud-seat-chip--active {
   border-color: var(--chip-color, #263f2a);
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18), 0 0 0 3px var(--chip-color, rgba(255, 255, 255, 0.25));
+  /* "Playing now" reads bigger — scaled from its own corner so it grows
+     into the screen, not off it. */
+  transform: scale(1.22);
 }
 
-.hud-seat-chip--corner-0 { top: 16px; left: 16px; }
-.hud-seat-chip--corner-1 { top: 16px; right: 16px; }
-.hud-seat-chip--corner-2 { bottom: 16px; right: 16px; }
-.hud-seat-chip--corner-3 { bottom: 16px; left: 16px; }
+.hud-seat-chip {
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.hud-seat-chip--corner-0 { top: 16px; left: 16px; transform-origin: top left; }
+.hud-seat-chip--corner-1 { top: 16px; right: 16px; transform-origin: top right; }
+.hud-seat-chip--corner-2 { bottom: 16px; right: 16px; transform-origin: bottom right; }
+.hud-seat-chip--corner-3 { bottom: 16px; left: 16px; transform-origin: bottom left; }
 
 .hud-seat-chip-name {
   font-size: 0.85rem;
