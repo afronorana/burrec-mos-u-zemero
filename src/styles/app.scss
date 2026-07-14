@@ -344,33 +344,6 @@ html, body, #app {
   margin-bottom: 0;
 }
 
-/* Bottom zone */
-.hud-bottom {
-  position: absolute;
-  bottom: 16px;
-  left: 0;
-  right: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  pointer-events: none;
-}
-
-.hud-actions {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  pointer-events: all;
-}
-
-.hud-roll-btn {
-  font-size: 1.1rem;
-  padding: 12px 36px;
-  margin-bottom: 0;
-}
-
 /* ── Mobile block ────────────────────────────────────────── */
 .mobile-block-overlay {
   display: none;

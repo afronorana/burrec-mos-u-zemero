@@ -92,63 +92,12 @@
       </div>
     </div>
 
-    <!-- Bottom: actions -->
-    <div class="hud-bottom">
-      <div class="hud-actions">
-        <!-- Big UI Dice Roll Area -->
-        <div class="hud-main-dice-container">
-          <!-- Active Dice Button (clickable when it's our turn to roll) -->
-          <button
-            v-if="canRoll"
-            class="hud-main-dice hud-main-dice--playable"
-            @click="rollDice"
-            :title="t('game.rollDice')"
-          >
-            <span class="hud-main-dice-prompt">{{ t('game.rollDice') }}</span>
-            <div class="dice-box dice-box--playable">
-              <div v-for="n in 9" :key="n" class="dice-dot-cell">
-                <span v-if="shouldShowDot(animatedRollValue, n)" class="dice-dot"></span>
-              </div>
-            </div>
-          </button>
-
-          <!-- Rolling State -->
-          <div
-            v-else-if="isDiceRolling"
-            class="hud-main-dice hud-main-dice--rolling"
-          >
-            <span class="hud-main-dice-prompt">{{ t('game.waiting') }}</span>
-            <div class="dice-box dice-box--rolling">
-              <div v-for="n in 9" :key="n" class="dice-dot-cell">
-                <span v-if="shouldShowDot(animatedRollValue, n)" class="dice-dot"></span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Last Roll Result Display (visible when not rolling and a value exists) -->
-          <div
-            v-else-if="store.lastRolledDice && store.lastRolledDice !== 'Start'"
-            class="hud-main-dice hud-main-dice--result"
-          >
-            <span class="hud-main-dice-prompt">{{ t('game.rolled', { val: '' }).replace(': ', '').trim() }}</span>
-            <div class="dice-box" :class="`dice-box--val-${store.lastRolledDice}`">
-              <div v-for="n in 9" :key="n" class="dice-dot-cell">
-                <span v-if="shouldShowDot(store.lastRolledDice, n)" class="dice-dot"></span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-    </div>
   </div>
 </template>
 
 <script>
 import ChatDrawer from './ChatDrawer.vue';
 import ApplicationStore from '../utils/ApplicationStore';
-import EventBus from '../utils/eventhandler';
-import EventKeys from '../utils/EventKeys';
 import MatchController from '../network/MatchController';
 import { t } from '../utils/i18n';
 import { playTick } from '../utils/sound';
@@ -166,8 +115,6 @@ export default {
       settingsOpen: false,
       settingsName: '',
       speechBubbles: {}, // { [player.turn]: 'message' }
-      animatedRollValue: 1,
-      diceAnimInterval: null,
       timerNow: performance.now(),
       timerInterval: null,
     };
@@ -176,14 +123,8 @@ export default {
     currentPlayer() {
       return this.store.players[this.store.currentPlayerId] || null;
     },
-    canRoll() {
-      return this.store.gamePlayStatus.isRolling && this.isHumanTurn;
-    },
     isHumanTurn() {
       return Boolean(this.currentPlayer && this.currentPlayer.controller === 'local');
-    },
-    isDiceRolling() {
-      return Boolean(this.store.gamePlayStatus.isDiceRolling || this.store.online.diceInFlight);
     },
     statusMessage() {
       if (!this.currentPlayer) return t('game.setupBoard');
@@ -233,13 +174,6 @@ export default {
         playTick();
       }
     },
-    isDiceRolling(val) {
-      if (val) {
-        this.startDiceAnim();
-      } else {
-        this.stopDiceAnim();
-      }
-    },
     'store.online.chat.length'(newLength) {
       if (newLength === 0) return;
       const lastMsg = this.store.online.chat[newLength - 1];
@@ -281,7 +215,6 @@ export default {
     }, 100);
   },
   beforeUnmount() {
-    this.stopDiceAnim();
     if (this.timerInterval) {
       clearInterval(this.timerInterval);
       this.timerInterval = null;
@@ -317,9 +250,6 @@ export default {
       }
       this.settingsOpen = false;
     },
-    rollDice() {
-      EventBus.fire(EventKeys.rollDice);
-    },
     leaveOnlineGame() {
       this.settingsOpen = false;
       MatchController.leaveMatch();
@@ -327,29 +257,6 @@ export default {
     goToSetup() {
       this.settingsOpen = false;
       this.store.currentScreen = 'add-players';
-    },
-    shouldShowDot(value, cellIndex) {
-      const val = Number(value);
-      if (isNaN(val)) return false;
-      if (val === 1) return cellIndex === 5;
-      if (val === 2) return cellIndex === 1 || cellIndex === 9;
-      if (val === 3) return cellIndex === 1 || cellIndex === 5 || cellIndex === 9;
-      if (val === 4) return cellIndex === 1 || cellIndex === 3 || cellIndex === 7 || cellIndex === 9;
-      if (val === 5) return cellIndex === 1 || cellIndex === 3 || cellIndex === 5 || cellIndex === 7 || cellIndex === 9;
-      if (val === 6) return cellIndex === 1 || cellIndex === 3 || cellIndex === 4 || cellIndex === 6 || cellIndex === 7 || cellIndex === 9;
-      return false;
-    },
-    startDiceAnim() {
-      if (this.diceAnimInterval) return;
-      this.diceAnimInterval = setInterval(() => {
-        this.animatedRollValue = Math.floor(Math.random() * 6) + 1;
-      }, 80);
-    },
-    stopDiceAnim() {
-      if (this.diceAnimInterval) {
-        clearInterval(this.diceAnimInterval);
-        this.diceAnimInterval = null;
-      }
     },
   },
 };
@@ -513,120 +420,4 @@ export default {
   transform: translateX(-50%) translateY(6px);
 }
 
-/* ── UI Dice Roll CSS ────────────────────────────────────── */
-.hud-main-dice-container {
-  display: flex;
-  justify-content: center;
-  margin: 10px 0;
-  pointer-events: all;
-}
-
-.hud-main-dice {
-  background: none;
-  border: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  outline: none;
-  transition: transform 150ms ease;
-  pointer-events: all;
-}
-
-.hud-main-dice--playable {
-  cursor: pointer;
-}
-
-.hud-main-dice--playable:hover {
-  transform: scale(1.1);
-}
-
-.hud-main-dice--playable:active {
-  transform: scale(0.95);
-}
-
-.hud-main-dice-prompt {
-  font-size: 0.52rem;
-  font-weight: bold;
-  text-transform: uppercase;
-  color: var(--agu-color-base, #263f2a);
-  background: #ffffff;
-  border: 1.5px solid var(--agu-color-base, #263f2a);
-  padding: 2px 6px;
-  border-radius: 4px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.hud-main-dice--playable .hud-main-dice-prompt {
-  animation: pulse-border-dice 1.5s infinite;
-  background: var(--agu-color-green-pastel, #4cf2ca);
-}
-
-@keyframes pulse-border-dice {
-  0% {
-    transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(76, 242, 202, 0.7);
-  }
-  70% {
-    transform: scale(1.05);
-    box-shadow: 0 0 0 6px rgba(76, 242, 202, 0);
-  }
-  100% {
-    transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(76, 242, 202, 0);
-  }
-}
-
-.dice-box--rolling {
-  animation: dice-shake-anim 0.15s infinite;
-}
-
-@keyframes dice-shake-anim {
-  0% { transform: translate(1px, 1px) rotate(0deg); }
-  10% { transform: translate(-1px, -2px) rotate(-1deg); }
-  20% { transform: translate(-3px, 0px) rotate(1deg); }
-  30% { transform: translate(0px, 2px) rotate(0deg); }
-  40% { transform: translate(1px, -1px) rotate(1deg); }
-  50% { transform: translate(-1px, 2px) rotate(-1deg); }
-  60% { transform: translate(-3px, 1px) rotate(0deg); }
-  70% { transform: translate(2px, 1px) rotate(-1deg); }
-  80% { transform: translate(-1px, -1px) rotate(1deg); }
-  90% { transform: translate(2px, 2px) rotate(0deg); }
-  100% { transform: translate(1px, -2px) rotate(-1deg); }
-}
-
-.dice-box {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(3, 1fr);
-  width: 66px;
-  height: 66px;
-  background: #ffffff;
-  border: 3px solid var(--agu-color-base, #263f2a);
-  border-radius: 14px;
-  padding: 8px;
-  box-sizing: border-box;
-  box-shadow: inset 0 -4px 0 #d9d9d9, 0 4px 10px rgba(0,0,0,0.15);
-  transition: background-color 200ms ease;
-}
-
-.dice-box--playable {
-  background: #ffffeb;
-}
-
-.dice-dot-cell {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.dice-dot {
-  width: 10px;
-  height: 10px;
-  background: var(--agu-color-base, #263f2a);
-  border-radius: 50%;
-}
 </style>
