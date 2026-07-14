@@ -76,9 +76,6 @@ const _diceFaceQuaternion = new THREE.Quaternion();
 const _diceFaceScratch = new THREE.Vector3();
 const _diceBestNormal = new THREE.Vector3();
 const _diceDisplayQuaternion = new THREE.Quaternion();
-const _grassSwayEuler = new THREE.Euler();
-const _grassSwayQuaternion = new THREE.Quaternion();
-const _grassMatrix = new THREE.Matrix4();
 
 const createRoundedRectShape = (size, cornerRadius) => {
   const half = size / 2;
@@ -363,9 +360,7 @@ export default {
       homeBaseHelpers: null,
       homeBaseRippleRings: null,
       clickableRipples: null,
-      grassMeshes: null,
-      grassInstances: null,
-      treeGroups: null,
+      decorationMeshes: null,
       pawnOutlineSyncPending: false,
       isMobile: false,
       sharedGeometries: markRaw({}),
@@ -581,7 +576,7 @@ export default {
       this.createPhysicsWorld();
       this.createDice();
       this.createHomeBaseHelpers();
-      this.createGrassAndTrees();
+      this.createMeadowDecorations();
       this.applyRenderQuality();
       this.applyOutlineAppearance();
       this.handleResize();
@@ -968,8 +963,6 @@ export default {
         this.animationFrameId = requestAnimationFrame(animate);
         
         this.updateCameraPath();
-
-        this.updateGrassSway(performance.now() * 0.0025);
 
         const rippleTime = performance.now() * RIPPLE_TIME_SCALE;
 
@@ -2006,13 +1999,8 @@ export default {
         });
 
         const showDecorations = preset.decorationsEnabled !== false;
-        if (this.treeGroups) {
-          this.treeGroups.forEach((group) => {
-            group.visible = showDecorations;
-          });
-        }
-        if (this.grassMeshes) {
-          this.grassMeshes.forEach((mesh) => {
+        if (this.decorationMeshes) {
+          this.decorationMeshes.forEach((mesh) => {
             mesh.visible = showDecorations;
           });
         }
@@ -2586,21 +2574,112 @@ export default {
       });
     },
 
-    createGrassAndTrees() {
-      const treePositions = [
+    // Low-poly meadow decorations after the reference art: spike-trunk
+    // trees with squashed, tilted icosahedron crowns, and dodecahedron
+    // rocks in big+small pairs. Everything is instanced — two draws for
+    // all trees, one for all rocks. The reference's fern leaves are
+    // dropped: ~20 meshes per tree for detail this camera never resolves.
+    createMeadowDecorations() {
+      const groundY = -1.37; // meadow surface
+      const icosaGeo = this.getSharedGeometry('deco-icosa', () => new THREE.IcosahedronGeometry(1, 0));
+      const rockGeo = this.getSharedGeometry('deco-rock', () => new THREE.DodecahedronGeometry(1, 0));
+
+      const treeSpots = [
         [-3.2, 3], [-3.8, 8.5], [3.2, -2.8], [9.8, -3.2],
         [15.5, 1.8], [15.2, 9.2], [9.5, 13.5], [14.0, 13.2],
-        [2.2, 12.8], [-1.8, 11.2]
+        [2.2, 12.8], [-1.8, 11.2],
       ];
-      this.createTreesInstanced(treePositions);
+      // Crown greens already used elsewhere in the scene.
+      const crownColors = ['#38761d', '#4ebf63', '#5ea24e', '#73c05e'];
 
-      const grassPositions = [
-        [-3, 4.8], [-2.5, 6.2], [-4, 2], [-1.5, -1.2], [3, -3],
-        [6.5, -2.5], [9, -3.2], [12, -2.2], [14.5, 1], [15.5, 4.2],
-        [15, 6.5], [14, 11.2], [11.5, 13.2], [8.5, 12.2], [5.5, 12.8],
-        [1, 11.8], [-1.5, 10.2], [-4, 9], [6, 12.5], [10, -2.5]
+      const trunks = this.createStaticInstancedMesh(
+          icosaGeo,
+          this.createToonMaterial('deco-trunk-mat', { color: '#8b5a2b' }),
+          treeSpots.length,
+          { castShadow: true, receiveShadow: true },
+      );
+      const crowns = this.createStaticInstancedMesh(
+          icosaGeo,
+          this.createToonMaterial('deco-crown-mat', { color: '#ffffff' }),
+          treeSpots.length,
+          { castShadow: true },
+      );
+
+      const matrix = new THREE.Matrix4();
+      const quaternion = new THREE.Quaternion();
+      const euler = new THREE.Euler();
+      const color = new THREE.Color();
+
+      treeSpots.forEach(([x, z], index) => {
+        const s = 0.8 + (Math.random() * 0.4);
+        const yaw = Math.random() * Math.PI * 2;
+
+        // Trunk: a thin vertical icosahedron spike, tip buried in the grass.
+        quaternion.identity();
+        matrix.compose(
+            new THREE.Vector3(x, groundY + (0.62 * s), z),
+            quaternion,
+            new THREE.Vector3(0.045 * s, 0.68 * s, 0.045 * s),
+        );
+        trunks.setMatrixAt(index, matrix);
+
+        // Crown: squashed sphere, tilted like the reference art.
+        euler.set(-0.2, yaw, -0.5);
+        quaternion.setFromEuler(euler);
+        matrix.compose(
+            new THREE.Vector3(x, groundY + (1.38 * s), z),
+            quaternion,
+            new THREE.Vector3(0.5 * s, 0.2 * s, 0.5 * s),
+        );
+        crowns.setMatrixAt(index, matrix);
+        crowns.setColorAt(index, color.set(crownColors[index % crownColors.length]));
+      });
+      crowns.instanceColor.needsUpdate = true;
+
+      const rockSpots = [
+        { x: -4.4, z: 6.6, yaw: 0.7 },
+        { x: 3.4, z: -3.6, yaw: 2.1 },
+        { x: 15.0, z: 3.6, yaw: 4.0 },
+        { x: 11.6, z: 12.8, yaw: 5.4 },
+        { x: -2.6, z: 11.6, yaw: 1.3 },
       ];
-      this.createGrassInstanced(grassPositions);
+      const rocks = this.createStaticInstancedMesh(
+          rockGeo,
+          this.createToonMaterial('deco-rock-mat', { color: '#ffffff' }),
+          rockSpots.length * 2,
+          { castShadow: true, receiveShadow: true },
+      );
+
+      rockSpots.forEach((spot, spotIndex) => {
+        const r = 0.85 + (Math.random() * 0.5);
+        euler.set(0, spot.yaw, 0);
+        quaternion.setFromEuler(euler);
+
+        // A flat boulder with a small companion beside it.
+        matrix.compose(
+            new THREE.Vector3(spot.x, groundY + (0.13 * r), spot.z),
+            quaternion,
+            new THREE.Vector3(0.42 * r, 0.18 * r, 0.26 * r),
+        );
+        rocks.setMatrixAt(spotIndex * 2, matrix);
+        rocks.setColorAt(spotIndex * 2, color.set('#9eaeac'));
+
+        matrix.compose(
+            new THREE.Vector3(
+                spot.x + (Math.cos(spot.yaw) * 0.5 * r),
+                groundY + (0.09 * r),
+                spot.z + (Math.sin(spot.yaw) * 0.5 * r),
+            ),
+            quaternion,
+            new THREE.Vector3(0.15 * r, 0.13 * r, 0.14 * r),
+        );
+        rocks.setMatrixAt((spotIndex * 2) + 1, matrix);
+        rocks.setColorAt((spotIndex * 2) + 1, color.set('#8d9c96'));
+      });
+      rocks.instanceColor.needsUpdate = true;
+
+      this.decorationMeshes = [trunks, crowns, rocks];
+      this.decorationMeshes.forEach((mesh) => this.finalizeInstancedMesh(mesh));
     },
 
     createStaticInstancedMesh(geometry, material, count, options = {}) {
@@ -2617,92 +2696,6 @@ export default {
       mesh.instanceMatrix.needsUpdate = true;
       mesh.computeBoundingSphere();
       this.scene.add(mesh);
-    },
-
-    createTreesInstanced(positions) {
-      const trunkGeo = this.getSharedGeometry('tree-trunk', () => new THREE.CylinderGeometry(0.12, 0.18, 0.8, 8));
-      const trunkMat = this.createToonMaterial('tree-trunk-mat', { color: '#8b5a2b' });
-      const foliageGeo = this.getSharedGeometry('tree-foliage', () => new THREE.ConeGeometry(0.48, 1.0, 8));
-      const foliageMat = this.createToonMaterial('tree-foliage-mat', { color: '#38761d' });
-
-      const trunks = this.createStaticInstancedMesh(trunkGeo, trunkMat, positions.length, { castShadow: true, receiveShadow: true });
-      const lowerFoliage = this.createStaticInstancedMesh(foliageGeo, foliageMat, positions.length, { castShadow: true });
-      const upperFoliage = this.createStaticInstancedMesh(foliageGeo, foliageMat, positions.length, { castShadow: true });
-
-      const matrix = new THREE.Matrix4();
-      const quaternion = new THREE.Quaternion();
-      const groundY = -1.37; // meadow surface — the dirt floor slab is gone
-      positions.forEach(([x, z], index) => {
-        const s = 0.75 + Math.random() * 0.35;
-        matrix.compose(new THREE.Vector3(x, groundY + (0.4 * s), z), quaternion, new THREE.Vector3(s, s, s));
-        trunks.setMatrixAt(index, matrix);
-        matrix.compose(new THREE.Vector3(x, groundY + (0.9 * s), z), quaternion, new THREE.Vector3(s, s, s));
-        lowerFoliage.setMatrixAt(index, matrix);
-        matrix.compose(new THREE.Vector3(x, groundY + (1.35 * s), z), quaternion, new THREE.Vector3(0.8 * s, 0.8 * s, 0.8 * s));
-        upperFoliage.setMatrixAt(index, matrix);
-      });
-
-      this.treeGroups = [trunks, lowerFoliage, upperFoliage];
-      this.treeGroups.forEach((mesh) => this.finalizeInstancedMesh(mesh));
-    },
-
-    createGrassInstanced(positions) {
-      const bladeGeo = this.getSharedGeometry('grass-blade', () => {
-        const geom = new THREE.BufferGeometry();
-        const vertices = new Float32Array([
-          -0.04, 0, 0,
-           0.04, 0, 0,
-           0, 0.36, 0
-        ]);
-        geom.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-        geom.computeVertexNormals();
-        return geom;
-      });
-
-      const grassMat = this.createToonMaterial('grass-blade-mat', {
-        color: '#5ea24e',
-        side: THREE.DoubleSide,
-      });
-
-      const bladesPerClump = 3;
-      const mesh = this.createStaticInstancedMesh(bladeGeo, grassMat, positions.length * bladesPerClump);
-      const clumps = positions.map(([gx, gz]) => {
-        const s = 0.65 * (0.8 + (Math.random() * 0.4));
-        return {
-          position: new THREE.Vector3(gx, -1.37, gz),
-          scale: new THREE.Vector3(s, s, s),
-          bladeRotations: Array.from({ length: bladesPerClump }, (_, bladeIdx) => new THREE.Matrix4().makeRotationFromEuler(
-              new THREE.Euler(0.08 + (Math.random() * 0.08), (bladeIdx * Math.PI) / 3, 0),
-          )),
-        };
-      });
-
-      this.grassInstances = markRaw({ mesh, clumps });
-      this.grassMeshes = [mesh];
-      this.updateGrassSway(0);
-      this.finalizeInstancedMesh(mesh);
-    },
-
-    // The same wave the old per-clump Groups ran, written into instance
-    // matrices instead: world = T(clump) * R(sway) * S(clump) * R(blade).
-    updateGrassSway(time) {
-      const grass = this.grassInstances;
-      if (!grass || !grass.mesh.visible) {
-        return;
-      }
-
-      let index = 0;
-      grass.clumps.forEach((clump, clumpIdx) => {
-        const wave = Math.sin(time + (clumpIdx * 0.6)) * 0.09;
-        _grassSwayEuler.set(0, wave * 0.3, wave);
-        _grassSwayQuaternion.setFromEuler(_grassSwayEuler);
-        clump.bladeRotations.forEach((bladeRotation) => {
-          _grassMatrix.compose(clump.position, _grassSwayQuaternion, clump.scale).multiply(bladeRotation);
-          grass.mesh.setMatrixAt(index, _grassMatrix);
-          index += 1;
-        });
-      });
-      grass.mesh.instanceMatrix.needsUpdate = true;
     },
 
     // ---- Online game flow (server-authoritative) ----
