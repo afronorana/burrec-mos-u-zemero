@@ -32,10 +32,11 @@ const DICE_SIZE = 0.456;
 const DICE_CORNER_RADIUS = DICE_SIZE * 0.12;
 const BOARD_BASE_SIZE = 12.6;
 const BOARD_TOP_SIZE = 11.3;
-// 45° corner chamfers. The top slab is inset 0.65 per side, so its smaller
-// chamfer keeps the two chamfer edges visually parallel with an even margin.
-const BOARD_BASE_CORNER_BEVEL = 0.8;
-const BOARD_TOP_CORNER_BEVEL = 0.42;
+// Rounded plan corners. The top slab is inset 0.65 per side, so its radius
+// is smaller by exactly that much — the two curves stay concentric with an
+// even margin all the way around the corner.
+const BOARD_BASE_CORNER_RADIUS = 1.2;
+const BOARD_TOP_CORNER_RADIUS = 0.55;
 // Central dice pit — a shallow round hole sunk into the middle of the board
 // (both board slabs are extruded with a matching cutout, and the pit liner
 // hides the cut edges). Invisible walls (an octagon of static physics boxes)
@@ -77,21 +78,22 @@ const _grassSwayEuler = new THREE.Euler();
 const _grassSwayQuaternion = new THREE.Quaternion();
 const _grassMatrix = new THREE.Matrix4();
 
-// A square board slab with beveled (45°-chamfered) outer corners and the
-// dice-pit cutout at its center. The geometry origin is the bottom of the
-// slab (extrusion runs along local +y).
-const createSlabWithPitHole = (size, thickness, cornerBevel) => {
+// A square board slab with rounded outer corners and the dice-pit cutout
+// at its center. The geometry origin is the bottom of the slab (extrusion
+// runs along local +y).
+const createSlabWithPitHole = (size, thickness, cornerRadius) => {
   const half = size / 2;
-  const b = cornerBevel;
+  const r = cornerRadius;
   const shape = new THREE.Shape();
-  shape.moveTo(-half + b, -half);
-  shape.lineTo(half - b, -half);
-  shape.lineTo(half, -half + b);
-  shape.lineTo(half, half - b);
-  shape.lineTo(half - b, half);
-  shape.lineTo(-half + b, half);
-  shape.lineTo(-half, half - b);
-  shape.lineTo(-half, -half + b);
+  shape.moveTo(-half + r, -half);
+  shape.lineTo(half - r, -half);
+  shape.quadraticCurveTo(half, -half, half, -half + r);
+  shape.lineTo(half, half - r);
+  shape.quadraticCurveTo(half, half, half - r, half);
+  shape.lineTo(-half + r, half);
+  shape.quadraticCurveTo(-half, half, -half, half - r);
+  shape.lineTo(-half, -half + r);
+  shape.quadraticCurveTo(-half, -half, -half + r, -half);
   shape.closePath();
 
   const hole = new THREE.Path();
@@ -450,7 +452,7 @@ export default {
 
       // Both slabs carry the pit cutout; origin sits at the slab bottom.
       const boardBase = this.createOutlinedMesh(
-          this.getSharedGeometry('board-base-pit', () => createSlabWithPitHole(BOARD_BASE_SIZE, 0.3, BOARD_BASE_CORNER_BEVEL)),
+          this.getSharedGeometry('board-base-pit', () => createSlabWithPitHole(BOARD_BASE_SIZE, 0.3, BOARD_BASE_CORNER_RADIUS)),
           this.createToonMaterial('board-base-material', {
             color: '#eca95d',
             roughness: 0.72,
@@ -465,7 +467,7 @@ export default {
       this.scene.add(boardBase);
 
       const boardTop = this.createOutlinedMesh(
-          this.getSharedGeometry('board-top-pit', () => createSlabWithPitHole(BOARD_TOP_SIZE, 0.08, BOARD_TOP_CORNER_BEVEL)),
+          this.getSharedGeometry('board-top-pit', () => createSlabWithPitHole(BOARD_TOP_SIZE, 0.08, BOARD_TOP_CORNER_RADIUS)),
           this.createToonMaterial('board-top-material', {
             color: '#fff0bf',
             roughness: 0.88,
