@@ -21,20 +21,6 @@
       </div>
     </app-scrollable>
 
-    <!-- Quick Presets -->
-    <div class="chat-presets">
-      <app-button
-        v-for="preset in presets"
-        :key="preset"
-        small
-        slate-blue
-        class="chat-preset-btn"
-        @click="sendPreset(preset)"
-      >
-        {{ preset }}
-      </app-button>
-    </div>
-
     <form class="chat-input-row" @submit.prevent="submit" @keyup.enter="submit">
       <app-input
         v-model="draft"
@@ -80,17 +66,6 @@ export default {
       maxLength: 200,
     };
   },
-  computed: {
-    presets() {
-      return [
-        t('online.presets.gg'),
-        t('online.presets.oops'),
-        t('online.presets.hurry'),
-        t('online.presets.lucky'),
-        t('online.presets.nice')
-      ];
-    }
-  },
   watch: {
     // Hard cap regardless of whether the input forwards its maxlength attr.
     draft(val) {
@@ -116,9 +91,6 @@ export default {
       }
       this.$emit('send', text);
       this.draft = '';
-    },
-    sendPreset(preset) {
-      this.$emit('send', preset);
     },
     getSenderName(message) {
       if (!message) return '';
@@ -204,19 +176,6 @@ export default {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.chat-presets {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.chat-preset-btn.button {
-  padding: 4px 8px;
-  font-size: 0.78rem;
-  letter-spacing: 0;
-  text-transform: none;
 }
 
 .chat-input-row {

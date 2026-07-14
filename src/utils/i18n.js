@@ -68,13 +68,6 @@ const translations = {
       chatPlaceholder: 'Say something…',
       send: 'Send',
       emptyChat: 'No messages yet.',
-      presets: {
-        gg: 'GG!',
-        oops: 'Oops!',
-        hurry: 'Hurry!',
-        lucky: 'Lucky!',
-        nice: 'Nice!'
-      }
     },
     game: {
       waiting: 'Waiting…',
@@ -177,13 +170,6 @@ const translations = {
       chatPlaceholder: 'Thuaj diçka…',
       send: 'Dërgo',
       emptyChat: 'Nuk ka mesazhe ende.',
-      presets: {
-        gg: 'Lojë e mirë!',
-        oops: 'Oops!',
-        hurry: 'Shpejt!',
-        lucky: 'Fat!',
-        nice: 'Bukuri!'
-      }
     },
     game: {
       waiting: 'Duke pritur…',
