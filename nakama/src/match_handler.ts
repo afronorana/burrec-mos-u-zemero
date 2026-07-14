@@ -11,7 +11,8 @@ import {
 } from './ludo_logic';
 
 const TICK_RATE = 2; // ticks per second
-const TURN_TIMEOUT_TICKS = 45 * TICK_RATE;
+// Keep in sync with the client's turn-timer bar (store.turnTimer.duration).
+const TURN_TIMEOUT_TICKS = 60 * TICK_RATE;
 const DISCONNECTED_TURN_TIMEOUT_TICKS = 6 * TICK_RATE;
 const EMPTY_TERMINATE_TICKS = 60 * TICK_RATE;
 const MAX_ROLLS_WHEN_ALL_HOME = 3;

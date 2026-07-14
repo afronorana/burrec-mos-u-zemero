@@ -910,6 +910,7 @@ export default {
         this.stepPhysicsWorld();
         this.syncDice();
         this.syncPawns();
+        this.enforceTurnTimer();
         if (this.hoverNeedsUpdate) {
           this.refreshHoveredTarget();
         }
@@ -2199,6 +2200,7 @@ export default {
       this.store.winner = null;
       this.store.online.pendingDice = null;
       this.store.online.diceInFlight = false;
+      this.stopTurnTimer();
       this.freezeDiceBody();
       this.syncDice();
       this.clearHoveredTarget();
@@ -2625,6 +2627,7 @@ export default {
       this.store.online.pendingDice = null;
       this.store.gamePlayStatus.isRolling = true;
       this.store.gamePlayStatus.isMoving = false;
+      this.startTurnTimer();
       this.hoverNeedsUpdate = true;
     },
 
@@ -2647,6 +2650,7 @@ export default {
       };
       this.store.gamePlayStatus.isRolling = false;
       this.store.gamePlayStatus.isMoving = false;
+      this.stopTurnTimer();
       this.hoverNeedsUpdate = true;
     },
 
@@ -2728,6 +2732,7 @@ export default {
       }
 
       this.store.players[this.store.currentPlayerId].startTurn();
+      this.startTurnTimer();
       this.hoverNeedsUpdate = true;
     },
 
@@ -2740,7 +2745,51 @@ export default {
       ApplicationStore.gamePlayStatus.isMoving = false;
       currentPlayer.endTurn();
       currentPlayer.startTurn();
+      this.startTurnTimer();
       this.hoverNeedsUpdate = true;
+    },
+
+    startTurnTimer() {
+      this.store.turnTimer.startedAt = performance.now();
+      this.store.turnTimer.running = true;
+    },
+
+    stopTurnTimer() {
+      this.store.turnTimer.running = false;
+    },
+
+    // Local games only: force the turn over once its 60 seconds run out.
+    // Online the server's own turn timeout is authoritative — the bar just
+    // sits empty until TURN_CHANGE arrives.
+    enforceTurnTimer() {
+      const timer = this.store.turnTimer;
+      if (
+        !timer.running ||
+        this.store.online.enabled ||
+        this.store.currentScreen !== 'game-screen' ||
+        performance.now() - timer.startedAt < timer.duration
+      ) {
+        return;
+      }
+
+      if (this.store.winner || !this.store.players[this.store.currentPlayerId]) {
+        this.stopTurnTimer();
+        return;
+      }
+
+      // Let dice physics or a pawn move finish — their end-of-turn events
+      // land right after and restart the timer anyway.
+      if (this.pendingDiceRoll) {
+        return;
+      }
+
+      const currentPlayer = this.store.players[this.store.currentPlayerId];
+      if (currentPlayer.pawns.some((pawn) => pawn.isMoving)) {
+        return;
+      }
+
+      this.stopTurnTimer();
+      EventBus.fire(EventKeys.turns.endTurn);
     },
 
     resetDiceBody() {

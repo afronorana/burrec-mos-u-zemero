@@ -77,6 +77,7 @@ const ApplicationStore = reactive({
     outlineAppearance: 'classic',
     locale: window.localStorage.getItem('burrec.settings.locale') || 'en',
     environment: window.localStorage.getItem('burrec.settings.environment') || 'day',
+    soundEnabled: window.localStorage.getItem('burrec.settings.sound') !== '0',
   },
   fields: {
     home: [
@@ -149,6 +150,14 @@ const ApplicationStore = reactive({
   },
   // { name, color, self } — set in both local and online mode, shown by WinScreen.
   winner: null,
+  // Per-turn countdown: restarted on every turn change; the HUD drains a
+  // progress bar from it. Local games enforce expiry in App.vue; online the
+  // server's own turn timeout is authoritative.
+  turnTimer: {
+    startedAt: 0,
+    duration: 60000,
+    running: false,
+  },
   online: {
     enabled: false,
     connectionState: 'idle', // idle | connecting | connected | reconnecting | disconnected

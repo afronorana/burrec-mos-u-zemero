@@ -68,6 +68,15 @@
 
         <span class="hud-dot hud-dot--sm" :style="{ background: player.color }"></span>
         <span class="hud-seat-chip-name">{{ player.name }}</span>
+
+        <!-- Turn timer: drains over 60s on the active player's chip -->
+        <div
+          v-if="player.isPlaying && store.turnTimer.running"
+          class="hud-seat-chip-timer"
+          :class="{ 'hud-seat-chip-timer--low': turnSecondsLeft !== null && turnSecondsLeft <= 10 }"
+        >
+          <div class="hud-seat-chip-timer-fill" :style="{ width: `${turnTimerFraction * 100}%` }"></div>
+        </div>
       </div>
     </div>
 
@@ -132,6 +141,7 @@ import EventBus from '../utils/eventhandler';
 import EventKeys from '../utils/EventKeys';
 import MatchController from '../network/MatchController';
 import { t } from '../utils/i18n';
+import { playTick } from '../utils/sound';
 import { Settings, X } from '@lucide/vue';
 
 export default {
@@ -149,6 +159,8 @@ export default {
       speechBubbles: {}, // { [player.turn]: 'message' }
       animatedRollValue: 1,
       diceAnimInterval: null,
+      timerNow: performance.now(),
+      timerInterval: null,
     };
   },
   computed: {
@@ -182,8 +194,27 @@ export default {
       if (state === 'disconnected') return t('online.disconnected');
       return '';
     },
+    turnTimerFraction() {
+      const timer = this.store.turnTimer;
+      if (!timer.running) return 1;
+      return Math.max(0, 1 - ((this.timerNow - timer.startedAt) / timer.duration));
+    },
+    turnSecondsLeft() {
+      const timer = this.store.turnTimer;
+      if (!timer.running) return null;
+      return Math.max(0, Math.ceil((timer.duration - (this.timerNow - timer.startedAt)) / 1000));
+    },
   },
   watch: {
+    // Clock tick once per second through the final 10 seconds of a turn.
+    turnSecondsLeft(val, oldVal) {
+      if (
+        val !== null && oldVal !== null &&
+        val < oldVal && val <= 10 && val >= 1
+      ) {
+        playTick();
+      }
+    },
     isDiceRolling(val) {
       if (val) {
         this.startDiceAnim();
@@ -225,8 +256,18 @@ export default {
       }, 4000);
     },
   },
+  mounted() {
+    // Coarse clock for the turn-timer bar — the store only holds startedAt.
+    this.timerInterval = setInterval(() => {
+      this.timerNow = performance.now();
+    }, 100);
+  },
   beforeUnmount() {
     this.stopDiceAnim();
+    if (this.timerInterval) {
+      clearInterval(this.timerInterval);
+      this.timerInterval = null;
+    }
   },
   methods: {
     t,
@@ -294,7 +335,7 @@ export default {
   min-width: 150px;
   max-width: 220px;
   min-height: 44px;
-  padding: 8px 14px;
+  padding: 8px 14px 12px;
   background: #ffffff;
   border: 2px solid var(--agu-color-base, #263f2a);
   border-radius: 8px;
@@ -322,6 +363,35 @@ export default {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* ── Turn timer bar (bottom edge of the active chip) ─────── */
+.hud-seat-chip-timer {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 4px;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(38, 63, 42, 0.16);
+  overflow: hidden;
+}
+
+.hud-seat-chip-timer-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--chip-color, #4cf2ca);
+  transition: width 120ms linear;
+}
+
+.hud-seat-chip-timer--low .hud-seat-chip-timer-fill {
+  background: var(--agu-color-red, #e9576f);
+  animation: hud-timer-pulse 1s ease-in-out infinite;
+}
+
+@keyframes hud-timer-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
 }
 
 .hud-speech-bubble {
