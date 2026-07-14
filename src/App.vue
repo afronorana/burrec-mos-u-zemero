@@ -209,6 +209,7 @@ export default {
       pendingDiceRoll: null,
       onlineDice: null,
       diceSnapTween: null,
+      dicePitMesh: null,
       pawnMeshes: markRaw({}),
       pawnMotionStates: markRaw({}),
       menuOrbitTime: 0,
@@ -748,8 +749,10 @@ export default {
             side: THREE.DoubleSide,
           }),
       ));
+      liner.name = 'dice-pit';
       liner.position.set(DICE_PIT.center.x, 0, DICE_PIT.center.z);
       liner.receiveShadow = true;
+      this.dicePitMesh = liner;
       this.scene.add(liner);
     },
 
@@ -1266,7 +1269,8 @@ export default {
       // the 2D hull outline is hover feedback only, so most frames draw nothing.
       const status = this.store.gamePlayStatus;
       const wantsDice = Boolean(this.diceMesh && status.isRolling
-          && this.hoveredTarget === 'dice' && this.isHumanTurn());
+          && (this.hoveredTarget === 'dice' || this.hoveredTarget === 'dice-pit')
+          && this.isHumanTurn());
       const wantsPawn = Boolean(status.isMoving && this.hoveredTarget
           && this.hoveredTarget.startsWith('cube-') && this.isHumanTurn());
 
@@ -2029,6 +2033,10 @@ export default {
 
       if (this.diceMesh && this.store.gamePlayStatus.isRolling && this.isHumanTurn() && !this.isMobile) {
         interactiveObjects.push(this.diceMesh);
+        // The whole pit doubles as a roll button, not just the small dice.
+        if (this.dicePitMesh) {
+          interactiveObjects.push(this.dicePitMesh);
+        }
       }
 
       if (this.store.gamePlayStatus.isMoving && this.isHumanTurn()) {
@@ -2054,7 +2062,7 @@ export default {
       let current = hitObject;
 
       while (current) {
-        if (current.name === 'dice' || current.name.startsWith('cube-') || current.name.startsWith('home-base-helper-')) {
+        if (current.name === 'dice' || current.name === 'dice-pit' || current.name.startsWith('cube-') || current.name.startsWith('home-base-helper-')) {
           return current.name;
         }
         current = current.parent;
@@ -2135,7 +2143,7 @@ export default {
         return;
       }
 
-      if (target === 'dice') {
+      if (target === 'dice' || target === 'dice-pit') {
         this.rollDice();
         this.hoverNeedsUpdate = true;
         return;
