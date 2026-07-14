@@ -11,9 +11,11 @@
           v-for="message in messages"
           :key="message.id"
           class="chat-message"
-          :class="{ 'chat-message--own': message.senderId === selfId }"
         >
-          <span class="chat-sender">{{ getSenderName(message) }}</span>
+          <span
+            class="chat-sender-badge"
+            :style="{ background: getSenderColor(message), color: getBadgeTextColor(getSenderColor(message)) }"
+          >{{ getSenderName(message) }}</span>
           <span class="chat-text">{{ message.message }}</span>
         </div>
       </div>
@@ -54,6 +56,7 @@
 
 <script>
 import ApplicationStore from '../utils/ApplicationStore';
+import { PLAYER_COLORS } from '../utils/playerColors';
 import { t } from '../utils/i18n';
 import { Send } from '@lucide/vue';
 
@@ -122,6 +125,23 @@ export default {
       }
       return message.username;
     },
+    getSenderColor(message) {
+      const seats = this.store?.online?.seats || [];
+      const seat = seats.find((s) => s && s.userId === message.senderId);
+      if (seat) {
+        return PLAYER_COLORS[seat.seat];
+      }
+      const name = this.getSenderName(message);
+      const player = (this.store.players || []).find((p) => p.name === name);
+      return player ? player.color : '#8a8a8a';
+    },
+    // Yellow/green player colors need dark text on the badge to stay legible.
+    getBadgeTextColor(hex) {
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      return ((0.299 * r) + (0.587 * g) + (0.114 * b)) > 150 ? '#263f2a' : '#ffffff';
+    },
   },
 };
 </script>
@@ -138,7 +158,8 @@ export default {
   flex: 1;
   min-height: 120px;
   max-height: 200px;
-  background: rgba(0, 0, 0, 0.35);
+  background: #ffffff;
+  border: 1.5px solid rgba(38, 63, 42, 0.25);
   border-radius: 4px;
   padding: 8px;
 }
@@ -153,23 +174,29 @@ export default {
   margin: 0;
   font-size: 13px;
   opacity: 0.6;
-  color: #ffffff;
+  color: var(--agu-color-base, #263f2a);
 }
 
 .chat-message {
   font-size: 13px;
   line-height: 1.5;
   word-break: break-word;
-  color: #ffffff;
+  color: var(--agu-color-base, #263f2a);
 }
 
-.chat-message--own .chat-sender {
-  color: var(--agu-color-green, #71bd26);
-}
-
-.chat-sender {
-  color: var(--agu-color-orange, #fdc25b);
+.chat-sender-badge {
+  display: inline-block;
+  padding: 0 6px;
   margin-right: 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.6;
+  vertical-align: baseline;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .chat-presets {
