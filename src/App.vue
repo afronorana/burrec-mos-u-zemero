@@ -209,7 +209,6 @@ const createDicePhysicsBody = () => markRaw(new CANNON.Body({
 // Slightly wide lens so the whole board stays in frame at all times.
 const CAMERA_FOV_LANDSCAPE = 50;
 const CAMERA_FOV_PORTRAIT = 66;
-const RIPPLE_TIME_SCALE = 0.0006;
 // Every clickable cue (ground ring + hover outline) shares one crisp
 // two-tone UI-orange pulse: the color breathes smoothly between the two
 // oranges with a small scale wobble — no soft glow, no fading tails.
@@ -226,9 +225,16 @@ const getClickablePulse = (now) => {
     // Shared scratch color — consumers use it within the same frame only.
     color: `#${_pulseColorScratch.getHexString()}`,
     threeColor: _pulseColorScratch,
+    wave,
     scale: 0.92 + (0.1 * Math.sin(phase * Math.PI * 2)),
   };
 };
+// Selectable home bases run the same pulse in their own color: each base
+// breathes between its player color and a brightened version of it.
+const HOME_BASE_PULSE_COLORS = PLAYER_COLORS.map((hex) => ({
+  base: new THREE.Color(hex),
+  bright: new THREE.Color(hex).lerp(new THREE.Color('#ffffff'), 0.45),
+}));
 const DICE_SETTLE_RULES = {
   minimumMotionMs: 500,
   faceUpDotThreshold: 0.94,
@@ -964,9 +970,8 @@ export default {
         
         this.updateCameraPath();
 
-        const rippleTime = performance.now() * RIPPLE_TIME_SCALE;
-
         if (this.homeBaseHelpers && (this.store.currentScreen === 'add-players' || this.store.currentScreen === 'lobby')) {
+          const basePulse = getClickablePulse(performance.now());
           this.homeBaseHelpers.forEach((group, baseIdx) => {
             group.visible = true;
             let isEmpty = false;
@@ -980,14 +985,22 @@ export default {
             if (rings) {
               rings.forEach((ring, ringIdx) => {
                 if (isEmpty) {
-                  const phase = (rippleTime + ringIdx * 0.5) % 1.0;
-                  const scale = 0.2 + phase * 1.15;
+                  // Selectable: same sharp pulse as the dice/pawn cues,
+                  // just in this base's color.
+                  if (ringIdx > 0) {
+                    ring.visible = false;
+                    return;
+                  }
+                  const palette = HOME_BASE_PULSE_COLORS[baseIdx];
+                  const scale = 1.45 * basePulse.scale;
                   ring.scale.set(scale, scale, 1);
-                  ring.material.opacity = (1 - phase) * 0.65;
+                  ring.material.color.copy(palette.base).lerp(palette.bright, basePulse.wave);
+                  ring.material.opacity = 0.95;
                   ring.visible = true;
                 } else {
                   const scale = ringIdx === 0 ? 0.95 : 0.7;
                   ring.scale.set(scale, scale, 1);
+                  ring.material.color.copy(HOME_BASE_PULSE_COLORS[baseIdx].base);
                   ring.material.opacity = 0.5;
                   ring.visible = true;
                 }
