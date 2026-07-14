@@ -2574,74 +2574,19 @@ export default {
       });
     },
 
-    // Low-poly meadow decorations after the reference art: spike-trunk
-    // trees with squashed, tilted icosahedron crowns, and dodecahedron
-    // rocks in big+small pairs. Everything is instanced — two draws for
-    // all trees, one for all rocks. The reference's fern leaves are
-    // dropped: ~20 meshes per tree for detail this camera never resolves.
+    // Low-poly meadow decorations: dodecahedron rocks in big+small pairs,
+    // pushed out toward the meadow's edge so they frame the table without
+    // crowding it. One instanced draw for everything.
     createMeadowDecorations() {
       const groundY = -1.37; // meadow surface
-      const icosaGeo = this.getSharedGeometry('deco-icosa', () => new THREE.IcosahedronGeometry(1, 0));
       const rockGeo = this.getSharedGeometry('deco-rock', () => new THREE.DodecahedronGeometry(1, 0));
 
-      const treeSpots = [
-        [-3.2, 3], [-3.8, 8.5], [3.2, -2.8], [9.8, -3.2],
-        [15.5, 1.8], [15.2, 9.2], [9.5, 13.5], [14.0, 13.2],
-        [2.2, 12.8], [-1.8, 11.2],
-      ];
-      // Crown greens already used elsewhere in the scene.
-      const crownColors = ['#38761d', '#4ebf63', '#5ea24e', '#73c05e'];
-
-      const trunks = this.createStaticInstancedMesh(
-          icosaGeo,
-          this.createToonMaterial('deco-trunk-mat', { color: '#8b5a2b' }),
-          treeSpots.length,
-          { castShadow: true, receiveShadow: true },
-      );
-      const crowns = this.createStaticInstancedMesh(
-          icosaGeo,
-          this.createToonMaterial('deco-crown-mat', { color: '#ffffff' }),
-          treeSpots.length,
-          { castShadow: true },
-      );
-
-      const matrix = new THREE.Matrix4();
-      const quaternion = new THREE.Quaternion();
-      const euler = new THREE.Euler();
-      const color = new THREE.Color();
-
-      treeSpots.forEach(([x, z], index) => {
-        const s = 0.8 + (Math.random() * 0.4);
-        const yaw = Math.random() * Math.PI * 2;
-
-        // Trunk: a thin vertical icosahedron spike, tip buried in the grass.
-        quaternion.identity();
-        matrix.compose(
-            new THREE.Vector3(x, groundY + (0.62 * s), z),
-            quaternion,
-            new THREE.Vector3(0.045 * s, 0.68 * s, 0.045 * s),
-        );
-        trunks.setMatrixAt(index, matrix);
-
-        // Crown: squashed sphere, tilted like the reference art.
-        euler.set(-0.2, yaw, -0.5);
-        quaternion.setFromEuler(euler);
-        matrix.compose(
-            new THREE.Vector3(x, groundY + (1.38 * s), z),
-            quaternion,
-            new THREE.Vector3(0.5 * s, 0.2 * s, 0.5 * s),
-        );
-        crowns.setMatrixAt(index, matrix);
-        crowns.setColorAt(index, color.set(crownColors[index % crownColors.length]));
-      });
-      crowns.instanceColor.needsUpdate = true;
-
       const rockSpots = [
-        { x: -4.4, z: 6.6, yaw: 0.7 },
-        { x: 3.4, z: -3.6, yaw: 2.1 },
-        { x: 15.0, z: 3.6, yaw: 4.0 },
-        { x: 11.6, z: 12.8, yaw: 5.4 },
-        { x: -2.6, z: 11.6, yaw: 1.3 },
+        { x: -7.4, z: 7.2, yaw: 0.7 },
+        { x: 2.6, z: -6.8, yaw: 2.1 },
+        { x: 17.6, z: 2.8, yaw: 4.0 },
+        { x: 14.2, z: 15.0, yaw: 5.4 },
+        { x: -5.4, z: 14.0, yaw: 1.3 },
       ];
       const rocks = this.createStaticInstancedMesh(
           rockGeo,
@@ -2650,8 +2595,13 @@ export default {
           { castShadow: true, receiveShadow: true },
       );
 
+      const matrix = new THREE.Matrix4();
+      const quaternion = new THREE.Quaternion();
+      const euler = new THREE.Euler();
+      const color = new THREE.Color();
+
       rockSpots.forEach((spot, spotIndex) => {
-        const r = 0.85 + (Math.random() * 0.5);
+        const r = 1.5 + (Math.random() * 0.6);
         euler.set(0, spot.yaw, 0);
         quaternion.setFromEuler(euler);
 
@@ -2678,7 +2628,7 @@ export default {
       });
       rocks.instanceColor.needsUpdate = true;
 
-      this.decorationMeshes = [trunks, crowns, rocks];
+      this.decorationMeshes = [rocks];
       this.decorationMeshes.forEach((mesh) => this.finalizeInstancedMesh(mesh));
     },
 
