@@ -1123,12 +1123,16 @@ export default {
 
           const animatedPosition = this.getAnimatedPawnPosition(pawn, now);
           const targetScale = pawn.isActive ? 1.1 : 1;
+          // Squash & stretch from the hop, roughly volume-preserving.
+          const stretch = this.pawnMotionStates[pawn.id]?.stretch ?? 1;
+          const heightScale = targetScale * stretch;
+          const widthScale = targetScale / Math.sqrt(stretch);
 
           if (
             pawnMesh.position.x !== animatedPosition.x ||
             pawnMesh.position.y !== animatedPosition.y ||
             pawnMesh.position.z !== animatedPosition.z ||
-            pawnMesh.scale.x !== targetScale
+            pawnMesh.scale.y !== heightScale
           ) {
             this.requestShadowUpdate();
           }
@@ -1139,7 +1143,7 @@ export default {
               animatedPosition.z,
           );
 
-          pawnMesh.scale.setScalar(targetScale);
+          pawnMesh.scale.set(widthScale, heightScale, widthScale);
         });
       });
 
@@ -1188,6 +1192,7 @@ export default {
           duration: PAWN_STEP_DURATION_MS,
           jumpHeight: this.getPawnJumpHeight(pawn),
           isAnimating: false,
+          stretch: 1,
         });
         this.pawnMotionStates[pawn.id] = motion;
       }
@@ -1215,6 +1220,7 @@ export default {
         motion.current.x = targetX;
         motion.current.y = targetY;
         motion.current.z = targetZ;
+        motion.stretch = 1;
         return motion.current;
       }
 
@@ -1224,13 +1230,23 @@ export default {
         motion.current.y = motion.to.y;
         motion.current.z = motion.to.z;
         motion.isAnimating = false;
+        motion.stretch = 1;
         return motion.current;
       }
 
-      motion.current.x = motion.from.x + ((motion.to.x - motion.from.x) * progress);
-      motion.current.y = motion.from.y + ((motion.to.y - motion.from.y) * progress)
-          + (Math.sin(Math.PI * progress) * motion.jumpHeight);
-      motion.current.z = motion.from.z + ((motion.to.z - motion.from.z) * progress);
+      // A hop, not a slide: horizontal travel eases in and out of each step
+      // while the arc keeps its sinusoidal flight, and the pawn squashes a
+      // touch at take-off/landing and stretches at the top of the arc.
+      const eased = progress < 0.5
+        ? 2 * progress * progress
+        : 1 - (Math.pow((-2 * progress) + 2, 2) / 2);
+      const arc = Math.sin(Math.PI * progress);
+
+      motion.current.x = motion.from.x + ((motion.to.x - motion.from.x) * eased);
+      motion.current.y = motion.from.y + ((motion.to.y - motion.from.y) * eased)
+          + (arc * motion.jumpHeight);
+      motion.current.z = motion.from.z + ((motion.to.z - motion.from.z) * eased);
+      motion.stretch = 0.94 + (0.18 * arc);
       return motion.current;
     },
 
