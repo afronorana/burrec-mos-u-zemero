@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-"Burrec mos u zemero" — a 3D Ludo-style board game (Albanian take on "Mensch ärgere dich nicht"). Vue 3 + Three.js for rendering, cannon-es for dice physics, nes.css for retro UI. Desktop-only (mobile is blocked by an overlay). No tests or linter are configured.
+"Burrec mos u zemero" — a 3D Ludo-style board game (Albanian take on "Mensch ärgere dich nicht"). Vue 3 + Three.js for rendering, cannon-es for dice physics, nes.css for retro UI. Playable on desktop and mobile/touch: the old `.mobile-block-overlay` is disabled (`display:none`), and on touch (`store.isMobile`) the HUD shows an explicit Roll button since tapping the small 3D dice-in-pit is fiddly on a phone. No tests or linter are configured.
 
 ## Commands
 
@@ -28,7 +28,7 @@ Deployment is GitHub Pages serving the `docs/` folder from the branch (no CI wor
 Only files reachable from `index.html → src/main.js → src/App.vue` are live:
 
 - `src/App.vue`
-- `src/components/`: `StartScreen.vue`, `GameInterface.vue`, `OnlineMenu.vue`, `LobbyScreen.vue`, `ChatPanel.vue`, `WinScreen.vue`, `OutlineAppearanceSelect.vue`, `RenderQualitySlider.vue`
+- `src/components/`: `StartScreen.vue`, `GameInterface.vue`, `CreateRoomScreen.vue`, `JoinRoomScreen.vue`, `LobbyScreen.vue`, `ChatPanel.vue`, `WinScreen.vue`, `OutlineAppearanceSelect.vue`, `RenderQualitySlider.vue`
 - `src/network/`: `NakamaClient.js`, `MatchController.js`, `ChatController.js`
 - `src/utils/`: `ApplicationStore.js`, `Pawn.js`, `Player.js`, `eventhandler.js`, `EventKeys.js`, `movementConstants.js`, `outlineAppearance.js`, `playerColors.js`, `renderQuality.js`
 - `src/styles/`
@@ -41,7 +41,7 @@ Everything else is a dead earlier implementation (vue-gl `vgl-*` templates, jQue
 
 Three layers communicate through a shared reactive singleton and an event bus — there is no Pinia/Vuex in the live path.
 
-**State: `utils/ApplicationStore.js`** — a plain Vue `reactive()` object imported directly by everything. Holds board geometry (`fields.home/target/path` as THREE.Vector3 grid coordinates), `players`, turn bookkeeping (`currentPlayerId`, `currentRound`, `lastRolledDice`), UI screen (`currentScreen`: `main-menu` → `add-players` → `game-screen`), graphics `settings`, and `gamePlayStatus.isRolling/isMoving` which gate all interaction.
+**State: `utils/ApplicationStore.js`** — a plain Vue `reactive()` object imported directly by everything. Holds board geometry (`fields.home/target/path` as THREE.Vector3 grid coordinates), `players`, turn bookkeeping (`currentPlayerId`, `currentRound`, `lastRolledDice`), UI screen (`currentScreen`: `main-menu` → `create-room`/`join-room` → `lobby` → `game-screen`; the app is online-only), graphics `settings`, and `gamePlayStatus.isRolling/isMoving` which gate all interaction.
 
 **Game rules: `utils/Player.js` and `utils/Pawn.js`** — plain classes that mutate ApplicationStore directly. `Player` owns turn flow after a dice result (three-roll rule when all pawns are home, six repeats the turn, computer players auto-roll/auto-move on timeouts). `Pawn` owns movement: it builds a list of step states and applies them on `PAWN_STEP_DURATION_MS` timers (`runMoveSequence`), then handles captures (`removeOpponentPawns`) and fires the end/repeat-turn event. Position model: `position` 0 = home, 1–40 = main path (`globalPosition = (startingGlobalPosition + position - 1) % 40`, players start at offsets 0/10/20/30), 41–44 = the player's target lane; moves that would overshoot ≥ 45 are unavailable.
 
@@ -58,7 +58,7 @@ Three layers communicate through a shared reactive singleton and an event bus �
 
 **Graphics settings** (`utils/outlineAppearance.js`, `utils/renderQuality.js`) are preset tables; App.vue watchers on `store.settings.*` re-apply them live (`applyOutlineAppearance`, `applyRenderQuality`).
 
-A blank name in the player setup screen creates a computer player (`createPlayers` passes controller `'ai'` for empty names).
+The app is online-only (server-authoritative Nakama matches); the offline "Local Game" mode and its `add-players`/`localSetup*` setup were removed. AI players (`Player.controller === 'ai'`) still exist server-side for turn timeouts, but there is no local single-device setup screen.
 
 ## Online multiplayer (Nakama)
 

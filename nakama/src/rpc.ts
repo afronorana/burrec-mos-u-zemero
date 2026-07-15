@@ -3,6 +3,7 @@ import { MATCH_MODULE } from '../../shared/protocol.js';
 // Letters only (same alphabet Shtet Qytet uses for room codes).
 const CODE_ALPHABET = 'ABDEFGHIJKLMNOPQRSTUVWZ';
 const CODE_LENGTH = 4;
+const MAX_SEATS = 4;
 
 // 4-letter combinations a code must never spell (Albanian + English),
 // ported from Shtet Qytet's room-code list.
@@ -53,6 +54,36 @@ export const rpcCreatePrivateMatch: nkruntime.RpcFunction = function (ctx, logge
 
   const matchId = nk.matchCreate(MATCH_MODULE, { mode: 'private', code });
   return JSON.stringify({ matchId, code });
+};
+
+// A public room is a codeless lobby anyone can find via Quick Match. Like
+// private rooms it lives entirely in the match label — no storage writes.
+export const rpcCreatePublicMatch: nkruntime.RpcFunction = function (ctx, logger, nk, payload) {
+  const matchId = nk.matchCreate(MATCH_MODULE, { mode: 'public' });
+  return JSON.stringify({ matchId });
+};
+
+// Quick Match = find-or-create a public lobby with a free slot. The match
+// label carries mode/open, so a single matchList query is the whole search;
+// no matchmaker, no waiting for N players to queue at once.
+export const rpcQuickMatch: nkruntime.RpcFunction = function (ctx, logger, nk, payload) {
+  // open:1 already means "lobby phase AND a seat is free"; the size ceiling
+  // (< MAX_SEATS presences) guards against piling everyone into one room.
+  const matches = nk.matchList(20, true, null, 1, MAX_SEATS - 1, '+label.mode:public +label.open:1');
+
+  if (matches && matches.length > 0) {
+    // Fill the fullest joinable room first so games start sooner.
+    let best = matches[0];
+    for (let i = 1; i < matches.length; i += 1) {
+      if ((matches[i].size || 0) > (best.size || 0)) {
+        best = matches[i];
+      }
+    }
+    return JSON.stringify({ matchId: best.matchId });
+  }
+
+  const matchId = nk.matchCreate(MATCH_MODULE, { mode: 'public' });
+  return JSON.stringify({ matchId, created: true });
 };
 
 export const rpcJoinByCode: nkruntime.RpcFunction = function (ctx, logger, nk, payload) {

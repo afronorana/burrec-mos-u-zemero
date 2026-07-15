@@ -29,7 +29,7 @@ export interface Seat {
 
 export interface LudoState {
   phase: 'lobby' | 'playing' | 'finished';
-  mode: 'private' | 'quick';
+  mode: 'private' | 'public';
   joinCode: string | null;
   seats: (Seat | null)[];
   hostUserId: string | null;
@@ -329,7 +329,7 @@ const matchInit = function (
   nk: nkruntime.Nakama,
   params: { [key: string]: string },
 ): { state: LudoState; tickRate: number; label: string } {
-  const mode = params && params.mode === 'quick' ? 'quick' : 'private';
+  const mode: 'private' | 'public' = params && params.mode === 'public' ? 'public' : 'private';
   const joinCode = params && params.code ? String(params.code) : null;
 
   const state: LudoState = {

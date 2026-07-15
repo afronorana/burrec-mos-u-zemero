@@ -6,7 +6,7 @@
       </p>
       <h2 class="panel-title" v-html="t('win.wins', { name: `<span style='color: ${store.winner.color}'>${store.winner.name}</span>` })"></h2>
       <p class="panel-desc">{{ store.winner.self ? t('win.congrats') : t('win.betterLuck') }}</p>
-      <app-button green class="menu-btn-full" @click="backToMenu">
+      <app-button class="menu-btn-full" @click="backToMenu">
         {{ t('win.backToMenu') }}
       </app-button>
     </app-panel>

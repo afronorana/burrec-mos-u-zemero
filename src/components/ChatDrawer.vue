@@ -1,6 +1,6 @@
 <template>
   <div class="chat-drawer">
-    <app-button slate-blue class="hud-icon-btn" :title="chatOpen ? 'Close chat' : 'Chat'" @click="chatOpen = !chatOpen">
+    <app-button orange class="hud-icon-btn" :title="chatOpen ? 'Close chat' : 'Chat'" @click="chatOpen = !chatOpen">
       <message-square-icon :size="20" />
       <span v-if="unreadCount > 0" class="chat-drawer-unread">{{ unreadCount }}</span>
     </app-button>

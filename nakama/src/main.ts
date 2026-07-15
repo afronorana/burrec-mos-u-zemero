@@ -1,10 +1,12 @@
 import { MATCH_MODULE } from '../../shared/protocol.js';
 import { ludoMatchHandler } from './match_handler';
-import { rpcCreatePrivateMatch, rpcHealthcheck, rpcJoinByCode } from './rpc';
-
-const matchmakerMatched: nkruntime.MatchmakerMatchedFunction = function (ctx, logger, nk, matches) {
-  return nk.matchCreate(MATCH_MODULE, { mode: 'quick' });
-};
+import {
+  rpcCreatePrivateMatch,
+  rpcCreatePublicMatch,
+  rpcHealthcheck,
+  rpcJoinByCode,
+  rpcQuickMatch,
+} from './rpc';
 
 function InitModule(
   ctx: nkruntime.Context,
@@ -14,9 +16,10 @@ function InitModule(
 ) {
   initializer.registerRpc('healthcheck', rpcHealthcheck);
   initializer.registerRpc('create_private_match', rpcCreatePrivateMatch);
+  initializer.registerRpc('create_public_match', rpcCreatePublicMatch);
+  initializer.registerRpc('quick_match', rpcQuickMatch);
   initializer.registerRpc('join_by_code', rpcJoinByCode);
   initializer.registerMatch(MATCH_MODULE, ludoMatchHandler);
-  initializer.registerMatchmakerMatched(matchmakerMatched);
   logger.info('burrec ludo module loaded');
 }
 

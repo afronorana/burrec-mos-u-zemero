@@ -7,8 +7,10 @@ const USE_SSL = String(import.meta.env.VITE_NAKAMA_SSL) === 'true';
 const SERVER_KEY = import.meta.env.VITE_NAKAMA_KEY || 'burrec-dev-key';
 
 // Per-tab identity in dev (sessionStorage) so two tabs can play against each
-// other; stable per-browser identity in production (localStorage).
-const identityStorage = import.meta.env.DEV ? window.sessionStorage : window.localStorage;
+// other; stable per-browser identity in production (localStorage). Exported so
+// the resume machinery (matchSession.js) parks the active-match handle in the
+// SAME bucket as the identity that can rejoin it.
+export const identityStorage = import.meta.env.DEV ? window.sessionStorage : window.localStorage;
 
 const STORAGE_KEYS = {
   deviceId: 'burrec.online.deviceId',
@@ -72,7 +74,7 @@ class NakamaClientService {
     // Always sync: online.displayName is set by the login screen before this
     // runs, so comparing against it would skip the account update forever and
     // seat claims would fall back to the random device username.
-    const name = String(displayName || '').trim().slice(0, 24);
+    const name = String(displayName || '').trim().slice(0, 12);
     if (name) {
       try {
         await client.updateAccount(session, { display_name: name });
