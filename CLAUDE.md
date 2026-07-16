@@ -28,12 +28,12 @@ Deployment is GitHub Pages serving the `docs/` folder from the branch (no CI wor
 Only files reachable from `index.html → src/main.js → src/App.vue` are live:
 
 - `src/App.vue`
-- `src/components/`: `StartScreen.vue`, `GameInterface.vue`, `CreateRoomScreen.vue`, `JoinRoomScreen.vue`, `LobbyScreen.vue`, `ChatPanel.vue`, `WinScreen.vue`, `OutlineAppearanceSelect.vue`, `RenderQualitySlider.vue`
+- `src/components/`: `StartScreen.vue`, `GameInterface.vue`, `CreateRoomScreen.vue`, `JoinRoomScreen.vue`, `LobbyScreen.vue`, `ChatPanel.vue`, `WinScreen.vue`, `AuthModal.vue`, `OutlineAppearanceSelect.vue`, `RenderQualitySlider.vue`
 - `src/network/`: `NakamaClient.js`, `MatchController.js`, `ChatController.js`
 - `src/utils/`: `ApplicationStore.js`, `Pawn.js`, `Player.js`, `eventhandler.js`, `EventKeys.js`, `movementConstants.js`, `outlineAppearance.js`, `playerColors.js`, `renderQuality.js`
 - `src/styles/`
 - `shared/protocol.js` (opcodes — imported by both the client and the Nakama server bundle)
-- `nakama/src/` (server runtime: `main.ts`, `match_handler.ts`, `ludo_logic.ts`, `rpc.ts`)
+- `nakama/src/` (server runtime: `main.ts`, `match_handler.ts`, `ludo_logic.ts`, `rpc.ts`, `auth.ts`)
 
 Everything else is a dead earlier implementation (vue-gl `vgl-*` templates, jQuery/Vuex/Pinia bootstrap): `src/core/`, `src/mixins/`, `src/store/useMainStore.js`, `src/utils/app.js`, `src/utils/components.js`, `src/components/PawnFigure.vue`, `DiceFigure.vue`, `PawnGeometryMaterial.vue`. Same for the `jquery`, `lodash`, `vuex`, `pinia`, `bootstrap-sass` dependencies. Don't extend the legacy files or take patterns from them.
 
@@ -73,3 +73,4 @@ Online games are **server-authoritative**: a Nakama TypeScript runtime module (`
 - **Recovery**: any REJECTED or desync path sends SYNC_REQUEST; `handleNetStateSync` rebuilds players and teleports pawns from the snapshot.
 - **Dev identity**: deviceId lives in sessionStorage in dev (per-tab, so two tabs can play each other) and localStorage in prod.
 - Session tokens: `token_expiry_sec` is raised to 7200 in `local.yml` (Nakama's 60s default kills sockets mid-game).
+- **Accounts** (optional — guest device auth stays the default): email register/login plus Google/Apple sign-in (`AuthModal.vue`, buttons config-gated on `VITE_GOOGLE_CLIENT_ID`/`VITE_APPLE_CLIENT_ID`; Apple also needs `social.apple.bundle_id` server-side). Nakama sends no email itself: `nakama/src/auth.ts` mints one-time tokens in system-owned storage and posts to Resend's HTTP API (`runtime.env`: RESEND_API_KEY, EMAIL_FROM, PUBLIC_URL; EMAIL_DEV_ECHO=1 in dev returns the links in RPC payloads). Verify/reset links land as `#verify=`/`#reset=` hashes handled by StartScreen. Password reset works via `nk.linkEmail` re-link; the reset/verify RPCs run under any session (guests included) and act on the token's user, never the caller. An expired non-guest session throws `auth_session_expired` instead of silently re-authenticating as a guest device.

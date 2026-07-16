@@ -179,6 +179,20 @@ const ApplicationStore = reactive({
     diceInFlight: false, // gates MOVE_APPLIED/TURN_CHANGE replay while dice physics run
     chat: [],
     lastError: null,
+    // Signed-in account (NakamaClient.refreshAccountStatus): method is
+    // 'guest' | 'email' | 'google' | 'apple'; email/emailVerified only apply
+    // to email accounts.
+    account: {
+      method: 'guest',
+      email: null,
+      emailVerified: false,
+    },
+    // Auth modal state (AuthModal.vue): view is
+    // 'login' | 'register' | 'account' | 'forgot' | 'reset' | 'verify'.
+    authOpen: false,
+    authView: 'login',
+    resetToken: null, // token parsed from a #reset= link, consumed by the reset view
+    verifyToken: null, // token parsed from a #verify= link, consumed on modal open
   },
   controls: null,
   // Touch/small-screen flag (set by App.vue on scene init): the dice renders

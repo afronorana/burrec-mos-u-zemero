@@ -11,3 +11,17 @@ socket:
   server_key: "burrec-dev-key"
 runtime:
   js_entrypoint: "index.js"
+  env:
+    # Email delivery (Resend). Empty API key = emails are skipped and logged;
+    # EMAIL_DEV_ECHO=1 additionally returns verify/reset links in RPC payloads
+    # (dev only — never enable in prod, it bypasses the mailbox).
+    - "RESEND_API_KEY="
+    - "EMAIL_FROM=Burrec <noreply@example.com>"
+    - "PUBLIC_URL=http://localhost:3000"
+    - "EMAIL_DEV_ECHO=1"
+# Sign in with Apple (web) — set to the Apple *Services ID* once the Apple
+# Developer account exists; Google needs no server config (ID tokens are
+# validated against Google's public certs).
+# social:
+#   apple:
+#     bundle_id: "com.example.burrec.web"

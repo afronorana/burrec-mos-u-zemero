@@ -35,6 +35,15 @@
             </div>
           </template>
 
+          <div class="intro-account">
+            <button v-if="isSignedIn" type="button" class="intro-account-link" @click="openAccount">
+              👤 {{ accountLabel }}
+            </button>
+            <button v-else type="button" class="intro-account-link" @click="openSignIn">
+              {{ t('auth.signInCta') }}
+            </button>
+          </div>
+
           <p v-if="errorMessage" class="online-error">{{ errorMessage }}</p>
         </app-panel>
       </div>
@@ -56,6 +65,9 @@
     >
       <settings-icon :size="20" />
     </app-button>
+
+    <!-- Account / sign-in modal (menu account row, #verify= / #reset= links) -->
+    <auth-modal v-if="store.online.authOpen" />
 
     <!-- Global settings modal (openable from any menu / the lobby gear) -->
     <div v-if="store.settingsOpen" class="global-settings-modal-backdrop" @click.self="store.settingsOpen = false">
@@ -119,6 +131,7 @@ import GameInterface from './GameInterface.vue';
 import CreateRoomScreen from './CreateRoomScreen.vue';
 import JoinRoomScreen from './JoinRoomScreen.vue';
 import LobbyScreen from './LobbyScreen.vue';
+import AuthModal from './AuthModal.vue';
 import OutlineAppearanceSelect from './OutlineAppearanceSelect.vue';
 import RenderQualitySlider from './RenderQualitySlider.vue';
 import ApplicationStore from '../utils/ApplicationStore';
@@ -133,6 +146,7 @@ export default {
     CreateRoomScreen,
     JoinRoomScreen,
     LobbyScreen,
+    AuthModal,
     OutlineAppearanceSelect,
     RenderQualitySlider,
     SettingsIcon: Settings,
@@ -159,6 +173,13 @@ export default {
       const error = this.store.online.lastError;
       return error ? t(`errors.${error}`) : '';
     },
+    isSignedIn() {
+      return this.store.online.account.method !== 'guest';
+    },
+    accountLabel() {
+      const account = this.store.online.account;
+      return account.email || t(`auth.method_${account.method}`);
+    },
     soundSetting: {
       get() {
         return this.store.settings.soundEnabled ? 'on' : 'off';
@@ -178,6 +199,21 @@ export default {
       }
     },
   },
+  mounted() {
+    // Email links land here as #verify=<token> / #reset=<token>. Consume the
+    // hash before App.vue's resume-on-load reads it for #m= match records.
+    const hash = window.location.hash || '';
+    const verify = hash.match(/^#verify=([A-Za-z0-9]+)$/);
+    const reset = hash.match(/^#reset=([A-Za-z0-9]+)$/);
+    if (verify || reset) {
+      const online = this.store.online;
+      online.verifyToken = verify ? verify[1] : null;
+      online.resetToken = reset ? reset[1] : null;
+      online.authView = verify ? 'verify' : 'reset';
+      online.authOpen = true;
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+  },
   methods: {
     t,
     saveLocale(val) {
@@ -196,10 +232,24 @@ export default {
       try {
         await action();
       } catch (error) {
-        this.store.online.lastError = error?.message ? error.message : 'connect_failed';
+        const message = error?.message ? error.message : 'connect_failed';
+        if (message === 'auth_session_expired') {
+          // The stored account session died — reopen the sign-in modal
+          // instead of silently downgrading to a guest identity.
+          this.openSignIn();
+        }
+        this.store.online.lastError = message;
       } finally {
         this.busy = false;
       }
+    },
+    openSignIn() {
+      this.store.online.authView = 'login';
+      this.store.online.authOpen = true;
+    },
+    openAccount() {
+      this.store.online.authView = 'account';
+      this.store.online.authOpen = true;
     },
     onEnter() {
       if (!this.hasName) return;
@@ -278,6 +328,23 @@ export default {
   font-size: 0.85rem;
   line-height: 1.5;
   opacity: 0.8;
+}
+.intro-account {
+  margin-top: 16px;
+}
+.intro-account-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.8rem;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  opacity: 0.75;
+}
+.intro-account-link:hover {
+  opacity: 1;
 }
 .online-error {
   margin-top: 14px;
