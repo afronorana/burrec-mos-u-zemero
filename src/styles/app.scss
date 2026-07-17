@@ -167,19 +167,9 @@ html, body, #app {
   font-size: clamp(1.8rem, 5vw, 2.5rem);
   font-weight: 800;
   line-height: 1.2;
-  margin: 0 0 12px;
+  margin: 0 0 28px;
   text-align: center;
   text-transform: uppercase;
-  color: var(--agu-color-base, #263f2a);
-}
-
-.game-sub {
-  font-size: 0.95rem;
-  font-weight: 500;
-  line-height: 1.5;
-  opacity: 0.75;
-  text-align: center;
-  margin: 0 0 28px;
   color: var(--agu-color-base, #263f2a);
 }
 

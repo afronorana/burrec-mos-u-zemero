@@ -1,11 +1,10 @@
 <template>
   <div class="screen-overlay">
     <transition name="screen-fade" mode="out-in">
-      <!-- Intro: name + big Play Now, with Create / Join underneath -->
+      <!-- Intro: name + big Play Now only. Create/Join live on the quickplay/friends screen. -->
       <div v-if="store.currentScreen === 'main-menu'" key="main-menu" class="menu-center">
         <app-panel class="menu-card intro-card">
           <h1 class="game-title">{{ t('title') }}</h1>
-          <p class="game-sub">{{ t('subTitle') }}</p>
 
           <app-input
             v-model="username"
@@ -24,15 +23,6 @@
             <app-button class="menu-btn-full intro-play-btn" :disabled="!hasName || busy" @click="playNow">
               {{ t('online.playNow') }}
             </app-button>
-
-            <div class="intro-secondary">
-              <app-button class="menu-btn-full" :disabled="!hasName || busy" @click="goCreate">
-                {{ t('online.createRoom') }}
-              </app-button>
-              <app-button class="menu-btn-full" :disabled="!hasName || busy" @click="goJoin">
-                {{ t('online.joinRoom') }}
-              </app-button>
-            </div>
           </template>
 
           <div class="intro-account">
@@ -260,16 +250,6 @@ export default {
       const name = this.commitName();
       this.run(() => MatchController.quickMatch(name));
     },
-    goCreate() {
-      this.commitName();
-      this.store.online.lastError = null;
-      this.store.currentScreen = 'create-room';
-    },
-    goJoin() {
-      this.commitName();
-      this.store.online.lastError = null;
-      this.store.currentScreen = 'join-room';
-    },
     continuePending() {
       this.commitName();
       const pending = this.store.online.pendingResume;
@@ -316,12 +296,6 @@ export default {
   margin-top: 18px;
   font-size: 1.15rem;
   padding: 16px 24px;
-}
-.intro-secondary {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 14px;
 }
 .intro-resume-note {
   margin: 16px 0 0;

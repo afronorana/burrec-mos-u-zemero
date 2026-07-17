@@ -3,7 +3,6 @@ import ApplicationStore from './ApplicationStore';
 const translations = {
   en: {
     title: 'Burrec Mos u Zemero',
-    subTitle: 'Board game • up to 4 players',
     localGame: 'Local Game',
     playOnline: 'Play Online',
     players: 'Players',
@@ -172,7 +171,6 @@ const translations = {
   },
   sq: {
     title: 'Burrec Mos u Zemero',
-    subTitle: 'Lojë tavoline • deri në 4 lojtarë',
     localGame: 'Lojë Lokale',
     playOnline: 'Luaj Online',
     players: 'Lojtarët',
