@@ -70,7 +70,7 @@ export default {
     },
     back() {
       this.store.online.lastError = null;
-      this.store.currentScreen = 'main-menu';
+      this.store.currentScreen = 'home';
     },
   },
 };

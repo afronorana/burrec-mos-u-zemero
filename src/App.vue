@@ -278,7 +278,7 @@ export default {
       this.applyPitRimColor();
     },
     'store.currentScreen'(newScreen, oldScreen) {
-      const isOrbitScreen = (s) => ['main-menu', 'create-room', 'join-room'].includes(s) || !s;
+      const isOrbitScreen = (s) => ['main-menu', 'home', 'create-room', 'join-room'].includes(s) || !s;
       const isFixedScreen = (s) => ['lobby', 'game-screen'].includes(s);
 
       if (isFixedScreen(newScreen) && isOrbitScreen(oldScreen)) {
@@ -3443,7 +3443,7 @@ export default {
     },
 
     isMenuMode() {
-      const orbitingScreens = ['main-menu', 'create-room', 'join-room'];
+      const orbitingScreens = ['main-menu', 'home', 'create-room', 'join-room'];
       return orbitingScreens.includes(this.store.currentScreen);
     },
 

@@ -38,6 +38,7 @@
         </app-panel>
       </div>
 
+      <home-screen v-else-if="store.currentScreen === 'home'" key="home" />
       <create-room-screen v-else-if="store.currentScreen === 'create-room'" key="create-room" />
       <join-room-screen v-else-if="store.currentScreen === 'join-room'" key="join-room" />
       <lobby-screen v-else-if="store.currentScreen === 'lobby'" key="lobby" />
@@ -118,6 +119,7 @@
 
 <script>
 import GameInterface from './GameInterface.vue';
+import HomeScreen from './HomeScreen.vue';
 import CreateRoomScreen from './CreateRoomScreen.vue';
 import JoinRoomScreen from './JoinRoomScreen.vue';
 import LobbyScreen from './LobbyScreen.vue';
@@ -133,6 +135,7 @@ import { Settings } from '@lucide/vue';
 export default {
   components: {
     GameInterface,
+    HomeScreen,
     CreateRoomScreen,
     JoinRoomScreen,
     LobbyScreen,
@@ -157,7 +160,7 @@ export default {
       return this.store.online.pendingResume;
     },
     isMenuScreen() {
-      return ['main-menu', 'create-room', 'join-room'].includes(this.store.currentScreen);
+      return ['main-menu', 'home', 'create-room', 'join-room'].includes(this.store.currentScreen);
     },
     errorMessage() {
       const error = this.store.online.lastError;
@@ -216,23 +219,6 @@ export default {
       window.localStorage.setItem('burrec.online.displayName', name);
       return name;
     },
-    async run(action) {
-      this.busy = true;
-      this.store.online.lastError = null;
-      try {
-        await action();
-      } catch (error) {
-        const message = error?.message ? error.message : 'connect_failed';
-        if (message === 'auth_session_expired') {
-          // The stored account session died — reopen the sign-in modal
-          // instead of silently downgrading to a guest identity.
-          this.openSignIn();
-        }
-        this.store.online.lastError = message;
-      } finally {
-        this.busy = false;
-      }
-    },
     openSignIn() {
       this.store.online.authView = 'login';
       this.store.online.authOpen = true;
@@ -247,8 +233,9 @@ export default {
       else this.playNow();
     },
     playNow() {
-      const name = this.commitName();
-      this.run(() => MatchController.quickMatch(name));
+      this.commitName();
+      this.store.online.lastError = null;
+      this.store.currentScreen = 'home';
     },
     continuePending() {
       this.commitName();

@@ -11,8 +11,8 @@ Working list of UI/UX fixes. Check items off as they're completed — this may s
 
 Two panels:
 
-- [ ] First panel: titled "Quickplay panel" — has a "Play now" button and a "How does quickplay work" link/button that opens a popup
-- [ ] Second panel: titled "Play with friends" — has create room and join room. Check the **shtetqytet** sibling project to see what each of these currently offers before implementing.
+- [x] First panel: titled "Quickplay panel" — has a "Play now" button and a "How does quickplay work" link/button that opens a popup
+- [x] Second panel: titled "Play with friends" — has create room and join room. Check the **shtetqytet** sibling project to see what each of these currently offers before implementing.
 
 ## Game screen
 
@@ -22,6 +22,7 @@ Two panels:
 - [ ] Comment out the Settings button for now
 - [ ] "Leave lobby" should be a small button top-left, to the right of the top-left player name (desktop)
 - [ ] Chat should move to the top-right corner on mobile, and stay bottom-right on desktop
+- [ ] Users can chat on game before they chose a color. At the moment they can but their name is not shown, jsut an id. We know the name, just not the color.
 
 ## 3D board objects
 
@@ -30,6 +31,7 @@ Two panels:
 ## Matchmaking
 
 - [ ] If a match is ongoing and has a free slot, another user should be able to join it
+- [ ] If a player leaves the game (closes the tab, leaves the game via UI etc) make their pawns semi transparent. When they come back, the pawns get fully visible. If a new player joins, they can take the existing pawns in the state they are.
 
 ## In-game room code display
 
@@ -37,4 +39,4 @@ Two panels:
 
 ## Admin screen
 
-- [ ] Create an admin screen to see how many games were played and user names
+- [ ] Create an admin screen to see how many games were played and user names. And other states like that.
