@@ -17,27 +17,23 @@ Domain: **burrec.com** (registered at Namecheap, DNS on Cloudflare).
 
 - [x] Feature branch merged into `master` and pushed to GitHub
 
-## 2. DNS (Cloudflare) — **currently the only thing blocking go-live**
+## 2. DNS (Cloudflare) — **done 2026-07-17**
 
-- [ ] burrec.com's nameservers still point at Namecheap's default parking
-      service (confirmed 2026-07-17: `dig burrec.com +short` →
-      `162.255.119.95`, Namecheap's parking IP, not the droplet). If the
-      domain hasn't been added to a Cloudflare zone yet, do that first and
-      update the nameservers at Namecheap to the ones Cloudflare assigns.
-- [ ] Add **A record**: `burrec.com` (apex, `@`) → `146.190.25.250`, **DNS
-      only (grey cloud)**
-      *(Grey cloud = Caddy gets Let's Encrypt certs with zero config. If you
-      later want the orange cloud: SSL/TLS mode "Full (strict)" and keep
-      port 80 open.)*
-- [ ] Optional: `www` → same droplet IP if you want `www.burrec.com` to also
-      resolve (not required — Caddy in this repo only serves the apex)
-- [ ] Verify propagation: `dig burrec.com +short` shows `146.190.25.250`
-- [ ] Once it resolves, restart Caddy to force an immediate retry against
-      Let's Encrypt **production** (it's currently backed off to the
-      staging CA after failing against the parking page — harmless, but
-      won't self-heal instantly): `ssh root@146.190.25.250 'docker compose
-      -f /opt/burrec-nakama/docker-compose.prod.yml --env-file
-      /opt/burrec-nakama/.env.prod restart caddy'`
+- [x] Domain added to Cloudflare, nameservers switched from Namecheap's
+      default parking
+- [x] A record `burrec.com` (apex) → `146.190.25.250`, **DNS only (grey
+      cloud)** — proxy was briefly toggled on by mistake (caused Cloudflare
+      Error 525, since Let's Encrypt's HTTP-01 challenge can't reach the
+      origin through the proxy), then corrected to DNS-only for both
+      `burrec.com` and `www.burrec.com`
+- [x] Verified via `dig @1.1.1.1`/`@8.8.8.8` (bypassing local cache):
+      resolves cleanly to `146.190.25.250`
+- [x] Caddy restarted, obtained a real **production** Let's Encrypt cert on
+      the first attempt once DNS was correct — `https://burrec.com` returns
+      HTTP 200 with a valid cert
+- Note: DNS-only means no Cloudflare proxy (no DDoS/WAF shielding, origin
+  IP is public) — acceptable for now; revisit with "Full (strict)" + a
+  Cloudflare Origin CA cert if the game gets real traffic later
 
 ## 3. Email — Resend (registration + password-reset emails)
 
