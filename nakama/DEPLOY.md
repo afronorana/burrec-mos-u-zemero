@@ -35,11 +35,17 @@ Same origin for site and API means no CORS, one OAuth origin, one TLS cert.
    ```
    NAKAMA_DOMAIN=play.example.com
    NAKAMA_SERVER_KEY=<long random string>
+   SESSION_REFRESH_KEY=<long random string, distinct from NAKAMA_SERVER_KEY>
+   RUNTIME_HTTP_KEY=<long random string>
+   CONSOLE_USERNAME=<non-default admin console username>
+   CONSOLE_PASSWORD=<long random string>
+   CONSOLE_SIGNING_KEY=<long random string>
    POSTGRES_PASSWORD=<long random string>
    RESEND_API_KEY=<re_... from resend.com; empty = emails only logged>
    EMAIL_FROM=Burrec <noreply@example.com>
    APPLE_BUNDLE_ID=
    ```
+   (generate each "long random string" with `openssl rand -hex 24`)
 
 4. Start it:
 

@@ -4,10 +4,16 @@
 #   1. Create nakama/.env.prod with:
 #        NAKAMA_DOMAIN=play.example.com
 #        NAKAMA_SERVER_KEY=<long random string>
+#        SESSION_REFRESH_KEY=<long random string, distinct from NAKAMA_SERVER_KEY>
+#        RUNTIME_HTTP_KEY=<long random string>
+#        CONSOLE_USERNAME=<non-default admin console username>
+#        CONSOLE_PASSWORD=<long random string>
+#        CONSOLE_SIGNING_KEY=<long random string>
 #        POSTGRES_PASSWORD=<long random string>
 #        RESEND_API_KEY=<from resend.com — empty disables email sending>
 #        EMAIL_FROM=Burrec <noreply@example.com>
 #        APPLE_BUNDLE_ID=            # Apple Services ID; empty = Apple sign-in off
+#      (all the "long random string" values: openssl rand -hex 24)
 #   2. Build the runtime bundle locally (pnpm nakama:build) and copy ./build
 #      along with this file, Caddyfile and local.yml to the droplet. Build the
 #      client (pnpm build) and copy ./docs to the droplet as ./site.
@@ -42,6 +48,11 @@ services:
         --database.address postgres:${POSTGRES_PASSWORD}@postgres:5432/nakama
         --socket.server_key ${NAKAMA_SERVER_KEY}
         --session.encryption_key ${NAKAMA_SERVER_KEY}
+        --session.refresh_encryption_key ${SESSION_REFRESH_KEY}
+        --runtime.http_key ${RUNTIME_HTTP_KEY}
+        --console.username ${CONSOLE_USERNAME}
+        --console.password ${CONSOLE_PASSWORD}
+        --console.signing_key ${CONSOLE_SIGNING_KEY}
         --runtime.js_entrypoint index.js
         --runtime.env "RESEND_API_KEY=${RESEND_API_KEY:-}"
         --runtime.env "EMAIL_FROM=${EMAIL_FROM:-Burrec <noreply@example.com>}"
