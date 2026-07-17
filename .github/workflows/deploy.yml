@@ -40,6 +40,15 @@ jobs:
           node-version: 20
           cache: pnpm
 
+      # afrons-game-ui's dist/ is gitignored in its own repo (built locally,
+      # never committed) — main/module/exports all point there, so the main
+      # build can't resolve the "afrons-game-ui" import without this.
+      - name: Build afrons-game-ui
+        working-directory: ../afrons-game-ui
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
