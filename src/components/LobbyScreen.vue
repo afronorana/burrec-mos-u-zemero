@@ -18,18 +18,34 @@
         {{ t('online.chooseColorPrompt') }}
       </p>
 
+      <app-button
+        v-if="isHost"
+        class="lobby-start-btn"
+        :disabled="!canStart"
+        @click="startGame"
+      >
+        {{ t('online.start') }}
+      </app-button>
+
       <div class="menu-row lobby-actions">
-        <app-button
-          v-if="isHost"
-          green
-          :disabled="!canStart"
-          @click="startGame"
-        >
-          {{ t('online.start') }}
+        <app-button orange class="hud-icon-btn lobby-settings-btn" :title="t('settings.title')" @click="openSettings">
+          <settings-icon :size="18" />
         </app-button>
-        <app-button red @click="leave">{{ t('online.leaveLobby') }}</app-button>
+        <app-button red class="lobby-leave-btn" @click="askLeave">{{ t('online.leaveLobby') }}</app-button>
       </div>
     </app-panel>
+
+    <!-- Confirm before leaving the lobby -->
+    <div v-if="confirmLeave" class="global-settings-modal-backdrop" @click.self="confirmLeave = false">
+      <app-panel class="global-settings-card" style="text-align: center;">
+        <h3 class="panel-title" style="margin-bottom: 12px;">{{ t('online.leaveConfirmTitle') }}</h3>
+        <p class="panel-desc">{{ t('online.leaveConfirmBody') }}</p>
+        <div class="menu-row" style="margin-top: 20px;">
+          <app-button @click="confirmLeave = false">{{ t('online.leaveConfirmNo') }}</app-button>
+          <app-button red @click="doLeave">{{ t('online.leaveConfirmYes') }}</app-button>
+        </div>
+      </app-panel>
+    </div>
 
     <!-- Seats: pinned to the 4 screen corners on desktop, 2x2 grid at the
          bottom on small screens. Free slots double as claim buttons. -->
@@ -71,15 +87,16 @@ import ApplicationStore from '../utils/ApplicationStore';
 import MatchController from '../network/MatchController';
 import { PLAYER_COLORS } from '../utils/playerColors';
 import { t } from '../utils/i18n';
-import { Copy, Check } from '@lucide/vue';
+import { Copy, Check, Settings } from '@lucide/vue';
 
 export default {
-  components: { ChatDrawer, CopyIcon: Copy, CheckIcon: Check },
+  components: { ChatDrawer, CopyIcon: Copy, CheckIcon: Check, SettingsIcon: Settings },
   data() {
     return {
       store: ApplicationStore,
       playerColors: PLAYER_COLORS,
       copied: false,
+      confirmLeave: false,
       // Mirrors how the bases read from the fixed camera:
       // red top-left, yellow top-right / green bottom-left, blue bottom-right.
       seatDisplayOrder: [0, 1, 3, 2],
@@ -112,7 +129,14 @@ export default {
     startGame() {
       MatchController.sendStart();
     },
-    leave() {
+    openSettings() {
+      this.store.settingsOpen = true;
+    },
+    askLeave() {
+      this.confirmLeave = true;
+    },
+    doLeave() {
+      this.confirmLeave = false;
       MatchController.leaveMatch();
     },
     async copyCode() {
@@ -171,8 +195,27 @@ export default {
   content: '💡 ';
 }
 
+.lobby-start-btn {
+  display: block;
+  width: 100%;
+  margin: 0 0 12px;
+  font-size: 1.1rem;
+  padding: 16px 24px;
+}
+
 .lobby-actions {
   margin-top: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.lobby-settings-btn {
+  flex: 0 0 auto;
+}
+
+.lobby-leave-btn {
+  flex: 1;
 }
 
 /* ── Seat chips ──────────────────────────────────────────── */

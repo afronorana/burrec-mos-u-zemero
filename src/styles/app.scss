@@ -42,6 +42,77 @@ html, body, #app {
   z-index: 5;
 }
 
+/* ── Hit effects (comic capture bursts) ──────────────────── */
+/* Elements are spawned by App.spawnHitEffect; left/top track the captured
+   pawn's projected world position each frame. All keyframes below are
+   percentage-based so --fx-duration (set from HIT_EFFECT_DURATION_MS)
+   is the single knob for the whole choreography. */
+.hit-effect-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 6; /* above the highlight canvas, below screens (10) / HUD (20) */
+}
+
+.hit-effect {
+  position: absolute;
+  width: clamp(130px, 24vmin, 230px);
+  transform: translate(-50%, -50%) rotate(var(--fx-tilt, 0deg));
+
+  svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+    animation: fxPop var(--fx-duration, 950ms) ease-out forwards;
+  }
+
+  .fx-burst,
+  .fx-text,
+  .fx-spark {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+
+  .fx-burst { animation: fxBurst var(--fx-duration, 950ms) ease-out forwards; }
+  .fx-text  { animation: fxText  var(--fx-duration, 950ms) ease-out forwards; }
+  .fx-spark { animation: fxSpark var(--fx-duration, 950ms) ease-out forwards; }
+}
+
+/* Whole graphic: pop in with overshoot, hold, blow up + fade out. */
+@keyframes fxPop {
+  0%   { opacity: 0; transform: scale(0.3); }
+  10%  { opacity: 1; transform: scale(1.08); }
+  18%  { transform: scale(1); }
+  80%  { opacity: 1; transform: scale(1.02); }
+  100% { opacity: 0; transform: scale(1.3); }
+}
+
+/* Burst swings in from a twist, then keeps drifting slightly. */
+@keyframes fxBurst {
+  0%   { transform: rotate(-14deg) scale(0.5); }
+  16%  { transform: rotate(3deg) scale(1.06); }
+  26%  { transform: rotate(0deg) scale(1); }
+  100% { transform: rotate(5deg) scale(1); }
+}
+
+/* Word lands a beat after the burst, with a bigger overshoot. */
+@keyframes fxText {
+  0%, 12% { transform: scale(0); }
+  26%  { transform: scale(1.3); }
+  36%  { transform: scale(1); }
+  100% { transform: scale(1.08); }
+}
+
+/* Accents (impact lines) flick on last. */
+@keyframes fxSpark {
+  0%, 18% { opacity: 0; transform: scale(0.4); }
+  30%  { opacity: 1; transform: scale(1.15); }
+  40%  { transform: scale(1); }
+  100% { opacity: 1; transform: scale(1.1); }
+}
+
 /* ── Screen overlay ──────────────────────────────────────── */
 .screen-overlay {
   position: absolute;

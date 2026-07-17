@@ -2,16 +2,20 @@
 #
 # Usage:
 #   1. Create nakama/.env.prod with:
-#        NAKAMA_DOMAIN=nakama.example.com
+#        NAKAMA_DOMAIN=play.example.com
 #        NAKAMA_SERVER_KEY=<long random string>
 #        POSTGRES_PASSWORD=<long random string>
+#        RESEND_API_KEY=<from resend.com — empty disables email sending>
+#        EMAIL_FROM=Burrec <noreply@example.com>
+#        APPLE_BUNDLE_ID=            # Apple Services ID; empty = Apple sign-in off
 #   2. Build the runtime bundle locally (pnpm nakama:build) and copy ./build
-#      along with this file, Caddyfile and local.yml to the droplet.
+#      along with this file, Caddyfile and local.yml to the droplet. Build the
+#      client (pnpm build) and copy ./docs to the droplet as ./site.
 #   3. docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
 #
-# Caddy terminates TLS (auto Let's Encrypt) and proxies wss:// to nakama:7350,
-# which is what the GitHub Pages (https) client requires. Point the domain's
-# A record at the droplet before first start.
+# Caddy terminates TLS (auto Let's Encrypt), serves the static client from
+# ./site at the domain root, and proxies /v2/* + /ws (wss://) to nakama:7350 —
+# one domain for the site, the API, and the links inside auth emails.
 services:
   postgres:
     image: postgres:15-alpine
@@ -39,6 +43,12 @@ services:
         --socket.server_key ${NAKAMA_SERVER_KEY}
         --session.encryption_key ${NAKAMA_SERVER_KEY}
         --runtime.js_entrypoint index.js
+        --runtime.env "RESEND_API_KEY=${RESEND_API_KEY:-}"
+        --runtime.env "EMAIL_FROM=${EMAIL_FROM:-Burrec <noreply@example.com>}"
+        --runtime.env "PUBLIC_URL=https://${NAKAMA_DOMAIN}"
+        --runtime.env "EMAIL_DEV_ECHO=0"
+        --runtime.env "DEMO_DICE=0"
+        --social.apple.bundle_id "${APPLE_BUNDLE_ID:-}"
     restart: unless-stopped
     depends_on:
       postgres:
@@ -61,6 +71,7 @@ services:
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./site:/srv/site:ro
       - caddy-data:/data
       - caddy-config:/config
 

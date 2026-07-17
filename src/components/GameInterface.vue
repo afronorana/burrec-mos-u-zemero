@@ -3,10 +3,12 @@
     <!-- Connection trouble is the only global status worth a banner -->
     <div v-if="connectionMessage" class="hud-connection-banner">{{ connectionMessage }}</div>
 
+    <div v-if="store.demoMode" class="hud-demo-badge">DEMO — 1-6 rolls</div>
+
     <!-- Settings: middle-right trigger, centered modal -->
     <div class="hud-settings-area">
       <app-button
-        slate-blue
+        orange
         class="hud-icon-btn"
         :title="settingsOpen ? 'Close' : 'Settings'"
         @click="toggleSettings"
@@ -20,7 +22,7 @@
         <h3 class="panel-title" style="margin-bottom: 16px;">{{ t('settings.title') }}</h3>
 
         <div class="form-row">
-          <app-input v-model="settingsName" :label="t('online.yourName')" />
+          <app-input v-model="settingsName" :label="t('online.yourName')" :max-length="12" />
         </div>
 
         <div class="form-row">
@@ -33,12 +35,23 @@
           <app-tabs v-model="soundSetting" :options="[{ value: 'on', label: t('settings.soundOn') }, { value: 'off', label: t('settings.soundOff') }]" />
         </div>
 
-        <app-button v-if="!store.online.enabled" orange class="hud-full-width" @click="goToSetup">{{ t('online.newGame') }}</app-button>
-        <app-button v-else red class="hud-full-width" @click="leaveOnlineGame">{{ t('online.leaveGame') }}</app-button>
+        <app-button red class="hud-full-width" @click="askLeave">{{ t('online.leaveGame') }}</app-button>
 
         <div class="menu-row" style="margin-top: 16px;">
-          <app-button slate-blue @click="settingsOpen = false">{{ t('back') }}</app-button>
-          <app-button green :disabled="!settingsName.trim()" @click="saveSettings">{{ t('save') }}</app-button>
+          <app-button red @click="settingsOpen = false">{{ t('back') }}</app-button>
+          <app-button :disabled="!settingsName.trim()" @click="saveSettings">{{ t('save') }}</app-button>
+        </div>
+      </app-panel>
+    </div>
+
+    <!-- Confirm before leaving a match -->
+    <div v-if="confirmLeave" class="global-settings-modal-backdrop" @click.self="confirmLeave = false">
+      <app-panel class="global-settings-card" style="text-align: center;">
+        <h3 class="panel-title" style="margin-bottom: 12px;">{{ t('online.leaveConfirmTitle') }}</h3>
+        <p class="panel-desc">{{ t('online.leaveConfirmBody') }}</p>
+        <div class="menu-row" style="margin-top: 20px;">
+          <app-button @click="confirmLeave = false">{{ t('online.leaveConfirmNo') }}</app-button>
+          <app-button red @click="doLeave">{{ t('online.leaveConfirmYes') }}</app-button>
         </div>
       </app-panel>
     </div>
@@ -102,6 +115,7 @@ export default {
     return {
       store: ApplicationStore,
       settingsOpen: false,
+      confirmLeave: false,
       settingsName: '',
       speechBubbles: {}, // { [player.turn]: 'message' }
       timerNow: performance.now(),
@@ -204,31 +218,22 @@ export default {
       this.settingsOpen = !this.settingsOpen;
     },
     saveSettings() {
-      const name = this.settingsName.trim();
+      const name = this.settingsName.trim().slice(0, 12);
       if (name) {
+        // Online names are seat data owned by the server; this just updates the
+        // remembered display name for the next match.
         this.store.online.displayName = name;
         window.localStorage.setItem('burrec.online.displayName', name);
-        // Live-rename the local human in offline games; online names are
-        // seat data owned by the server.
-        if (!this.store.online.enabled) {
-          const localPlayer = this.store.players.find((player) => player.controller === 'local');
-          if (localPlayer) {
-            localPlayer.name = name;
-          }
-          if (this.store.localSetupActive[0] && this.store.localSetupTypes[0] === 'local') {
-            this.store.localSetupNames[0] = name;
-          }
-        }
       }
       this.settingsOpen = false;
     },
-    leaveOnlineGame() {
+    askLeave() {
       this.settingsOpen = false;
-      MatchController.leaveMatch();
+      this.confirmLeave = true;
     },
-    goToSetup() {
-      this.settingsOpen = false;
-      this.store.currentScreen = 'add-players';
+    doLeave() {
+      this.confirmLeave = false;
+      MatchController.leaveMatch();
     },
   },
 };
@@ -248,6 +253,24 @@ export default {
   border: 2px solid var(--agu-color-base, #263f2a);
   border-radius: 8px;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
+  pointer-events: none;
+}
+
+/* Testing shortcut indicator (typing TEST toggles store.demoMode). Sits
+   below the connection banner slot so the two never overlap. */
+.hud-demo-badge {
+  position: absolute;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 10px;
+  background: var(--agu-color-base, #263f2a);
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  border-radius: 8px;
+  opacity: 0.85;
   pointer-events: none;
 }
 

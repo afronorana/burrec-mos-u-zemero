@@ -200,7 +200,10 @@ class Pawn {
       if (!player.isPlaying) {
         player.pawns.forEach(function(pawn) {
           if (pawn.position !== 0 && pawn.globalPosition === targetField && !pawn.isInDestinationField) {
+            // World coordinates must be read before returnHome resets position.
+            const { x, y, z } = pawn.getCoordinates();
             pawn.returnHome();
+            EventBus.fire(EventKeys.pawn.captured, { pawnId: pawn.id, color: pawn.color, x, y, z });
           }
         });
       }

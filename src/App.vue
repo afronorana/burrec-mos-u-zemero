@@ -2,6 +2,7 @@
   <main class="app-shell">
     <canvas ref="canvas" class="board-canvas"></canvas>
     <canvas ref="overlayCanvas" class="overlay-canvas"></canvas>
+    <div ref="hitEffectLayer" class="hit-effect-layer"></div>
     <start-screen></start-screen>
     <win-screen></win-screen>
 
@@ -25,6 +26,8 @@ import { getRenderQualityPreset } from './utils/renderQuality';
 import { PLAYER_COLORS } from './utils/playerColors';
 import Player from './utils/Player';
 import MatchController from './network/MatchController';
+import { readMatchUrl, loadActiveMatch } from './utils/matchSession';
+import { getRandomHitEffectSvg, HIT_EFFECT_DURATION_MS } from './utils/hitEffects';
 
 const OUTLINE_COLOR = '#1b1411';
 const BOARD_CENTER = { x: 5, z: 5 };
@@ -72,6 +75,7 @@ const CAMERA_GAME_POSITION = new THREE.Vector3(5.6, 12.4, 16.2);
 const CAMERA_GAME_TARGET = new THREE.Vector3(5, 0.4, 5);
 // Render-loop scratch objects — reused every frame to avoid GC churn.
 const _cameraLookScratch = new THREE.Vector3();
+const _hitEffectScratch = new THREE.Vector3();
 const _diceFaceQuaternion = new THREE.Quaternion();
 const _diceFaceScratch = new THREE.Vector3();
 const _diceBestNormal = new THREE.Vector3();
@@ -274,8 +278,8 @@ export default {
       this.applyPitRimColor();
     },
     'store.currentScreen'(newScreen, oldScreen) {
-      const isOrbitScreen = (s) => ['login-screen', 'main-menu', 'online-menu'].includes(s) || !s;
-      const isFixedScreen = (s) => ['add-players', 'lobby', 'game-screen'].includes(s);
+      const isOrbitScreen = (s) => ['main-menu', 'create-room', 'join-room'].includes(s) || !s;
+      const isFixedScreen = (s) => ['lobby', 'game-screen'].includes(s);
 
       if (isFixedScreen(newScreen) && isOrbitScreen(oldScreen)) {
         if (this.camera) {
@@ -295,43 +299,9 @@ export default {
 
       this.applyPitRimColor();
 
-      if (newScreen === 'add-players') {
-        this.store.localSetupActive = [true, true, false, false];
-        this.store.localSetupNames = [
-          this.store.online.displayName || 'Player 1',
-          'Robot 2',
-          'Robot 3',
-          'Robot 4'
-        ];
-        this.store.localSetupTypes = ['local', 'ai', 'ai', 'ai'];
-        this.syncLocalPlayersFromSetup();
-      } else if (newScreen === 'lobby') {
+      if (newScreen === 'lobby') {
         this.syncOnlinePlayersFromLobby();
       }
-    },
-    'store.localSetupNames': {
-      handler() {
-        if (this.store.currentScreen === 'add-players') {
-          this.syncLocalPlayersFromSetup();
-        }
-      },
-      deep: true,
-    },
-    'store.localSetupActive': {
-      handler() {
-        if (this.store.currentScreen === 'add-players') {
-          this.syncLocalPlayersFromSetup();
-        }
-      },
-      deep: true,
-    },
-    'store.localSetupTypes': {
-      handler() {
-        if (this.store.currentScreen === 'add-players') {
-          this.syncLocalPlayersFromSetup();
-        }
-      },
-      deep: true,
     },
   },
   data() {
@@ -389,6 +359,8 @@ export default {
       hoverNeedsUpdate: false,
       isPointerInsideCanvas: false,
       overlayHasContent: false,
+      demoKeyBuffer: '',
+      activeHitEffects: markRaw([]),
     };
   },
   mounted() {
@@ -410,6 +382,8 @@ export default {
     this.$refs.canvas.addEventListener('mousemove', this.pointerMoveHandler);
     this.$refs.canvas.addEventListener('mouseleave', this.pointerLeaveHandler);
     this.$refs.canvas.addEventListener('click', this.clickHandler);
+
+    this.checkResumeOnLoad();
   },
   beforeUnmount() {
     this.eventUnsubscribers.forEach((unsubscribe) => unsubscribe());
@@ -476,30 +450,48 @@ export default {
         EventBus.listen(EventKeys.turns.endTurn, this.changePlayersTurn),
         EventBus.listen(EventKeys.turns.repeatTurn, this.repeatPlayersTurn),
         EventBus.listen(EventKeys.rollDice, this.rollDice),
-        EventBus.listen(EventKeys.game.start, this.startGame),
         EventBus.listen(EventKeys.game.startOnline, this.startOnlineGame),
         EventBus.listen(EventKeys.game.won, this.handleGameWon),
         EventBus.listen(EventKeys.net.diceResult, this.handleNetDiceResult),
         EventBus.listen(EventKeys.net.turnChange, this.handleNetTurnChange),
         EventBus.listen(EventKeys.net.stateSync, this.handleNetStateSync),
         EventBus.listen(EventKeys.net.lobbyUpdated, this.syncOnlinePlayersFromLobby),
+        EventBus.listen(EventKeys.pawn.captured, this.spawnHitEffect),
       ];
     },
 
     handleKeydown(event) {
-      if (event.code !== 'Space' || this.store.currentScreen !== 'game-screen') {
-        return;
-      }
-
-      // Typing in the chat (or any input) must keep its spaces — the
-      // spacebar is only a roll shortcut outside editable elements.
+      // Typing in the chat (or any input) must keep its keys — the shortcuts
+      // below only apply outside editable elements.
       const target = event.target;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
         return;
       }
 
-      event.preventDefault();
-      this.rollDice();
+      // Typing T-E-S-T toggles demo mode: keys 1-6 then roll that exact value
+      // (the server honors the demand only when it runs with DEMO_DICE=1).
+      if (/^[a-z]$/i.test(event.key)) {
+        this.demoKeyBuffer = (this.demoKeyBuffer + event.key.toUpperCase()).slice(-4);
+        if (this.demoKeyBuffer === 'TEST') {
+          this.demoKeyBuffer = '';
+          this.store.demoMode = !this.store.demoMode;
+        }
+        return;
+      }
+
+      if (this.store.currentScreen !== 'game-screen') {
+        return;
+      }
+
+      if (event.code === 'Space') {
+        event.preventDefault();
+        this.rollDice();
+        return;
+      }
+
+      if (this.store.demoMode && event.key >= '1' && event.key <= '6') {
+        this.rollDice(Number(event.key));
+      }
     },
 
     initThreeScene() {
@@ -547,6 +539,7 @@ export default {
       controls.update();
 
       this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
+      this.store.isMobile = this.isMobile;
       const isMobile = this.isMobile;
       if (isMobile) {
         controls.minDistance = 11;
@@ -951,10 +944,12 @@ export default {
       );
 
       diceMesh.name = 'dice';
-      this.diceMesh = markRaw(diceMesh);
+      // Bigger, easier-to-read dice on phones (visual only — physics/pit
+      // unchanged; syncDice sets position/quaternion but never scale).
       if (this.isMobile) {
-        diceMesh.visible = false;
+        diceMesh.scale.setScalar(1.5);
       }
+      this.diceMesh = markRaw(diceMesh);
       this.scene.add(diceMesh);
 
       const diceBody = createDicePhysicsBody();
@@ -970,16 +965,11 @@ export default {
         
         this.updateCameraPath();
 
-        if (this.homeBaseHelpers && (this.store.currentScreen === 'add-players' || this.store.currentScreen === 'lobby')) {
+        if (this.homeBaseHelpers && this.store.currentScreen === 'lobby') {
           const basePulse = getClickablePulse(performance.now());
           this.homeBaseHelpers.forEach((group, baseIdx) => {
             group.visible = true;
-            let isEmpty = false;
-            if (this.store.currentScreen === 'add-players') {
-              isEmpty = !this.store.localSetupActive[baseIdx];
-            } else {
-              isEmpty = !this.store.online.seats[baseIdx];
-            }
+            const isEmpty = !this.store.online.seats[baseIdx];
 
             const rings = this.homeBaseRippleRings[baseIdx];
             if (rings) {
@@ -1028,6 +1018,7 @@ export default {
         }
         this.renderer.render(this.scene, this.camera);
         this.renderHighlights2D();
+        this.updateHitEffects();
       };
 
       animate();
@@ -1392,6 +1383,49 @@ export default {
       }
 
       return fillMesh;
+    },
+
+    // Comic burst over a captured pawn: a DOM element (inline SVG from
+    // utils/hitEffects.js) in .hit-effect-layer. CSS runs the pop/fade
+    // choreography; the render loop only re-projects the world anchor so
+    // the burst stays glued to the board while the camera moves.
+    spawnHitEffect(data) {
+      const layer = this.$refs.hitEffectLayer;
+      const svg = getRandomHitEffectSvg();
+      if (!layer || !svg) return;
+
+      const el = document.createElement('div');
+      el.className = 'hit-effect';
+      el.style.setProperty('--fx-duration', `${HIT_EFFECT_DURATION_MS}ms`);
+      el.style.setProperty('--fx-tilt', `${(Math.random() * 16 - 8).toFixed(1)}deg`);
+      el.innerHTML = svg;
+      layer.appendChild(el);
+
+      this.activeHitEffects.push({
+        el,
+        // Anchor slightly above the pawn's head so the burst covers it.
+        worldPosition: markRaw(new THREE.Vector3(data.x, data.y + 1.05, data.z)),
+        expiresAt: performance.now() + HIT_EFFECT_DURATION_MS,
+      });
+      this.updateHitEffects();
+    },
+
+    updateHitEffects() {
+      if (!this.activeHitEffects.length) return;
+
+      const now = performance.now();
+      for (let i = this.activeHitEffects.length - 1; i >= 0; i -= 1) {
+        const effect = this.activeHitEffects[i];
+        if (now >= effect.expiresAt) {
+          effect.el.remove();
+          this.activeHitEffects.splice(i, 1);
+          continue;
+        }
+
+        const v = _hitEffectScratch.copy(effect.worldPosition).project(this.camera);
+        effect.el.style.left = `${((v.x * 0.5 + 0.5) * window.innerWidth).toFixed(1)}px`;
+        effect.el.style.top = `${((-v.y * 0.5 + 0.5) * window.innerHeight).toFixed(1)}px`;
+      }
     },
 
     renderHighlights2D() {
@@ -2146,22 +2180,26 @@ export default {
         return null;
       }
 
-      const interactiveObjects = [];
-
-      if (this.store.currentScreen === 'add-players' || this.store.currentScreen === 'lobby') {
-        if (this.homeBaseHelpers) {
-          this.homeBaseHelpers.forEach((group, baseIdx) => {
-            // In the lobby only free seats are claimable; keep taken ones out
-            // so they don't advertise a pointer cursor for a dead click.
-            if (this.store.currentScreen === 'lobby' && this.store.online.seats[baseIdx]) {
-              return;
-            }
-            interactiveObjects.push(group);
-          });
-        }
+      // Mobile: pawns get a generous invisible tap radius, resolved by nearest
+      // screen-space center so two pawns sitting close stay distinguishable.
+      if (this.isMobile && this.store.gamePlayStatus.isMoving && this.isHumanTurn()) {
+        return this.pickNearestActivePawn();
       }
 
-      if (this.diceMesh && this.store.gamePlayStatus.isRolling && this.isHumanTurn() && !this.isMobile) {
+      const interactiveObjects = [];
+
+      if (this.store.currentScreen === 'lobby' && this.homeBaseHelpers) {
+        this.homeBaseHelpers.forEach((group, baseIdx) => {
+          // Only free seats are claimable; keep taken ones out so they don't
+          // advertise a pointer cursor for a dead click.
+          if (this.store.online.seats[baseIdx]) {
+            return;
+          }
+          interactiveObjects.push(group);
+        });
+      }
+
+      if (this.diceMesh && this.store.gamePlayStatus.isRolling && this.isHumanTurn()) {
         interactiveObjects.push(this.diceMesh);
         // The whole pit doubles as a roll button, not just the small dice.
         if (this.dicePitMesh) {
@@ -2199,6 +2237,42 @@ export default {
       }
 
       return null;
+    },
+
+    // Screen-space pawn picking for touch: each active pawn owns a generous
+    // invisible tap radius; the tap resolves to the pawn whose projected center
+    // is nearest, so two adjacent pawns never trade taps.
+    pickNearestActivePawn() {
+      if (!this.pointer || !this.camera || !this.$refs.canvas) {
+        return null;
+      }
+
+      const rect = this.$refs.canvas.getBoundingClientRect();
+      const tapX = (this.pointer.x * 0.5 + 0.5) * rect.width;
+      const tapY = (-this.pointer.y * 0.5 + 0.5) * rect.height;
+      const TAP_RADIUS_PX = 64;
+
+      const projected = new THREE.Vector3();
+      let bestName = null;
+      let bestDist = TAP_RADIUS_PX;
+
+      Object.values(this.pawnMeshes).forEach((mesh) => {
+        const pawn = this.findPawnByMeshName(mesh.name);
+        if (!pawn || !pawn.isActive) {
+          return;
+        }
+        // Aim at the pawn body, a little above its base disc.
+        projected.set(mesh.position.x, mesh.position.y + 0.5, mesh.position.z).project(this.camera);
+        const sx = (projected.x * 0.5 + 0.5) * rect.width;
+        const sy = (-projected.y * 0.5 + 0.5) * rect.height;
+        const dist = Math.hypot(sx - tapX, sy - tapY);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestName = mesh.name;
+        }
+      });
+
+      return bestName;
     },
 
     refreshHoveredTarget() {
@@ -2338,41 +2412,6 @@ export default {
       this.clearHoveredTarget();
     },
 
-    startGame() {
-      if (this.store.players.length < 2) {
-        return;
-      }
-
-      this.store.online.enabled = false;
-      this.store.currentPlayerId = -1;
-      this.store.currentRound = 1;
-      this.store.playingPlayerIndex = null;
-      this.store.lastRolledDice = 'Start';
-      this.store.gamePlayStatus.isRolling = false;
-      this.store.gamePlayStatus.isMoving = false;
-      this.store.winner = null;
-
-      this.store.players.forEach((player) => {
-        player.pawns.forEach((pawn) => {
-          pawn.position = 0;
-          pawn.isActive = false;
-        });
-        player.stillHome = true;
-        player.stillHomeCounter = 0;
-        player.isPlaying = false;
-      });
-
-      this.pendingDiceRoll = null;
-      this.onlineDice = null;
-      this.diceSnapTween = null;
-      this.freezeDiceBody();
-      this.resetDiceBody();
-
-      this.store.currentScreen = 'game-screen';
-      this.changePlayersTurn();
-      this.hoverNeedsUpdate = true;
-    },
-
     syncOnlinePlayersFromLobby() {
       if (this.store.currentScreen !== 'lobby') {
         return;
@@ -2391,43 +2430,9 @@ export default {
       this.hoverNeedsUpdate = true;
     },
 
-    syncLocalPlayersFromSetup() {
-      this.store.players.splice(0, this.store.players.length);
-      for (let i = 0; i < 4; i++) {
-        if (this.store.localSetupActive[i]) {
-          const controller = this.store.localSetupTypes[i];
-          const name = this.store.localSetupNames[i].trim() || (controller === 'ai' ? `Robot ${i+1}` : `Lojtari ${i+1}`);
-          const player = markRaw(new Player(name, PLAYER_COLORS[i], i + 1, controller));
-          this.store.players.push(player);
-        }
-      }
-      this.hoverNeedsUpdate = true;
-    },
-
     handleBaseClick(idx) {
-      if (this.store.currentScreen === 'add-players') {
-        const isActive = this.store.localSetupActive[idx];
-        const isAI = this.store.localSetupTypes[idx] === 'ai';
-
-        if (!isActive) {
-          this.store.localSetupActive[idx] = true;
-          this.store.localSetupTypes[idx] = 'local';
-          const humanCount = this.store.localSetupActive.filter((active, index) => active && this.store.localSetupTypes[index] === 'local').length;
-          if (humanCount === 1) {
-            this.store.localSetupNames[idx] = this.store.online.displayName || `Lojtari ${idx + 1}`;
-          } else {
-            this.store.localSetupNames[idx] = `Lojtari ${idx + 1}`;
-          }
-        } else if (!isAI) {
-          this.store.localSetupTypes[idx] = 'ai';
-          this.store.localSetupNames[idx] = `Robot ${idx + 1}`;
-        } else {
-          this.store.localSetupActive[idx] = false;
-          this.store.localSetupNames[idx] = '';
-        }
-
-        this.syncLocalPlayersFromSetup();
-      } else if (this.store.currentScreen === 'lobby') {
+      // Online lobby only: clicking an empty base claims that seat/color.
+      if (this.store.currentScreen === 'lobby') {
         if (!this.store.online.seats[idx]) {
           MatchController.requestClaimSeat(idx);
         }
@@ -2525,7 +2530,7 @@ export default {
         return targets;
       }
 
-      if (this.diceMesh && this.store.gamePlayStatus.isRolling && !this.isMobile) {
+      if (this.diceMesh && this.store.gamePlayStatus.isRolling) {
         targets.push({
           x: this.diceMesh.position.x,
           y: DICE_PIT.floorY + 0.012,
@@ -2663,9 +2668,40 @@ export default {
 
     // ---- Online game flow (server-authoritative) ----
 
+    // On page load, decide whether we can drop the player back into a match.
+    // The server keeps their seat (matchJoinAttempt accepts the disconnected
+    // rejoin), so all we do here is pick the match handle and hand off to
+    // MatchController.resumeSession — the URL wins (seamless refresh / shared
+    // link), else a stored record drives the "continue?" prompt.
+    checkResumeOnLoad() {
+      const online = this.store.online;
+      const fromUrl = readMatchUrl();
+
+      if (fromUrl) {
+        if (!online.displayName) {
+          // A nameless visitor followed a shared link — collect a name on the
+          // intro first; StartScreen resumes pendingResume once it's entered.
+          online.pendingResume = { matchId: fromUrl.matchId, code: fromUrl.code };
+          this.store.currentScreen = 'main-menu';
+          return;
+        }
+        MatchController.resumeSession({ matchId: fromUrl.matchId, joinCode: fromUrl.code });
+        return;
+      }
+
+      const record = loadActiveMatch();
+      if (record) {
+        online.resumePrompt = record;
+        if (online.displayName) {
+          this.store.currentScreen = 'main-menu';
+        }
+      }
+    },
+
     startOnlineGame(payload) {
       this.resetGameState();
       this.store.online.enabled = true;
+      this.store.online.resuming = false;
 
       const seatToPlayerIndex = {};
       (payload.seats || []).forEach((seat) => {
@@ -3380,7 +3416,11 @@ export default {
         return;
       }
 
-      void amount;
+      // Demo mode only: a 1-6 amount (from the number-key shortcut) is sent
+      // as a demand; the EventBus roll trigger passes no amount.
+      const demand = this.store.demoMode && Number.isInteger(amount) && amount >= 1 && amount <= 6
+        ? amount
+        : null;
 
       if (this.store.online.enabled) {
         const currentPlayer = this.store.players[this.store.currentPlayerId];
@@ -3392,7 +3432,7 @@ export default {
         this.store.gamePlayStatus.isRolling = false;
         this.hoverNeedsUpdate = true;
         this.onlineDice = { settled: false, serverValue: null, payload: null };
-        MatchController.requestRoll();
+        MatchController.requestRoll(demand);
         this.startDiceRoll();
         return;
       }
@@ -3403,7 +3443,7 @@ export default {
     },
 
     isMenuMode() {
-      const orbitingScreens = ['login-screen', 'main-menu', 'online-menu'];
+      const orbitingScreens = ['main-menu', 'create-room', 'join-room'];
       return orbitingScreens.includes(this.store.currentScreen);
     },
 

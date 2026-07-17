@@ -1,107 +1,81 @@
 <template>
   <div class="screen-overlay">
     <transition name="screen-fade" mode="out-in">
-      <!-- Login / Name Screen on Startup -->
-      <div v-if="store.currentScreen === 'login-screen'" key="login-screen" class="menu-center">
-        <app-panel class="menu-card">
-          <h2 class="panel-title">{{ t('login.title') }}</h2>
-          <p class="panel-desc">{{ t('login.desc') }}</p>
-          
-          <div class="form-row">
-            <app-input
-              v-model="loginName"
-              :label="t('online.yourName')"
-              @keyup.enter="confirmLogin"
-            />
-          </div>
-
-          <div class="menu-row">
-            <app-button green class="menu-btn-full" :disabled="!loginName.trim()" @click="confirmLogin">
-              {{ t('login.proceed') }}
-            </app-button>
-          </div>
-        </app-panel>
-      </div>
-
-      <div v-else-if="store.currentScreen === 'main-menu'" key="main-menu" class="menu-center">
-        <app-panel class="menu-card">
+      <!-- Intro: name + big Play Now, with Create / Join underneath -->
+      <div v-if="store.currentScreen === 'main-menu'" key="main-menu" class="menu-center">
+        <app-panel class="menu-card intro-card">
           <h1 class="game-title">{{ t('title') }}</h1>
           <p class="game-sub">{{ t('subTitle') }}</p>
-          <app-button green class="menu-btn-full" @click="switchScreen('add-players')">
-            {{ t('localGame') }}
-          </app-button>
-          <app-button blue class="menu-btn-full menu-btn-stacked" @click="switchScreen('online-menu')">
-            {{ t('playOnline') }}
-          </app-button>
+
+          <app-input
+            v-model="username"
+            :label="t('online.yourName')"
+            :max-length="12"
+            @keyup.enter="onEnter"
+          />
+
+          <template v-if="pendingResume">
+            <p class="intro-resume-note">{{ t('online.resumeBody') }}</p>
+            <app-button class="menu-btn-full intro-play-btn" :disabled="!hasName || busy" @click="continuePending">
+              {{ t('online.resume') }}
+            </app-button>
+          </template>
+          <template v-else>
+            <app-button class="menu-btn-full intro-play-btn" :disabled="!hasName || busy" @click="playNow">
+              {{ t('online.playNow') }}
+            </app-button>
+
+            <div class="intro-secondary">
+              <app-button class="menu-btn-full" :disabled="!hasName || busy" @click="goCreate">
+                {{ t('online.createRoom') }}
+              </app-button>
+              <app-button class="menu-btn-full" :disabled="!hasName || busy" @click="goJoin">
+                {{ t('online.joinRoom') }}
+              </app-button>
+            </div>
+          </template>
+
+          <div class="intro-account">
+            <button v-if="isSignedIn" type="button" class="intro-account-link" @click="openAccount">
+              👤 {{ accountLabel }}
+            </button>
+            <button v-else type="button" class="intro-account-link" @click="openSignIn">
+              {{ t('auth.signInCta') }}
+            </button>
+          </div>
+
+          <p v-if="errorMessage" class="online-error">{{ errorMessage }}</p>
         </app-panel>
       </div>
 
-      <online-menu v-else-if="store.currentScreen === 'online-menu'" key="online-menu" />
-
+      <create-room-screen v-else-if="store.currentScreen === 'create-room'" key="create-room" />
+      <join-room-screen v-else-if="store.currentScreen === 'join-room'" key="join-room" />
       <lobby-screen v-else-if="store.currentScreen === 'lobby'" key="lobby" />
-
-      <!-- Local Setup Screen (left-docked, 3D bases clickable) -->
-      <div v-else-if="store.currentScreen === 'add-players'" key="add-players" class="menu-side-left">
-        <app-panel class="menu-card">
-          <h2 class="panel-title">{{ t('players') }}</h2>
-          <p class="panel-desc" style="font-size: 0.8rem; margin-bottom: 12px; line-height: 1.4;">
-            {{ t('local.setupPrompt') }}
-          </p>
-
-          <div class="player-slots">
-            <div v-for="(_, i) in 4" :key="i" class="player-slot" :class="{ 'player-slot--inactive': !store.localSetupActive[i] }">
-              <span class="player-dot" :style="{ background: playerColors[i] }"></span>
-              <div class="player-slot-field" v-if="store.localSetupActive[i]">
-                <app-input
-                  v-model="store.localSetupNames[i]"
-                  :label="store.localSetupTypes[i] === 'ai' ? `Robot ${i + 1} (AI)` : `Lojtari ${i + 1}`"
-                />
-              </div>
-              <span v-else class="player-slot-empty-label" style="opacity: 0.55; font-size: 0.85rem;">{{ t('local.emptyBase') }}</span>
-            </div>
-          </div>
-
-          <app-panel :title="t('graphics')" foldable default-collapsed class="settings-panel-fold" style="margin-top: 14px;">
-            <div class="form-row">
-              <label class="select-label">{{ t('language') }}</label>
-              <app-tabs v-model="store.settings.locale" :options="[{ value: 'en', label: 'English' }, { value: 'sq', label: 'Shqip' }]" @update:modelValue="saveLocale" />
-            </div>
-            <div class="form-row">
-              <label class="select-label">{{ t('environment') }}</label>
-              <app-tabs v-model="store.settings.environment" :options="[{ value: 'day', label: t('env.day') }, { value: 'night', label: t('env.night') }, { value: 'dusk', label: t('env.dusk') }, { value: 'dawn', label: t('env.dawn') }]" @update:modelValue="saveEnvironment" />
-            </div>
-            <outline-appearance-select :label="t('outlineStyle')" select-id="outline-style-menu" />
-            <render-quality-slider :label="t('renderQuality')" slider-id="render-quality-menu" />
-          </app-panel>
-
-          <div class="menu-row" style="margin-top: 16px;">
-            <app-button slate-blue @click="switchScreen('main-menu')">{{ t('back') }}</app-button>
-            <app-button green :disabled="activePlayersCount < 2" @click="startGame">{{ t('play') }}</app-button>
-          </div>
-        </app-panel>
-      </div>
     </transition>
 
     <game-interface v-if="store.currentScreen === 'game-screen'" />
 
-    <!-- Global Settings Button (game screen has its own settings drawer) -->
+    <!-- Settings gear: menu screens only (the lobby carries its own). -->
     <app-button
-      v-if="store.currentScreen !== 'game-screen'"
-      slate-blue
+      v-if="isMenuScreen"
+      orange
       class="hud-icon-btn global-settings-trigger"
       :title="t('graphics')"
-      @click="openGlobalSettings"
+      @click="openSettings"
     >
       <settings-icon :size="20" />
     </app-button>
 
-    <!-- Global Settings Modal -->
-    <div v-if="showGlobalSettings" class="global-settings-modal-backdrop" @click.self="showGlobalSettings = false">
+    <!-- Account / sign-in modal (menu account row, #verify= / #reset= links) -->
+    <auth-modal v-if="store.online.authOpen" />
+
+    <!-- Global settings modal (openable from any menu / the lobby gear) -->
+    <div v-if="store.settingsOpen" class="global-settings-modal-backdrop" @click.self="store.settingsOpen = false">
       <app-panel class="global-settings-card">
         <h3 class="panel-title" style="margin-bottom: 16px;">{{ t('settings.title') }}</h3>
 
         <div class="form-row">
-          <app-input v-model="globalName" :label="t('online.yourName')" />
+          <app-input v-model="settingsName" :label="t('online.yourName')" :max-length="12" />
         </div>
 
         <div class="form-row">
@@ -121,10 +95,32 @@
           />
         </div>
 
+        <outline-appearance-select :label="t('outlineStyle')" select-id="outline-style-menu" />
+        <render-quality-slider :label="t('renderQuality')" slider-id="render-quality-menu" />
+
         <div class="menu-row" style="margin-top: 20px;">
-          <app-button slate-blue @click="showGlobalSettings = false">{{ t('back') }}</app-button>
-          <app-button green :disabled="!globalName.trim()" @click="confirmGlobalSettings">{{ t('save') }}</app-button>
+          <app-button red @click="store.settingsOpen = false">{{ t('back') }}</app-button>
+          <app-button :disabled="!settingsName.trim()" @click="saveSettings">{{ t('save') }}</app-button>
         </div>
+      </app-panel>
+    </div>
+
+    <!-- "You recently left a game — continue?" (root URL reopened) -->
+    <div v-if="store.online.resumePrompt && !store.online.resuming" class="resume-modal-backdrop">
+      <app-panel class="menu-card resume-card">
+        <h3 class="panel-title" style="margin-bottom: 12px;">{{ t('online.resumeTitle') }}</h3>
+        <p class="panel-desc">{{ t('online.resumeBody') }}</p>
+        <div class="menu-row" style="margin-top: 20px;">
+          <app-button red @click="dismissResume">{{ t('online.resumeDismiss') }}</app-button>
+          <app-button @click="continueResume">{{ t('online.resume') }}</app-button>
+        </div>
+      </app-panel>
+    </div>
+
+    <!-- Rejoining a match after a reload -->
+    <div v-if="store.online.resuming" class="resume-modal-backdrop">
+      <app-panel class="menu-card resume-card">
+        <p class="panel-desc" style="margin: 0;">{{ t('online.resuming') }}</p>
       </app-panel>
     </div>
   </div>
@@ -132,32 +128,57 @@
 
 <script>
 import GameInterface from './GameInterface.vue';
-import OnlineMenu from './OnlineMenu.vue';
+import CreateRoomScreen from './CreateRoomScreen.vue';
+import JoinRoomScreen from './JoinRoomScreen.vue';
 import LobbyScreen from './LobbyScreen.vue';
+import AuthModal from './AuthModal.vue';
 import OutlineAppearanceSelect from './OutlineAppearanceSelect.vue';
 import RenderQualitySlider from './RenderQualitySlider.vue';
 import ApplicationStore from '../utils/ApplicationStore';
 import MatchController from '../network/MatchController';
-import EventBus from '../utils/eventhandler';
-import EventKeys from '../utils/EventKeys';
-import { PLAYER_COLORS } from '../utils/playerColors';
+import { clearMatchSession } from '../utils/matchSession';
 import { t } from '../utils/i18n';
 import { Settings } from '@lucide/vue';
 
 export default {
-  components: { GameInterface, OnlineMenu, LobbyScreen, OutlineAppearanceSelect, RenderQualitySlider, SettingsIcon: Settings },
+  components: {
+    GameInterface,
+    CreateRoomScreen,
+    JoinRoomScreen,
+    LobbyScreen,
+    AuthModal,
+    OutlineAppearanceSelect,
+    RenderQualitySlider,
+    SettingsIcon: Settings,
+  },
   data() {
     return {
       store: ApplicationStore,
-      loginName: ApplicationStore.online.displayName || '',
-      playerColors: PLAYER_COLORS,
-      showGlobalSettings: false,
-      globalName: '',
+      username: ApplicationStore.online.displayName || '',
+      settingsName: '',
+      busy: false,
     };
   },
   computed: {
-    activePlayersCount() {
-      return this.store.localSetupActive.filter(Boolean).length;
+    hasName() {
+      return this.username.trim().length > 0;
+    },
+    pendingResume() {
+      return this.store.online.pendingResume;
+    },
+    isMenuScreen() {
+      return ['main-menu', 'create-room', 'join-room'].includes(this.store.currentScreen);
+    },
+    errorMessage() {
+      const error = this.store.online.lastError;
+      return error ? t(`errors.${error}`) : '';
+    },
+    isSignedIn() {
+      return this.store.online.account.method !== 'guest';
+    },
+    accountLabel() {
+      const account = this.store.online.account;
+      return account.email || t(`auth.method_${account.method}`);
     },
     soundSetting: {
       get() {
@@ -169,60 +190,179 @@ export default {
       },
     },
   },
+  watch: {
+    // The lobby's gear just flips store.settingsOpen; seed the name field here
+    // so it's correct no matter which screen opened the modal.
+    'store.settingsOpen'(open) {
+      if (open) {
+        this.settingsName = this.store.online.displayName || this.username || '';
+      }
+    },
+  },
+  mounted() {
+    // Email links land here as #verify=<token> / #reset=<token>. Consume the
+    // hash before App.vue's resume-on-load reads it for #m= match records.
+    const hash = window.location.hash || '';
+    const verify = hash.match(/^#verify=([A-Za-z0-9]+)$/);
+    const reset = hash.match(/^#reset=([A-Za-z0-9]+)$/);
+    if (verify || reset) {
+      const online = this.store.online;
+      online.verifyToken = verify ? verify[1] : null;
+      online.resetToken = reset ? reset[1] : null;
+      online.authView = verify ? 'verify' : 'reset';
+      online.authOpen = true;
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+  },
   methods: {
     t,
     saveLocale(val) {
       window.localStorage.setItem('burrec.settings.locale', val);
     },
-    saveEnvironment(val) {
-      window.localStorage.setItem('burrec.settings.environment', val);
-    },
-    switchScreen(screen) {
-      this.store.currentScreen = screen;
-    },
-    confirmLogin() {
-      const name = this.loginName.trim();
-      if (!name) return;
+    // Persist the intro name into the store so the create/join screens see it.
+    commitName() {
+      const name = this.username.trim().slice(0, 12);
       this.store.online.displayName = name;
       window.localStorage.setItem('burrec.online.displayName', name);
-      this.store.currentScreen = 'main-menu';
+      return name;
     },
-    startGame() {
-      EventBus.fire(EventKeys.game.start);
-    },
-    openGlobalSettings() {
-      this.globalName = this.store.online.displayName || '';
-      this.showGlobalSettings = true;
-    },
-    confirmGlobalSettings() {
-      const name = this.globalName.trim();
-      if (!name) return;
-      this.store.online.displayName = name;
-      window.localStorage.setItem('burrec.online.displayName', name);
-      
-      if (this.store.localSetupActive && this.store.localSetupActive[0] && this.store.localSetupTypes[0] === 'local') {
-        this.store.localSetupNames[0] = name;
+    async run(action) {
+      this.busy = true;
+      this.store.online.lastError = null;
+      try {
+        await action();
+      } catch (error) {
+        const message = error?.message ? error.message : 'connect_failed';
+        if (message === 'auth_session_expired') {
+          // The stored account session died — reopen the sign-in modal
+          // instead of silently downgrading to a guest identity.
+          this.openSignIn();
+        }
+        this.store.online.lastError = message;
+      } finally {
+        this.busy = false;
       }
-
-      const mySeatObject = (this.store.online.seats || []).find(
-        (s) => s && s.userId === this.store.online.selfUserId
-      );
-      if (this.store.currentScreen === 'lobby' && mySeatObject) {
-        MatchController.requestClaimSeat(mySeatObject.seat);
+    },
+    openSignIn() {
+      this.store.online.authView = 'login';
+      this.store.online.authOpen = true;
+    },
+    openAccount() {
+      this.store.online.authView = 'account';
+      this.store.online.authOpen = true;
+    },
+    onEnter() {
+      if (!this.hasName) return;
+      if (this.pendingResume) this.continuePending();
+      else this.playNow();
+    },
+    playNow() {
+      const name = this.commitName();
+      this.run(() => MatchController.quickMatch(name));
+    },
+    goCreate() {
+      this.commitName();
+      this.store.online.lastError = null;
+      this.store.currentScreen = 'create-room';
+    },
+    goJoin() {
+      this.commitName();
+      this.store.online.lastError = null;
+      this.store.currentScreen = 'join-room';
+    },
+    continuePending() {
+      this.commitName();
+      const pending = this.store.online.pendingResume;
+      this.store.online.pendingResume = null;
+      if (!pending) return;
+      MatchController.resumeSession({ matchId: pending.matchId, joinCode: pending.code });
+    },
+    openSettings() {
+      this.settingsName = this.store.online.displayName || this.username || '';
+      this.store.settingsOpen = true;
+    },
+    saveSettings() {
+      const name = this.settingsName.trim().slice(0, 12);
+      if (name) {
+        this.username = name;
+        this.store.online.displayName = name;
+        window.localStorage.setItem('burrec.online.displayName', name);
       }
-      
-      this.showGlobalSettings = false;
+      this.store.settingsOpen = false;
+    },
+    continueResume() {
+      const record = this.store.online.resumePrompt;
+      this.store.online.resumePrompt = null;
+      if (!record) return;
+      MatchController.resumeSession({
+        matchId: record.matchId,
+        mode: record.mode,
+        joinCode: record.joinCode,
+      });
+    },
+    dismissResume() {
+      this.store.online.resumePrompt = null;
+      clearMatchSession();
     },
   },
 };
 </script>
 
 <style scoped>
-.menu-btn-stacked {
-  margin-top: 12px;
+.intro-card {
+  text-align: center;
 }
-.settings-panel-fold {
-  margin-top: 20px;
-  margin-bottom: 12px;
+.intro-play-btn {
+  margin-top: 18px;
+  font-size: 1.15rem;
+  padding: 16px 24px;
+}
+.intro-secondary {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+.intro-resume-note {
+  margin: 16px 0 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  opacity: 0.8;
+}
+.intro-account {
+  margin-top: 16px;
+}
+.intro-account-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.8rem;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  opacity: 0.75;
+}
+.intro-account-link:hover {
+  opacity: 1;
+}
+.online-error {
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--agu-color-red, #e9576f);
+}
+.resume-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 60;
+  padding: 16px;
+}
+.resume-card {
+  text-align: center;
+  max-width: 360px;
 }
 </style>

@@ -1,3 +1,16 @@
 {$NAKAMA_DOMAIN} {
-	reverse_proxy nakama:7350
+	encode gzip
+
+	# Nakama REST API + realtime socket (wss://<domain>/ws)
+	@nakama path /v2/* /ws /ws/*
+	handle @nakama {
+		reverse_proxy nakama:7350
+	}
+
+	# The built client (repo docs/, copied to the droplet as ./site)
+	handle {
+		root * /srv/site
+		try_files {path} /index.html
+		file_server
+	}
 }

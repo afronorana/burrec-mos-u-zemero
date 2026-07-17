@@ -58,7 +58,7 @@ const buildTargetFields = (dirX, dirZ) => TARGET_LANE_RADII.map((radius) => vect
 ));
 
 const ApplicationStore = reactive({
-  currentScreen: 'login-screen',
+  currentScreen: 'main-menu',
   diceData: {
     interval: [null, null, null],
     allDone: [false, false, false],
@@ -165,22 +165,44 @@ const ApplicationStore = reactive({
     displayName: window.localStorage.getItem('burrec.online.displayName') || '',
     selfUserId: null,
     matchId: null,
-    mode: null, // 'private' | 'quick'
+    mode: null, // 'private' | 'public'
     joinCode: null,
     mySeat: -1,
     hostUserId: null,
     seats: [], // (seat|null)[4] as broadcast by the server
     seatToPlayerIndex: {}, // seat number -> index into store.players (seats can be non-contiguous)
-    matchmaking: false,
+    // Resume-after-reload plumbing (see utils/matchSession.js):
+    resuming: false, // rejoining a match from the URL/record — show the overlay
+    resumePrompt: null, // { matchId, mode, joinCode } offered on the root URL ("continue?")
+    pendingResume: null, // { matchId, code } deferred until the visitor sets a name
     pendingDice: null, // last DICE_RESULT payload, consumed when the dice settles
     diceInFlight: false, // gates MOVE_APPLIED/TURN_CHANGE replay while dice physics run
     chat: [],
     lastError: null,
+    // Signed-in account (NakamaClient.refreshAccountStatus): method is
+    // 'guest' | 'email' | 'google' | 'apple'; email/emailVerified only apply
+    // to email accounts.
+    account: {
+      method: 'guest',
+      email: null,
+      emailVerified: false,
+    },
+    // Auth modal state (AuthModal.vue): view is
+    // 'login' | 'register' | 'account' | 'forgot' | 'reset' | 'verify'.
+    authOpen: false,
+    authView: 'login',
+    resetToken: null, // token parsed from a #reset= link, consumed by the reset view
+    verifyToken: null, // token parsed from a #verify= link, consumed on modal open
   },
-  localSetupActive: [false, false, false, false],
-  localSetupNames: ['', '', '', ''],
-  localSetupTypes: ['local', 'ai', 'ai', 'ai'],
   controls: null,
+  // Touch/small-screen flag (set by App.vue on scene init): the dice renders
+  // bigger and pawns get a larger invisible tap radius.
+  isMobile: false,
+  // Global settings modal, openable from the intro/create/join/lobby gear.
+  settingsOpen: false,
+  // Testing shortcut: typing TEST toggles it, then keys 1-6 roll that exact
+  // value. Only effective when the server runs with DEMO_DICE=1 (dev).
+  demoMode: false,
 });
 
 export default ApplicationStore;

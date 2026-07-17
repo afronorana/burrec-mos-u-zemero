@@ -2,7 +2,9 @@ import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 
 export default defineConfig({
-  base: '/burrec-mos-u-zemero/',
+  // Relative base: the same docs/ build works served from the droplet's domain
+  // root (Caddy) and from the GitHub Pages /burrec-mos-u-zemero/ subpath.
+  base: './',
   plugins: [vue()],
   resolve: {
     alias: {

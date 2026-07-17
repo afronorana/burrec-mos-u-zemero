@@ -235,7 +235,7 @@ async function main() {
 
   // --- create + join by code ---
   const created = await alice.rpc('create_private_match');
-  assert(created.matchId && /^[A-Z2-9]{5}$/.test(created.code), 'create_private_match returns matchId + 5-char code');
+  assert(created.matchId && /^[A-Z]{4}$/.test(created.code), 'create_private_match returns matchId + 4-letter code');
   await alice.joinMatch(created.matchId);
 
   await delay(2000); // label index lag

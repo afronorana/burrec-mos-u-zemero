@@ -14,9 +14,16 @@ npx vite build --outDir /tmp/burrec-build-check --emptyOutDir
 ```
 
 ## Launch
-- `pnpm dev` → http://localhost:3000/burrec-mos-u-zemero/ (mind the base path).
+- `pnpm dev` → http://localhost:3000/ (base is relative './' since the droplet-hosting change).
+  **Port 3000 is often taken by other projects' dev servers (Shtet Qytet, Nuxt admin) and
+  vite silently takes 3001+, which may ALSO be another app — run
+  `npx vite --port 3100 --strictPort` and verify the page is actually Burrec.**
 - Online play needs Nakama: `pnpm nakama:up` (+ `pnpm nakama:build` if `nakama/build/index.js` is stale).
   Client env comes from `.env.development` (127.0.0.1:7350, key `burrec-dev-key`).
+- Auth email flows (verify/reset): `EMAIL_DEV_ECHO=1` in `nakama/local.yml` makes
+  `request_password_reset`/`resend_verification` return `devLink`; the AuthModal logs it
+  to the console. Links point at PUBLIC_URL (localhost:3000) — rewrite the host when
+  driving a different port.
 
 ## Driving it with Playwright
 Playwright + chromium are cached on this machine; `npm i playwright` in a scratch dir suffices.

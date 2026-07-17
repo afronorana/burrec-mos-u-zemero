@@ -1,57 +1,131 @@
-# Deploying the Nakama server (DigitalOcean)
+# Deploying Burrec (DigitalOcean droplet, one domain)
 
-The client is static (GitHub Pages, https) — so the socket must be wss, which
-is why Caddy sits in front of Nakama and auto-provisions Let's Encrypt TLS.
+One domain (e.g. `play.example.com`) serves everything from the droplet:
+
+- Caddy terminates TLS and serves the built client (`site/`) at `/`
+- `/v2/*` (Nakama REST) and `/ws` (wss socket) are proxied to nakama:7350
+- Auth emails (verify / password reset) are sent through Resend and link back
+  to the same domain
+
+Same origin for site and API means no CORS, one OAuth origin, one TLS cert.
+
+## DNS (Namecheap domain, Cloudflare DNS)
+
+1. In Cloudflare, add an **A record** for the play host pointing at the
+   droplet's IP. Set it to **DNS only (grey cloud)** — Caddy then provisions
+   Let's Encrypt certificates with zero extra config.
+   - If you want the orange cloud (Cloudflare proxy) instead: set SSL/TLS mode
+     to **Full (strict)** and keep port 80 reachable so Caddy's HTTP-01
+     challenge works. Grey cloud is the simpler, recommended start.
+2. Resend's domain-verification records (below) are separate TXT/CNAME/MX
+   records — add them exactly as Resend shows, always **DNS only**.
 
 ## One-time droplet setup
 
-1. Create a droplet (smallest works to start; pick Docker image or install
-   Docker + the compose plugin yourself).
-2. Point a DNS A record at the droplet, e.g. `nakama.yourdomain.com`.
-3. On the droplet, create `/opt/burrec-nakama/` and copy from this folder:
+1. Create a droplet (smallest works to start; Docker image or install Docker +
+   compose plugin yourself).
+2. On the droplet, create `/opt/burrec-nakama/` and copy from this folder:
    - `docker-compose.prod.yml`
    - `Caddyfile`
    - `local.yml`
    - `build/` (output of `pnpm nakama:build` — rebuild locally first)
-4. Create `/opt/burrec-nakama/.env.prod`:
+   - `site/` (output of `pnpm build` — the repo's `docs/` folder, renamed)
+3. Create `/opt/burrec-nakama/.env.prod`:
 
    ```
-   NAKAMA_DOMAIN=nakama.yourdomain.com
+   NAKAMA_DOMAIN=play.example.com
    NAKAMA_SERVER_KEY=<long random string>
    POSTGRES_PASSWORD=<long random string>
+   RESEND_API_KEY=<re_... from resend.com; empty = emails only logged>
+   EMAIL_FROM=Burrec <noreply@example.com>
+   APPLE_BUNDLE_ID=
    ```
 
-5. Start it:
+4. Start it:
 
    ```bash
    cd /opt/burrec-nakama
    docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
    ```
 
-6. Check: `docker compose -f docker-compose.prod.yml logs nakama | grep "ludo module"`
-   and `https://nakama.yourdomain.com` should answer (404 from Nakama is fine —
-   TLS working is what matters).
+5. Check: `docker compose -f docker-compose.prod.yml logs nakama | grep "ludo module"`,
+   and `https://play.example.com` should serve the game.
+
+## Email (Resend)
+
+Registration verification and password-reset emails are sent by the Nakama
+runtime module through Resend's HTTP API (the droplet itself never speaks
+SMTP — DigitalOcean blocks it, and Nakama's JS runtime has no SMTP anyway).
+
+1. Create a free account at resend.com (3,000 emails/month).
+2. **Domains → Add domain** → `example.com` (or a subdomain like
+   `mail.example.com`). Add the DKIM/SPF/MX records it lists into Cloudflare,
+   all **DNS only**. Wait for "Verified".
+3. **API Keys → Create** (sending access only) → put it in `.env.prod` as
+   `RESEND_API_KEY`, and set `EMAIL_FROM` to an address on the verified
+   domain, e.g. `Burrec <noreply@example.com>`.
+4. Recreate the nakama container (`up -d` again) after editing `.env.prod`.
+
+Without a key, flows still work in dev: `EMAIL_DEV_ECHO=1` in `local.yml`
+returns the verify/reset links in RPC payloads and logs them.
+
+## Google sign-in (free)
+
+1. console.cloud.google.com → APIs & Services → **OAuth consent screen**:
+   External, app name + support email, publish.
+2. **Credentials → Create credentials → OAuth client ID → Web application**:
+   - Authorized JavaScript origins: `https://play.example.com`
+     (plus `http://localhost:3000` for dev)
+   - No redirect URIs needed (the client uses Google Identity Services popup).
+3. Put the client ID in `.env.production` as `VITE_GOOGLE_CLIENT_ID` and
+   rebuild the site. No server config needed — Nakama validates Google ID
+   tokens against Google's public certs.
+
+## Apple sign-in (later — needs the $99/yr Developer Program)
+
+The button stays hidden until configured. When ready:
+
+1. developer.apple.com → Certificates, IDs & Profiles → **Identifiers**:
+   - Create an **App ID** (e.g. `com.example.burrec`) with "Sign in with
+     Apple" enabled.
+   - Create a **Services ID** (e.g. `com.example.burrec.web`), enable Sign in
+     with Apple, set its domain to `play.example.com` and return URL to
+     `https://play.example.com/` (verify the domain when prompted).
+2. Set the Services ID in BOTH places (they must match):
+   - `.env.production` → `VITE_APPLE_CLIENT_ID` (rebuild the site)
+   - droplet `.env.prod` → `APPLE_BUNDLE_ID` (recreate the container)
 
 ## Wiring the client
 
 Edit `.env.production` at the repo root:
 
 ```
-VITE_NAKAMA_HOST=nakama.yourdomain.com
+VITE_NAKAMA_HOST=play.example.com
 VITE_NAKAMA_PORT=443
 VITE_NAKAMA_SSL=true
 VITE_NAKAMA_KEY=<same NAKAMA_SERVER_KEY as the droplet>
+VITE_GOOGLE_CLIENT_ID=<web OAuth client id, or empty>
+VITE_APPLE_CLIENT_ID=<Apple Services ID, or empty>
 ```
 
-Vite bakes these at build time — run `pnpm build` and commit the regenerated
-`docs/` to deploy the Pages site against the new server.
+Vite bakes these at build time — any change requires `pnpm build`.
 
-## Updating the server module
+## Updating
+
+Server module:
 
 ```bash
 pnpm nakama:build
 scp -r nakama/build root@droplet:/opt/burrec-nakama/
 ssh root@droplet 'cd /opt/burrec-nakama && docker compose -f docker-compose.prod.yml --env-file .env.prod restart nakama'
+```
+
+Client site:
+
+```bash
+pnpm build
+rsync -av --delete docs/ root@droplet:/opt/burrec-nakama/site/
+# no restart needed — Caddy serves the files directly
 ```
 
 ## Admin console

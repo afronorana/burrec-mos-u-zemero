@@ -13,6 +13,11 @@ import ChatController from './ChatController';
 import ApplicationStore from '../utils/ApplicationStore';
 import EventBus from '../utils/eventhandler';
 import EventKeys from '../utils/EventKeys';
+import {
+  saveActiveMatch,
+  writeMatchUrl,
+  clearMatchSession,
+} from '../utils/matchSession';
 
 const JOIN_CODE_RETRY_MS = 1500; // match label indexing lags ~1s behind matchCreate
 const REJOIN_ATTEMPTS = 5;
@@ -22,7 +27,6 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 class MatchControllerService {
   constructor() {
     this.socket = null;
-    this.matchmakerTicket = null;
     this.opQueue = [];
     this.moveInFlight = false;
     this.rejoining = false;
@@ -50,7 +54,6 @@ class MatchControllerService {
 
   wireSocket(socket) {
     socket.onmatchdata = (matchData) => this.handleMatchData(matchData);
-    socket.onmatchmakermatched = (matched) => this.handleMatchmakerMatched(matched);
     ChatController.attach(socket);
     NakamaClient.onDisconnect = () => this.handleDisconnect();
   }
@@ -62,6 +65,15 @@ class MatchControllerService {
       throw new Error(result.error || 'create_failed');
     }
     await this.joinById(result.matchId, { mode: 'private', joinCode: result.code });
+  }
+
+  async createPublic(displayName) {
+    await this.ensureConnected(displayName);
+    const result = await NakamaClient.rpc('create_public_match');
+    if (!result.matchId) {
+      throw new Error(result.error || 'create_failed');
+    }
+    await this.joinById(result.matchId, { mode: 'public' });
   }
 
   async joinByCode(code, displayName) {
@@ -78,42 +90,30 @@ class MatchControllerService {
     await this.joinById(result.matchId, { mode: 'private', joinCode: String(code).trim().toUpperCase() });
   }
 
+  // Find-or-create: the server returns an open public room (or makes one). If
+  // the room filled between the query and our join, ask again for a fresh one.
   async quickMatch(displayName) {
     await this.ensureConnected(displayName);
-    this.matchmakerTicket = await this.socket.addMatchmaker('*', 2, 4);
-    this.online().matchmaking = true;
-  }
-
-  async cancelQuickMatch() {
-    const ticket = this.matchmakerTicket;
-    this.matchmakerTicket = null;
-    this.online().matchmaking = false;
-    if (ticket && this.socket) {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const result = await NakamaClient.rpc('quick_match');
+      if (!result.matchId) {
+        throw new Error(result.error || 'join_failed');
+      }
       try {
-        await this.socket.removeMatchmaker(ticket.ticket);
+        await this.joinById(result.matchId, { mode: 'public' });
+        return;
       } catch (error) {
-        // Ticket may have already matched or expired.
+        if (attempt === 1) {
+          throw error;
+        }
+        // Room raced full/started — loop asks quick_match for another.
       }
     }
   }
 
-  async handleMatchmakerMatched(matched) {
-    this.matchmakerTicket = null;
-    this.online().matchmaking = false;
-    try {
-      await this.joinById(matched.match_id, { mode: 'quick' }, matched.token);
-    } catch (error) {
-      this.online().lastError = 'join_failed';
-    }
-  }
-
-  async joinById(matchId, info, matchmakerToken) {
+  async joinById(matchId, info) {
     const online = this.online();
-    await this.socket.joinMatch(
-        matchmakerToken ? null : matchId,
-        matchmakerToken || null,
-        { displayName: online.displayName },
-    );
+    await this.socket.joinMatch(matchId, null, { displayName: online.displayName });
 
     online.matchId = matchId;
     online.mode = info.mode || null;
@@ -121,10 +121,82 @@ class MatchControllerService {
     online.lastError = null;
     ApplicationStore.currentScreen = 'lobby';
 
+    this.persistSession();
+
     try {
       await ChatController.join(matchId);
     } catch (error) {
       // Chat is non-critical; the lobby works without it.
+    }
+  }
+
+  // Mirror the active match into the URL hash + identityStorage so a reload or
+  // reopened tab can resume it (see utils/matchSession.js).
+  persistSession() {
+    const online = this.online();
+    const record = { matchId: online.matchId, mode: online.mode, joinCode: online.joinCode };
+    saveActiveMatch(record);
+    writeMatchUrl(record);
+  }
+
+  // Rejoin a match named by the URL/stored record after a reload. The server
+  // recognises the seat by userId and replies with a STATE_SYNC snapshot, so
+  // this reuses the exact recovery path used for mid-game desyncs.
+  async resume(ref) {
+    const online = this.online();
+    online.resuming = true;
+    online.connectionState = 'reconnecting';
+    await this.ensureConnected(online.displayName);
+
+    let matchId = ref.matchId || null;
+    let joinCode = ref.joinCode || ref.code || null;
+    if (!matchId && joinCode) {
+      let result = await NakamaClient.rpc('join_by_code', { code: joinCode });
+      if (result.error === 'not_found') {
+        await delay(JOIN_CODE_RETRY_MS);
+        result = await NakamaClient.rpc('join_by_code', { code: joinCode });
+      }
+      matchId = result.matchId || null;
+    }
+    if (!matchId) {
+      throw new Error('match_gone');
+    }
+
+    await this.socket.joinMatch(matchId, null, { displayName: online.displayName });
+
+    online.matchId = matchId;
+    online.joinCode = joinCode;
+    online.mode = ref.mode || (joinCode ? 'private' : online.mode);
+    online.lastError = null;
+    this.persistSession();
+
+    try {
+      await ChatController.join(matchId);
+    } catch (error) {
+      // Non-critical.
+    }
+
+    // Pull the authoritative snapshot; handleStateSync routes us to lobby or
+    // game and clears online.resuming.
+    this.requestSync();
+  }
+
+  // Entry point for reload/reopen resume: wraps resume() so a gone/full/started
+  // match lands the player back in the menu with a readable error instead of a
+  // stuck overlay.
+  async resumeSession(ref) {
+    try {
+      await this.resume(ref);
+    } catch (error) {
+      const online = this.online();
+      clearMatchSession();
+      online.resuming = false;
+      online.pendingResume = null;
+      online.matchId = null;
+      online.enabled = false;
+      online.connectionState = 'idle';
+      online.lastError = 'match_gone';
+      ApplicationStore.currentScreen = 'main-menu';
     }
   }
 
@@ -154,10 +226,15 @@ class MatchControllerService {
     online.pendingDice = null;
     online.diceInFlight = false;
     online.enabled = false;
+    online.resuming = false;
+    online.resumePrompt = null;
+    online.pendingResume = null;
+    // Explicit leave is intentional — forget the match so it isn't offered back.
+    clearMatchSession();
     ApplicationStore.winner = null;
     ApplicationStore.gamePlayStatus.isRolling = false;
     ApplicationStore.gamePlayStatus.isMoving = false;
-    ApplicationStore.currentScreen = 'online-menu';
+    ApplicationStore.currentScreen = 'main-menu';
   }
 
   send(opCode, payload) {
@@ -176,8 +253,8 @@ class MatchControllerService {
     this.send(OpCode.START, {});
   }
 
-  requestRoll() {
-    this.send(OpCode.ROLL_REQUEST, {});
+  requestRoll(demand) {
+    this.send(OpCode.ROLL_REQUEST, demand ? { demand } : {});
   }
 
   requestMove(pawnIndex) {
@@ -242,6 +319,11 @@ class MatchControllerService {
     online.seats = payload.seats || [];
     online.hostUserId = payload.hostUserId || null;
     online.joinCode = payload.joinCode || online.joinCode;
+    // A code in the payload means this is a private room — infer it when we
+    // resumed from a bare matchId and never learned the mode.
+    if (online.joinCode && !online.mode) {
+      online.mode = 'private';
+    }
     online.mySeat = this.seatOfSelf(online.seats);
     EventBus.fire(EventKeys.net.lobbyUpdated);
   }
@@ -311,17 +393,32 @@ class MatchControllerService {
     };
     ApplicationStore.gamePlayStatus.isRolling = false;
     ApplicationStore.gamePlayStatus.isMoving = false;
+    // The match is over — don't offer to resume a finished game.
+    clearMatchSession();
   }
 
   handleStateSync(payload) {
     const online = this.online();
+    // A snapshot arrived — whatever we were resuming/reconnecting, we're back.
+    online.resuming = false;
+    if (online.connectionState !== 'connected') {
+      online.connectionState = 'connected';
+    }
     this.opQueue = [];
     this.moveInFlight = false;
     online.diceInFlight = false;
     online.seats = payload.seats || [];
     online.hostUserId = payload.hostUserId || null;
     online.joinCode = payload.joinCode || online.joinCode;
+    if (online.joinCode && !online.mode) {
+      online.mode = 'private';
+    }
     online.mySeat = this.seatOfSelf(online.seats);
+    // Keep the URL/record current — a resume from a bare matchId only learns
+    // the private join code here.
+    if (online.matchId) {
+      this.persistSession();
+    }
     online.pendingDice = payload.awaitingMove
       ? {
         seat: payload.turnSeat,

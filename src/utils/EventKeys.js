@@ -12,6 +12,7 @@ const EventKeys = {
   pawn: {
     move: 'pawn.move',
     moveComplete: 'pawn.moveComplete',
+    captured: 'pawn.captured',
   },
   net: {
     diceResult: 'net.diceResult',

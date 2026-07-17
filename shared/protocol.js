@@ -18,7 +18,7 @@ export var OpCode = {
   // client → server
   READY: 10, // { ready: boolean }
   START: 11, // {} (host only)
-  ROLL_REQUEST: 12, // {}
+  ROLL_REQUEST: 12, // {} — or { demand: 1..6 }, honored only when the server runs with DEMO_DICE=1
   MOVE_REQUEST: 13, // { pawnIndex }
   SYNC_REQUEST: 14, // {}
   CLAIM_SEAT: 15, // { seat: number }
