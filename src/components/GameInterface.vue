@@ -3,6 +3,8 @@
     <!-- Connection trouble is the only global status worth a banner -->
     <div v-if="connectionMessage" class="hud-connection-banner">{{ connectionMessage }}</div>
 
+    <div v-if="store.demoMode" class="hud-demo-badge">DEMO — 1-6 rolls</div>
+
     <!-- Settings: middle-right trigger, centered modal -->
     <div class="hud-settings-area">
       <app-button
@@ -251,6 +253,24 @@ export default {
   border: 2px solid var(--agu-color-base, #263f2a);
   border-radius: 8px;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
+  pointer-events: none;
+}
+
+/* Testing shortcut indicator (typing TEST toggles store.demoMode). Sits
+   below the connection banner slot so the two never overlap. */
+.hud-demo-badge {
+  position: absolute;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 10px;
+  background: var(--agu-color-base, #263f2a);
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  border-radius: 8px;
+  opacity: 0.85;
   pointer-events: none;
 }
 

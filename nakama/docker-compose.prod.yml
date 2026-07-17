@@ -47,6 +47,7 @@ services:
         --runtime.env "EMAIL_FROM=${EMAIL_FROM:-Burrec <noreply@example.com>}"
         --runtime.env "PUBLIC_URL=https://${NAKAMA_DOMAIN}"
         --runtime.env "EMAIL_DEV_ECHO=0"
+        --runtime.env "DEMO_DICE=0"
         --social.apple.bundle_id "${APPLE_BUNDLE_ID:-}"
     restart: unless-stopped
     depends_on:

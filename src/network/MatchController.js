@@ -253,8 +253,8 @@ class MatchControllerService {
     this.send(OpCode.START, {});
   }
 
-  requestRoll() {
-    this.send(OpCode.ROLL_REQUEST, {});
+  requestRoll(demand) {
+    this.send(OpCode.ROLL_REQUEST, demand ? { demand } : {});
   }
 
   requestMove(pawnIndex) {

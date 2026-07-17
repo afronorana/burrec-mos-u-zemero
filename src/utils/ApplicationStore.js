@@ -200,6 +200,9 @@ const ApplicationStore = reactive({
   isMobile: false,
   // Global settings modal, openable from the intro/create/join/lobby gear.
   settingsOpen: false,
+  // Testing shortcut: typing TEST toggles it, then keys 1-6 roll that exact
+  // value. Only effective when the server runs with DEMO_DICE=1 (dev).
+  demoMode: false,
 });
 
 export default ApplicationStore;

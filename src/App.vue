@@ -2,6 +2,7 @@
   <main class="app-shell">
     <canvas ref="canvas" class="board-canvas"></canvas>
     <canvas ref="overlayCanvas" class="overlay-canvas"></canvas>
+    <div ref="hitEffectLayer" class="hit-effect-layer"></div>
     <start-screen></start-screen>
     <win-screen></win-screen>
 
@@ -26,6 +27,7 @@ import { PLAYER_COLORS } from './utils/playerColors';
 import Player from './utils/Player';
 import MatchController from './network/MatchController';
 import { readMatchUrl, loadActiveMatch } from './utils/matchSession';
+import { getRandomHitEffectSvg, HIT_EFFECT_DURATION_MS } from './utils/hitEffects';
 
 const OUTLINE_COLOR = '#1b1411';
 const BOARD_CENTER = { x: 5, z: 5 };
@@ -73,6 +75,7 @@ const CAMERA_GAME_POSITION = new THREE.Vector3(5.6, 12.4, 16.2);
 const CAMERA_GAME_TARGET = new THREE.Vector3(5, 0.4, 5);
 // Render-loop scratch objects — reused every frame to avoid GC churn.
 const _cameraLookScratch = new THREE.Vector3();
+const _hitEffectScratch = new THREE.Vector3();
 const _diceFaceQuaternion = new THREE.Quaternion();
 const _diceFaceScratch = new THREE.Vector3();
 const _diceBestNormal = new THREE.Vector3();
@@ -356,6 +359,8 @@ export default {
       hoverNeedsUpdate: false,
       isPointerInsideCanvas: false,
       overlayHasContent: false,
+      demoKeyBuffer: '',
+      activeHitEffects: markRaw([]),
     };
   },
   mounted() {
@@ -451,23 +456,42 @@ export default {
         EventBus.listen(EventKeys.net.turnChange, this.handleNetTurnChange),
         EventBus.listen(EventKeys.net.stateSync, this.handleNetStateSync),
         EventBus.listen(EventKeys.net.lobbyUpdated, this.syncOnlinePlayersFromLobby),
+        EventBus.listen(EventKeys.pawn.captured, this.spawnHitEffect),
       ];
     },
 
     handleKeydown(event) {
-      if (event.code !== 'Space' || this.store.currentScreen !== 'game-screen') {
-        return;
-      }
-
-      // Typing in the chat (or any input) must keep its spaces — the
-      // spacebar is only a roll shortcut outside editable elements.
+      // Typing in the chat (or any input) must keep its keys — the shortcuts
+      // below only apply outside editable elements.
       const target = event.target;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
         return;
       }
 
-      event.preventDefault();
-      this.rollDice();
+      // Typing T-E-S-T toggles demo mode: keys 1-6 then roll that exact value
+      // (the server honors the demand only when it runs with DEMO_DICE=1).
+      if (/^[a-z]$/i.test(event.key)) {
+        this.demoKeyBuffer = (this.demoKeyBuffer + event.key.toUpperCase()).slice(-4);
+        if (this.demoKeyBuffer === 'TEST') {
+          this.demoKeyBuffer = '';
+          this.store.demoMode = !this.store.demoMode;
+        }
+        return;
+      }
+
+      if (this.store.currentScreen !== 'game-screen') {
+        return;
+      }
+
+      if (event.code === 'Space') {
+        event.preventDefault();
+        this.rollDice();
+        return;
+      }
+
+      if (this.store.demoMode && event.key >= '1' && event.key <= '6') {
+        this.rollDice(Number(event.key));
+      }
     },
 
     initThreeScene() {
@@ -994,6 +1018,7 @@ export default {
         }
         this.renderer.render(this.scene, this.camera);
         this.renderHighlights2D();
+        this.updateHitEffects();
       };
 
       animate();
@@ -1358,6 +1383,49 @@ export default {
       }
 
       return fillMesh;
+    },
+
+    // Comic burst over a captured pawn: a DOM element (inline SVG from
+    // utils/hitEffects.js) in .hit-effect-layer. CSS runs the pop/fade
+    // choreography; the render loop only re-projects the world anchor so
+    // the burst stays glued to the board while the camera moves.
+    spawnHitEffect(data) {
+      const layer = this.$refs.hitEffectLayer;
+      const svg = getRandomHitEffectSvg();
+      if (!layer || !svg) return;
+
+      const el = document.createElement('div');
+      el.className = 'hit-effect';
+      el.style.setProperty('--fx-duration', `${HIT_EFFECT_DURATION_MS}ms`);
+      el.style.setProperty('--fx-tilt', `${(Math.random() * 16 - 8).toFixed(1)}deg`);
+      el.innerHTML = svg;
+      layer.appendChild(el);
+
+      this.activeHitEffects.push({
+        el,
+        // Anchor slightly above the pawn's head so the burst covers it.
+        worldPosition: markRaw(new THREE.Vector3(data.x, data.y + 1.05, data.z)),
+        expiresAt: performance.now() + HIT_EFFECT_DURATION_MS,
+      });
+      this.updateHitEffects();
+    },
+
+    updateHitEffects() {
+      if (!this.activeHitEffects.length) return;
+
+      const now = performance.now();
+      for (let i = this.activeHitEffects.length - 1; i >= 0; i -= 1) {
+        const effect = this.activeHitEffects[i];
+        if (now >= effect.expiresAt) {
+          effect.el.remove();
+          this.activeHitEffects.splice(i, 1);
+          continue;
+        }
+
+        const v = _hitEffectScratch.copy(effect.worldPosition).project(this.camera);
+        effect.el.style.left = `${((v.x * 0.5 + 0.5) * window.innerWidth).toFixed(1)}px`;
+        effect.el.style.top = `${((-v.y * 0.5 + 0.5) * window.innerHeight).toFixed(1)}px`;
+      }
     },
 
     renderHighlights2D() {
@@ -3348,7 +3416,11 @@ export default {
         return;
       }
 
-      void amount;
+      // Demo mode only: a 1-6 amount (from the number-key shortcut) is sent
+      // as a demand; the EventBus roll trigger passes no amount.
+      const demand = this.store.demoMode && Number.isInteger(amount) && amount >= 1 && amount <= 6
+        ? amount
+        : null;
 
       if (this.store.online.enabled) {
         const currentPlayer = this.store.players[this.store.currentPlayerId];
@@ -3360,7 +3432,7 @@ export default {
         this.store.gamePlayStatus.isRolling = false;
         this.hoverNeedsUpdate = true;
         this.onlineDice = { settled: false, serverValue: null, payload: null };
-        MatchController.requestRoll();
+        MatchController.requestRoll(demand);
         this.startDiceRoll();
         return;
       }

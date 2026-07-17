@@ -46,6 +46,9 @@ export interface LudoState {
   presences: { [userId: string]: nkruntime.Presence };
   pendingDisplayNames: { [userId: string]: string };
   labelOpen: number;
+  // DEMO_DICE=1 runtime env: ROLL_REQUEST may carry { demand: 1..6 } and the
+  // server rolls exactly that value (testing shortcut — never enable in prod).
+  demoDice: boolean;
 }
 
 interface StateWrapper {
@@ -201,7 +204,7 @@ function doMove(state: LudoState, dispatcher: nkruntime.MatchDispatcher, tick: n
   }
 }
 
-function handleRollRequest(state: LudoState, dispatcher: nkruntime.MatchDispatcher, tick: number, sender: nkruntime.Presence) {
+function handleRollRequest(state: LudoState, dispatcher: nkruntime.MatchDispatcher, tick: number, sender: nkruntime.Presence, payload: { demand?: number }) {
   const senderSeat = seatOfUser(state, sender.userId);
 
   if (
@@ -215,7 +218,8 @@ function handleRollRequest(state: LudoState, dispatcher: nkruntime.MatchDispatch
     return;
   }
 
-  const value = rollDie();
+  const demand = state.demoDice && typeof payload.demand === 'number' ? Math.floor(payload.demand) : 0;
+  const value = demand >= 1 && demand <= 6 ? demand : rollDie();
   state.dice = value;
   state.rollsThisTurn += 1;
 
@@ -351,6 +355,7 @@ const matchInit = function (
     presences: {},
     pendingDisplayNames: {},
     labelOpen: 1,
+    demoDice: !!ctx.env && ctx.env['DEMO_DICE'] === '1',
   };
 
   return { state, tickRate: TICK_RATE, label: makeLabel(state) };
@@ -534,7 +539,7 @@ const matchLoop = function (
         handleStart(state, dispatcher, tick, sender);
         break;
       case OpCode.ROLL_REQUEST:
-        handleRollRequest(state, dispatcher, tick, sender);
+        handleRollRequest(state, dispatcher, tick, sender, payload);
         break;
       case OpCode.MOVE_REQUEST:
         handleMoveRequest(state, dispatcher, tick, sender, payload);

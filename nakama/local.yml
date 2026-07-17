@@ -19,6 +19,9 @@ runtime:
     - "EMAIL_FROM=Burrec <noreply@example.com>"
     - "PUBLIC_URL=http://localhost:3000"
     - "EMAIL_DEV_ECHO=1"
+    # Demo mode: lets clients force dice values via ROLL_REQUEST { demand }
+    # (typing TEST in the client toggles it). Dev only — never enable in prod.
+    - "DEMO_DICE=1"
 # Sign in with Apple (web) — set to the Apple *Services ID* once the Apple
 # Developer account exists; Google needs no server config (ID tokens are
 # validated against Google's public certs).
