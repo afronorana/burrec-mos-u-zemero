@@ -31,7 +31,7 @@ Two panels:
 
 ## 3D board objects
 
-- [x] Once a user picks their base/color, the indicating circles should be removed/frozen (no longer animating) at that point
+- [x] Once a user picks their base/color, the indicating circles should be removed/frozen (no longer animating) at that point (final behavior: they disappear once you've picked)
 - [x] Dice is going inside of the ground. 
 - [x] When a pawn is clickable, it is moving up, thats not needed now that it has an indicator around it
 

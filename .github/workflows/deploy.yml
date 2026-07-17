@@ -67,9 +67,14 @@ jobs:
             echo "changed=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # nakama/ is its own pnpm package (not a workspace member) — the root
+      # install does not create nakama/node_modules, so rollup needs its own
+      # install here.
       - name: Build Nakama server bundle
         if: steps.server.outputs.changed == 'true'
-        run: pnpm nakama:build
+        run: |
+          pnpm --dir nakama install --frozen-lockfile
+          pnpm nakama:build
 
       - name: Set up deploy key
         run: |

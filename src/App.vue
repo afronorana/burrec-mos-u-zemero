@@ -992,23 +992,18 @@ export default {
               rings.forEach((ring, ringIdx) => {
                 if (claimable) {
                   // Selectable: same sharp pulse as the dice/pawn cues, just
-                  // in this base's color — frozen once the local player has
-                  // picked their own color (the cue is for choosers only).
-                  if (ringIdx > 0) {
+                  // in this base's color. The cue is for choosers only — once
+                  // the local player has picked their color it disappears
+                  // (the base stays clickable for seat switching).
+                  if (selfSeated || ringIdx > 0) {
                     ring.visible = false;
                     return;
                   }
                   const palette = HOME_BASE_PULSE_COLORS[baseIdx];
-                  if (selfSeated) {
-                    ring.scale.set(1.45, 1.45, 1);
-                    ring.material.color.copy(palette.base);
-                    ring.material.opacity = 0.5;
-                  } else {
-                    const scale = 1.45 * basePulse.scale;
-                    ring.scale.set(scale, scale, 1);
-                    ring.material.color.copy(palette.base).lerp(palette.bright, basePulse.wave);
-                    ring.material.opacity = 0.95;
-                  }
+                  const scale = 1.45 * basePulse.scale;
+                  ring.scale.set(scale, scale, 1);
+                  ring.material.color.copy(palette.base).lerp(palette.bright, basePulse.wave);
+                  ring.material.opacity = 0.95;
                   ring.visible = true;
                 } else {
                   const scale = ringIdx === 0 ? 0.95 : 0.7;
