@@ -10,23 +10,34 @@ Domain: **burrec.com** (registered at Namecheap, DNS on Cloudflare).
 - [x] Domain: `burrec.com`
 - [x] Droplet exists on DigitalOcean (Docker Marketplace image — Docker +
       compose plugin preinstalled)
-- [ ] Confirm SSH access: `ssh root@<droplet-ip>` — **need the droplet's
-      IP/hostname to proceed**
+- [x] SSH access confirmed: `146.190.25.250` (key-based, `ssh-copy-id` done
+      2026-07-17)
 
 ## 1. Git
 
 - [x] Feature branch merged into `master` and pushed to GitHub
 
-## 2. DNS (Cloudflare)
+## 2. DNS (Cloudflare) — **currently the only thing blocking go-live**
 
-- [ ] Add **A record**: `burrec.com` (apex, `@`) → droplet IP, **DNS only
-      (grey cloud)**
+- [ ] burrec.com's nameservers still point at Namecheap's default parking
+      service (confirmed 2026-07-17: `dig burrec.com +short` →
+      `162.255.119.95`, Namecheap's parking IP, not the droplet). If the
+      domain hasn't been added to a Cloudflare zone yet, do that first and
+      update the nameservers at Namecheap to the ones Cloudflare assigns.
+- [ ] Add **A record**: `burrec.com` (apex, `@`) → `146.190.25.250`, **DNS
+      only (grey cloud)**
       *(Grey cloud = Caddy gets Let's Encrypt certs with zero config. If you
       later want the orange cloud: SSL/TLS mode "Full (strict)" and keep
       port 80 open.)*
 - [ ] Optional: `www` → same droplet IP if you want `www.burrec.com` to also
       resolve (not required — Caddy in this repo only serves the apex)
-- [ ] Verify propagation: `dig burrec.com +short` shows the droplet IP
+- [ ] Verify propagation: `dig burrec.com +short` shows `146.190.25.250`
+- [ ] Once it resolves, restart Caddy to force an immediate retry against
+      Let's Encrypt **production** (it's currently backed off to the
+      staging CA after failing against the parking page — harmless, but
+      won't self-heal instantly): `ssh root@146.190.25.250 'docker compose
+      -f /opt/burrec-nakama/docker-compose.prod.yml --env-file
+      /opt/burrec-nakama/.env.prod restart caddy'`
 
 ## 3. Email — Resend (registration + password-reset emails)
 
@@ -49,48 +60,36 @@ Domain: **burrec.com** (registered at Namecheap, DNS on Cloudflare).
 - [ ] No redirect URIs needed (popup flow)
 - [ ] Copy the client ID for step 6's `.env.production`
 
-## 5. Droplet: server stack
+## 5. Droplet: server stack — **done 2026-07-17**
 
-- [ ] `mkdir -p /opt/burrec-nakama` on the droplet
-- [ ] Copy from `nakama/`: `docker-compose.prod.yml`, `Caddyfile`, `local.yml`
-- [ ] Build + copy the server bundle: `pnpm nakama:build` → `scp -r
-      nakama/build root@<droplet-ip>:/opt/burrec-nakama/`
-- [x] Create `/opt/burrec-nakama/.env.prod` (done 2026-07-17 — all secrets
-      generated with `openssl rand -hex 24`):
-      ```
-      NAKAMA_DOMAIN=burrec.com
-      NAKAMA_SERVER_KEY=<generated>
-      SESSION_REFRESH_KEY=<generated>
-      RUNTIME_HTTP_KEY=<generated>
-      CONSOLE_USERNAME=<generated>
-      CONSOLE_PASSWORD=<generated>
-      CONSOLE_SIGNING_KEY=<generated>
-      POSTGRES_PASSWORD=<generated>
-      RESEND_API_KEY=            # empty until step 3 is done
-      EMAIL_FROM=Burrec <noreply@burrec.com>
-      APPLE_BUNDLE_ID=
-      ```
-- [ ] Start: `cd /opt/burrec-nakama && docker compose -f
-      docker-compose.prod.yml --env-file .env.prod up -d`
-- [ ] Check module loaded: `docker compose -f docker-compose.prod.yml logs
-      nakama | grep "ludo module"`
+- [x] `/opt/burrec-nakama` provisioned, `docker-compose.prod.yml` +
+      `Caddyfile` + `local.yml` copied
+- [x] Server bundle built + copied (`pnpm nakama:build` → scp)
+- [x] `.env.prod` created with generated secrets (`openssl rand -hex 24`
+      each): `NAKAMA_SERVER_KEY`, `SESSION_REFRESH_KEY`, `RUNTIME_HTTP_KEY`,
+      `CONSOLE_USERNAME`, `CONSOLE_PASSWORD`, `CONSOLE_SIGNING_KEY`,
+      `POSTGRES_PASSWORD` — all server-only, never left the droplet/this
+      machine, not in git (`.env.prod` is gitignored). `RESEND_API_KEY`
+      empty until step 3.
+- [x] Stack started (`docker compose ... up -d`), all 3 containers healthy
+- [x] `"burrec ludo module loaded"` confirmed in nakama logs, zero
+      "insecure default parameter" warnings
+- [x] ufw opened for 80/443; unused 2375/2376 (docker API) rules removed
 
-## 6. Client build + site deploy
+## 6. Client build + site deploy — **done 2026-07-17, except Google**
 
-- [ ] Edit `.env.production` at the repo root:
-      ```
-      VITE_NAKAMA_HOST=burrec.com
-      VITE_NAKAMA_PORT=443
-      VITE_NAKAMA_SSL=true
-      VITE_NAKAMA_KEY=<same NAKAMA_SERVER_KEY as .env.prod>
-      VITE_GOOGLE_CLIENT_ID=<from step 4>
-      VITE_APPLE_CLIENT_ID=
-      ```
-- [ ] `pnpm build` (regenerates `docs/` — keep `docs/ROADMAP.md`)
-- [ ] Copy site to droplet: `rsync -av --delete docs/
-      root@<droplet-ip>:/opt/burrec-nakama/site/`
-      *(no container restart needed — Caddy serves the files directly)*
-- [ ] Commit the rebuilt `docs/` if you also keep the GitHub Pages mirror
+- [x] `.env.production` updated: `VITE_NAKAMA_HOST=burrec.com`,
+      `VITE_NAKAMA_KEY=<the real NAKAMA_SERVER_KEY>` (committed to git —
+      intentional, Vite bakes `VITE_*` into the public JS bundle anyway)
+- [ ] `VITE_GOOGLE_CLIENT_ID` still empty — fill in once step 4 is done,
+      then `pnpm build` + rsync again
+- [x] `pnpm build` run, `docs/` rsynced to droplet `site/`
+- [x] Rebuilt `docs/` committed (GitHub Pages mirror stays in sync)
+- [ ] **`docs/ROADMAP.md` was deleted by this build** (Vite cleans `docs/`
+      before writing; the file was never tracked in git, so it isn't
+      recoverable from history) — restore from a backup if one exists, or
+      recreate it, and this time `git add` it so a future rebuild can't
+      lose it again
 
 ## 7. Smoke test (production)
 
