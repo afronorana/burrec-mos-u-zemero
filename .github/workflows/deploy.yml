@@ -18,14 +18,18 @@ jobs:
           fetch-depth: 0
 
       # package.json depends on "afrons-game-ui" via "link:../afrons-game-ui"
-      # (a private sibling repo, not an npm package) — check it out one level
-      # up from this repo so the relative link resolves the same way it does
-      # in local dev.
+      # (a private sibling repo, not an npm package). actions/checkout
+      # refuses a path outside its own workspace, so check it out inside the
+      # workspace first, then move it up to a true sibling directory so the
+      # relative link resolves the same way it does in local dev.
       - uses: actions/checkout@v4
         with:
           repository: afronorana/afrons-game-ui
           ssh-key: ${{ secrets.AFRONS_GAME_UI_DEPLOY_KEY }}
-          path: ../afrons-game-ui
+          path: afrons-game-ui-tmp
+
+      - name: Move afrons-game-ui to a sibling directory
+        run: mv afrons-game-ui-tmp ../afrons-game-ui
 
       - uses: pnpm/action-setup@v4
         with:
