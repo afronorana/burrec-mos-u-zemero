@@ -170,6 +170,12 @@ const ApplicationStore = reactive({
     mySeat: -1,
     hostUserId: null,
     seats: [], // (seat|null)[4] as broadcast by the server
+    // userId -> displayName for everyone in the match, seated or not — lets
+    // chat name people who haven't picked a color yet.
+    displayNames: {},
+    // The room creator's environment ('day'|'night'|'dusk'|'dawn'); overrides
+    // settings.environment for everyone while in the match.
+    environment: null,
     seatToPlayerIndex: {}, // seat number -> index into store.players (seats can be non-contiguous)
     // Resume-after-reload plumbing (see utils/matchSession.js):
     resuming: false, // rejoining a match from the URL/record — show the overlay

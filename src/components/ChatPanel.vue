@@ -74,6 +74,17 @@ export default {
       }
     },
     'messages.length'() {
+      this.scrollToBottom();
+    },
+  },
+  mounted() {
+    // The panel mounts fresh every time the drawer opens — start at the
+    // latest message, not the top of the history.
+    this.scrollToBottom();
+  },
+  methods: {
+    t,
+    scrollToBottom() {
       this.$nextTick(() => {
         const scroller = this.$refs.scrollable;
         if (scroller && scroller.viewportEl) {
@@ -81,9 +92,6 @@ export default {
         }
       });
     },
-  },
-  methods: {
-    t,
     submit() {
       const text = this.draft.trim().slice(0, this.maxLength);
       if (!text) {
@@ -102,7 +110,10 @@ export default {
       if (seat) {
         return seat.displayName || seat.username || message.username;
       }
-      return message.username;
+      // No seat yet (color not picked) — the server still knows the display
+      // name of everyone in the match and broadcasts it with the lobby state.
+      const known = this.store?.online?.displayNames?.[message.senderId];
+      return known || message.username;
     },
     getSenderColor(message) {
       const seats = this.store?.online?.seats || [];
@@ -129,7 +140,7 @@ export default {
 .chat-panel {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
   min-height: 0;
 }
 
@@ -189,8 +200,11 @@ export default {
   min-width: 0;
 }
 
+/* The library input reserves outer margins for label/error space — the
+   chat drawer has neither, so drop both. */
 .chat-input :deep(.input-wrapper) {
   margin-top: 0;
+  margin-bottom: 0;
 }
 
 .chat-send-btn {

@@ -22,6 +22,9 @@ runtime:
     # Demo mode: lets clients force dice values via ROLL_REQUEST { demand }
     # (typing TEST in the client toggles it). Dev only — never enable in prod.
     - "DEMO_DICE=1"
+    # Admin dashboard (#admin) key; unset disables the admin_stats RPC.
+    # Use a real secret in prod (nakama/DEPLOY.md).
+    - "ADMIN_KEY=dev-admin"
 # Sign in with Apple (web) — set to the Apple *Services ID* once the Apple
 # Developer account exists; Google needs no server config (ID tokens are
 # validated against Google's public certs).

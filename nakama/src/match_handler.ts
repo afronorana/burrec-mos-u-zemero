@@ -9,6 +9,7 @@ import {
   legalPawns,
   rollDie,
 } from './ludo_logic';
+import { recordGameFinished, recordGameStarted } from './stats';
 
 const TICK_RATE = 2; // ticks per second
 // Keep in sync with the client's turn-timer bar (store.turnTimer.duration).
@@ -31,7 +32,12 @@ export interface LudoState {
   phase: 'lobby' | 'playing' | 'finished';
   mode: 'private' | 'public';
   joinCode: string | null;
+  // Chosen by the room creator; every client renders the match in it.
+  environment: string;
   seats: (Seat | null)[];
+  // userId -> displayName for everyone who ever joined (seated or not) —
+  // broadcast so chat can name players who haven't picked a color yet.
+  displayNames: { [userId: string]: string };
   hostUserId: string | null;
   turnSeat: number;
   round: number;
@@ -97,6 +103,8 @@ function lobbyStatePayload(state: LudoState): object {
     seats: state.seats,
     hostUserId: state.hostUserId,
     joinCode: state.joinCode,
+    displayNames: state.displayNames,
+    environment: state.environment,
   };
 }
 
@@ -106,6 +114,8 @@ function snapshotPayload(state: LudoState): object {
     seats: state.seats,
     hostUserId: state.hostUserId,
     joinCode: state.joinCode,
+    displayNames: state.displayNames,
+    environment: state.environment,
     turnSeat: state.turnSeat,
     round: state.round,
     dice: state.dice,
@@ -114,6 +124,58 @@ function snapshotPayload(state: LudoState): object {
     pawns: state.pawns,
     winnerSeat: state.winnerSeat,
   };
+}
+
+function hasFreeSeat(state: LudoState): boolean {
+  return seatedCount(state) < MAX_SEATS;
+}
+
+// A seat whose player left mid-game: a newcomer may take it over, pawns and all.
+function hasAbandonedSeat(state: LudoState): boolean {
+  for (let i = 0; i < MAX_SEATS; i += 1) {
+    const seat = state.seats[i];
+    if (seat && !seat.connected) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Drives label.open: lobbies with room, and running games with a free slot or
+// an abandoned seat, are joinable.
+function isJoinable(state: LudoState): boolean {
+  if (state.phase === 'lobby') {
+    return hasFreeSeat(state);
+  }
+  if (state.phase === 'playing') {
+    return hasFreeSeat(state) || hasAbandonedSeat(state);
+  }
+  return false;
+}
+
+function refreshOpenLabel(state: LudoState, dispatcher: nkruntime.MatchDispatcher) {
+  const open = isJoinable(state) ? 1 : 0;
+  if (open !== state.labelOpen) {
+    state.labelOpen = open;
+    dispatcher.matchLabelUpdate(makeLabel(state));
+  }
+}
+
+function resolveDisplayName(nk: nkruntime.Nakama, state: LudoState, presence: nkruntime.Presence): string {
+  const pending = state.pendingDisplayNames[presence.userId];
+  if (pending) {
+    return pending;
+  }
+  const known = state.displayNames[presence.userId];
+  if (known) {
+    return known;
+  }
+  try {
+    const account = nk.accountGetId(presence.userId);
+    return (account.user.displayName || account.user.username || 'Player').slice(0, 24);
+  } catch (error) {
+    return presence.username || 'Player';
+  }
 }
 
 function broadcast(dispatcher: nkruntime.MatchDispatcher, opCode: number, payload: object, to?: nkruntime.Presence[]) {
@@ -173,7 +235,7 @@ function repeatTurn(state: LudoState, dispatcher: nkruntime.MatchDispatcher, tic
   });
 }
 
-function doMove(state: LudoState, dispatcher: nkruntime.MatchDispatcher, tick: number, pawnIndex: number) {
+function doMove(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkruntime.MatchDispatcher, tick: number, pawnIndex: number) {
   const seat = state.turnSeat;
   const steps = state.dice as number;
   const result = applyMove(state.pawns, seat, pawnIndex, steps);
@@ -194,6 +256,21 @@ function doMove(state: LudoState, dispatcher: nkruntime.MatchDispatcher, tick: n
     state.turnDeadlineTick = 0;
     resetTurnState(state);
     broadcast(dispatcher, OpCode.GAME_OVER, { winnerSeat: seat });
+    // A finished match takes no more joiners — close the label.
+    refreshOpenLabel(state, dispatcher);
+
+    const playerNames: string[] = [];
+    let winnerName = 'Player';
+    for (let i = 0; i < MAX_SEATS; i += 1) {
+      const s = state.seats[i];
+      if (s) {
+        playerNames.push(s.displayName || s.username || 'Player');
+        if (i === seat) {
+          winnerName = s.displayName || s.username || 'Player';
+        }
+      }
+    }
+    recordGameFinished(nk, state.mode, playerNames, winnerName);
     return;
   }
 
@@ -267,7 +344,7 @@ function handleRollRequest(state: LudoState, dispatcher: nkruntime.MatchDispatch
   advanceTurn(state, dispatcher, tick, 'noMoves');
 }
 
-function handleMoveRequest(state: LudoState, dispatcher: nkruntime.MatchDispatcher, tick: number, sender: nkruntime.Presence, payload: { pawnIndex?: number }) {
+function handleMoveRequest(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkruntime.MatchDispatcher, tick: number, sender: nkruntime.Presence, payload: { pawnIndex?: number }) {
   const senderSeat = seatOfUser(state, sender.userId);
   const pawnIndex = typeof payload.pawnIndex === 'number' ? payload.pawnIndex : -1;
 
@@ -282,10 +359,10 @@ function handleMoveRequest(state: LudoState, dispatcher: nkruntime.MatchDispatch
     return;
   }
 
-  doMove(state, dispatcher, tick, pawnIndex);
+  doMove(nk, state, dispatcher, tick, pawnIndex);
 }
 
-function handleStart(state: LudoState, dispatcher: nkruntime.MatchDispatcher, tick: number, sender: nkruntime.Presence) {
+function handleStart(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkruntime.MatchDispatcher, tick: number, sender: nkruntime.Presence) {
   if (state.phase !== 'lobby' || sender.userId !== state.hostUserId) {
     reject(dispatcher, sender, 'not_host', OpCode.START);
     return;
@@ -317,7 +394,9 @@ function handleStart(state: LudoState, dispatcher: nkruntime.MatchDispatcher, ti
     }
   }
   state.turnDeadlineTick = turnDeadline(state, tick);
-  state.labelOpen = 0;
+  // A started game stays open (label-wise) while it still has free seats —
+  // drop-in joiners are welcome.
+  state.labelOpen = isJoinable(state) ? 1 : 0;
 
   broadcast(dispatcher, OpCode.GAME_START, {
     seats: state.seats,
@@ -325,6 +404,7 @@ function handleStart(state: LudoState, dispatcher: nkruntime.MatchDispatcher, ti
     round: state.round,
   });
   dispatcher.matchLabelUpdate(makeLabel(state));
+  recordGameStarted(nk);
 }
 
 const matchInit = function (
@@ -335,12 +415,16 @@ const matchInit = function (
 ): { state: LudoState; tickRate: number; label: string } {
   const mode: 'private' | 'public' = params && params.mode === 'public' ? 'public' : 'private';
   const joinCode = params && params.code ? String(params.code) : null;
+  const requestedEnv = params && params.environment ? String(params.environment) : 'day';
+  const environment = ['day', 'night', 'dusk', 'dawn'].indexOf(requestedEnv) !== -1 ? requestedEnv : 'day';
 
   const state: LudoState = {
     phase: 'lobby',
     mode,
     joinCode,
+    environment,
     seats: [null, null, null, null],
+    displayNames: {},
     hostUserId: null,
     turnSeat: -1,
     round: 0,
@@ -380,11 +464,16 @@ const matchJoinAttempt = function (
     return { state, accept: true }; // reconnect
   }
 
-  if (state.phase !== 'lobby') {
-    return { state, accept: false, rejectMessage: 'match_started' };
+  if (state.phase === 'finished') {
+    return { state, accept: false, rejectMessage: 'match_over' };
   }
 
-  if (seatedCount(state) >= MAX_SEATS) {
+  // Lobby: any free seat. Playing: drop-in is allowed onto a free seat or an
+  // abandoned (disconnected) one — the newcomer picks it in the 3D scene.
+  const joinable = state.phase === 'lobby'
+    ? hasFreeSeat(state)
+    : hasFreeSeat(state) || hasAbandonedSeat(state);
+  if (!joinable) {
     return { state, accept: false, rejectMessage: 'match_full' };
   }
 
@@ -408,6 +497,11 @@ const matchJoin = function (
     const presence = presences[p];
     state.presences[presence.userId] = presence;
 
+    // Track the name of everyone in the match (seated or not) so chat and
+    // seat claims can use it without another account lookup.
+    state.displayNames[presence.userId] = resolveDisplayName(nk, state, presence);
+    delete state.pendingDisplayNames[presence.userId];
+
     const existing = seatOfUser(state, presence.userId);
     if (existing) {
       existing.connected = true;
@@ -417,30 +511,18 @@ const matchJoin = function (
       continue;
     }
 
-    let displayName = state.pendingDisplayNames[presence.userId] || '';
-    delete state.pendingDisplayNames[presence.userId];
-    if (!displayName) {
-      try {
-        const account = nk.accountGetId(presence.userId);
-        displayName = (account.user.displayName || account.user.username || 'Player').slice(0, 24);
-      } catch (error) {
-        displayName = presence.username || 'Player';
-      }
+    // New players join as unassigned; they pick their seat/color by clicking
+    // a base in 3D. Mid-game drop-ins need the snapshot to see the board.
+    if (state.phase !== 'lobby') {
+      broadcast(dispatcher, OpCode.STATE_SYNC, snapshotPayload(state), [presence]);
     }
-
-    // Let players join as unassigned; they pick their seat/color by clicking a base in 3D.
 
     if (!state.hostUserId) {
       state.hostUserId = presence.userId;
     }
   }
 
-  const open = state.phase === 'lobby' && seatedCount(state) < MAX_SEATS ? 1 : 0;
-  if (open !== state.labelOpen) {
-    state.labelOpen = open;
-    dispatcher.matchLabelUpdate(makeLabel(state));
-  }
-
+  refreshOpenLabel(state, dispatcher);
   broadcast(dispatcher, OpCode.LOBBY_STATE, lobbyStatePayload(state));
   return { state };
 };
@@ -487,12 +569,7 @@ const matchLeave = function (
     }
   }
 
-  const open = state.phase === 'lobby' && seatedCount(state) < MAX_SEATS ? 1 : 0;
-  if (open !== state.labelOpen) {
-    state.labelOpen = open;
-    dispatcher.matchLabelUpdate(makeLabel(state));
-  }
-
+  refreshOpenLabel(state, dispatcher);
   broadcast(dispatcher, OpCode.LOBBY_STATE, lobbyStatePayload(state));
   return { state };
 };
@@ -536,13 +613,13 @@ const matchLoop = function (
         break;
       }
       case OpCode.START:
-        handleStart(state, dispatcher, tick, sender);
+        handleStart(nk, state, dispatcher, tick, sender);
         break;
       case OpCode.ROLL_REQUEST:
         handleRollRequest(state, dispatcher, tick, sender, payload);
         break;
       case OpCode.MOVE_REQUEST:
-        handleMoveRequest(state, dispatcher, tick, sender, payload);
+        handleMoveRequest(nk, state, dispatcher, tick, sender, payload);
         break;
       case OpCode.SYNC_REQUEST:
         broadcast(dispatcher, OpCode.STATE_SYNC, snapshotPayload(state), [sender]);
@@ -550,7 +627,13 @@ const matchLoop = function (
       case OpCode.CLAIM_SEAT: {
         const senderSeat = seatOfUser(state, sender.userId);
         const targetSeatIndex = typeof payload.seat === 'number' ? payload.seat : -1;
-        if (state.phase === 'lobby' && targetSeatIndex >= 0 && targetSeatIndex < MAX_SEATS) {
+        if (targetSeatIndex < 0 || targetSeatIndex >= MAX_SEATS) {
+          break;
+        }
+
+        const claimName = state.displayNames[sender.userId] || sender.username || 'Player';
+
+        if (state.phase === 'lobby') {
           if (senderSeat) {
             if (senderSeat.seat === targetSeatIndex) {
               // Clicked own seat: toggle back to UNASSIGNED (unclaim)
@@ -566,28 +649,56 @@ const matchLoop = function (
               state.seats[targetSeatIndex] = senderSeat;
               broadcast(dispatcher, OpCode.LOBBY_STATE, lobbyStatePayload(state));
             }
-          } else {
+          } else if (state.seats[targetSeatIndex] === null) {
             // Unassigned player claiming an empty seat
-            if (state.seats[targetSeatIndex] === null) {
-              let displayName = '';
-              try {
-                const account = nk.accountGetId(sender.userId);
-                displayName = (account.user.displayName || account.user.username || 'Player').slice(0, 24);
-              } catch (error) {
-                displayName = sender.username || 'Player';
-              }
-
-              state.seats[targetSeatIndex] = {
-                userId: sender.userId,
-                username: sender.username,
-                displayName,
-                seat: targetSeatIndex,
-                ready: true, // Claiming color makes player ready
-                connected: true,
-              };
-              broadcast(dispatcher, OpCode.LOBBY_STATE, lobbyStatePayload(state));
-            }
+            state.seats[targetSeatIndex] = {
+              userId: sender.userId,
+              username: sender.username,
+              displayName: claimName,
+              seat: targetSeatIndex,
+              ready: true, // Claiming color makes player ready
+              connected: true,
+            };
+            broadcast(dispatcher, OpCode.LOBBY_STATE, lobbyStatePayload(state));
           }
+          break;
+        }
+
+        // Mid-game claims: only for players without a seat. An empty seat is
+        // a fresh drop-in (pawns start from home — state.pawns already holds
+        // them there); a disconnected seat is a takeover, pawns as they stand.
+        if (state.phase === 'playing' && !senderSeat) {
+          const target = state.seats[targetSeatIndex];
+          if (target === null) {
+            state.seats[targetSeatIndex] = {
+              userId: sender.userId,
+              username: sender.username,
+              displayName: claimName,
+              seat: targetSeatIndex,
+              ready: true,
+              connected: true,
+            };
+          } else if (!target.connected) {
+            target.userId = sender.userId;
+            target.username = sender.username;
+            target.displayName = claimName;
+            target.ready = true;
+            target.connected = true;
+          } else {
+            break;
+          }
+
+          // If the claimed seat is mid-turn on the short disconnected
+          // deadline, give its new owner the full turn window.
+          if (state.turnSeat === targetSeatIndex) {
+            state.turnDeadlineTick = turnDeadline(state, tick);
+          }
+
+          // Everyone rebuilds their roster from a fresh snapshot (the same
+          // path used for reconnect recovery).
+          broadcast(dispatcher, OpCode.STATE_SYNC, snapshotPayload(state));
+          broadcast(dispatcher, OpCode.LOBBY_STATE, lobbyStatePayload(state));
+          refreshOpenLabel(state, dispatcher);
         }
         break;
       }
@@ -602,7 +713,7 @@ const matchLoop = function (
     tick >= state.turnDeadlineTick
   ) {
     if (state.awaitingMove && state.legalPawns.length > 0) {
-      doMove(state, dispatcher, tick, state.legalPawns[0]);
+      doMove(nk, state, dispatcher, tick, state.legalPawns[0]);
     } else {
       advanceTurn(state, dispatcher, tick, 'timeout');
     }

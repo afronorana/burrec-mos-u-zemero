@@ -1,4 +1,5 @@
 import { MATCH_MODULE } from '../../shared/protocol.js';
+import { readStats } from './stats';
 
 // Letters only (same alphabet Shtet Qytet uses for room codes).
 const CODE_ALPHABET = 'ABDEFGHIJKLMNOPQRSTUVWZ';
@@ -34,6 +35,17 @@ function generateCode(): string {
   return code;
 }
 
+// The creator's chosen environment rides into matchInit params; the match
+// handler validates the value, so this just forwards the raw string.
+function environmentFromPayload(payload: string): string {
+  try {
+    const request = payload ? JSON.parse(payload) : {};
+    return request && request.environment ? String(request.environment) : 'day';
+  } catch (error) {
+    return 'day';
+  }
+}
+
 // The match label query IS the code -> matchId mapping: no storage writes,
 // codes die with the match.
 export const rpcCreatePrivateMatch: nkruntime.RpcFunction = function (ctx, logger, nk, payload) {
@@ -52,23 +64,24 @@ export const rpcCreatePrivateMatch: nkruntime.RpcFunction = function (ctx, logge
     throw new Error('code_generation_failed');
   }
 
-  const matchId = nk.matchCreate(MATCH_MODULE, { mode: 'private', code });
+  const matchId = nk.matchCreate(MATCH_MODULE, { mode: 'private', code, environment: environmentFromPayload(payload) });
   return JSON.stringify({ matchId, code });
 };
 
 // A public room is a codeless lobby anyone can find via Quick Match. Like
 // private rooms it lives entirely in the match label — no storage writes.
 export const rpcCreatePublicMatch: nkruntime.RpcFunction = function (ctx, logger, nk, payload) {
-  const matchId = nk.matchCreate(MATCH_MODULE, { mode: 'public' });
+  const matchId = nk.matchCreate(MATCH_MODULE, { mode: 'public', environment: environmentFromPayload(payload) });
   return JSON.stringify({ matchId });
 };
 
-// Quick Match = find-or-create a public lobby with a free slot. The match
-// label carries mode/open, so a single matchList query is the whole search;
-// no matchmaker, no waiting for N players to queue at once.
+// Quick Match = find-or-create a joinable public room. The match label
+// carries mode/open, so a single matchList query is the whole search; no
+// matchmaker, no waiting for N players to queue at once.
 export const rpcQuickMatch: nkruntime.RpcFunction = function (ctx, logger, nk, payload) {
-  // open:1 already means "lobby phase AND a seat is free"; the size ceiling
-  // (< MAX_SEATS presences) guards against piling everyone into one room.
+  // open:1 means "a seat is claimable" — an open lobby, or a running game
+  // with a free/abandoned slot (drop-in). The size ceiling (< MAX_SEATS
+  // presences) guards against piling everyone into one room.
   const matches = nk.matchList(20, true, null, 1, MAX_SEATS - 1, '+label.mode:public +label.open:1');
 
   if (matches && matches.length > 0) {
@@ -82,7 +95,7 @@ export const rpcQuickMatch: nkruntime.RpcFunction = function (ctx, logger, nk, p
     return JSON.stringify({ matchId: best.matchId });
   }
 
-  const matchId = nk.matchCreate(MATCH_MODULE, { mode: 'public' });
+  const matchId = nk.matchCreate(MATCH_MODULE, { mode: 'public', environment: environmentFromPayload(payload) });
   return JSON.stringify({ matchId, created: true });
 };
 
@@ -109,4 +122,33 @@ export const rpcJoinByCode: nkruntime.RpcFunction = function (ctx, logger, nk, p
 
 export const rpcHealthcheck: nkruntime.RpcFunction = function (ctx, logger, nk, payload) {
   return JSON.stringify({ success: true });
+};
+
+// Admin dashboard data. Gated by the ADMIN_KEY runtime env var: unset means
+// the endpoint is off entirely; otherwise the caller must present the key.
+export const rpcAdminStats: nkruntime.RpcFunction = function (ctx, logger, nk, payload) {
+  const adminKey = ctx.env ? ctx.env['ADMIN_KEY'] : '';
+  if (!adminKey) {
+    return JSON.stringify({ error: 'admin_disabled' });
+  }
+
+  let request: { key?: string } = {};
+  try {
+    request = payload ? JSON.parse(payload) : {};
+  } catch (error) {
+    return JSON.stringify({ error: 'forbidden' });
+  }
+  if (String(request.key || '') !== adminKey) {
+    return JSON.stringify({ error: 'forbidden' });
+  }
+
+  const stats = readStats(nk);
+  const playerNames = Object.keys(stats.players);
+  return JSON.stringify({
+    totalStarted: stats.totalStarted,
+    totalFinished: stats.totalFinished,
+    uniquePlayers: playerNames.length,
+    players: stats.players,
+    recentGames: stats.recentGames,
+  });
 };

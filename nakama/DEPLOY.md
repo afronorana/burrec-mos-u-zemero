@@ -44,6 +44,7 @@ Same origin for site and API means no CORS, one OAuth origin, one TLS cert.
    RESEND_API_KEY=<re_... from resend.com; empty = emails only logged>
    EMAIL_FROM=Burrec <noreply@example.com>
    APPLE_BUNDLE_ID=
+   ADMIN_KEY=<long random string; empty disables the burrec.com/#admin dashboard>
    ```
    (generate each "long random string" with `openssl rand -hex 24`)
 

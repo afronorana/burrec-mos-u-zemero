@@ -121,6 +121,9 @@ class TestPlayer {
       case OpCode.DICE_RESULT: {
         this.diceValues.push(`${payload.seat}:${payload.value}:${this.turnSeat}`);
         this.rollOutstanding = false;
+        if (payload.seat === this.seat) {
+          this.lastDice = payload.value;
+        }
         if (payload.seat === this.seat && !payload.autoEndTurn) {
           if (payload.legalPawns.length > 0) {
             this.pendingLegal = payload.legalPawns;
@@ -186,6 +189,55 @@ class TestPlayer {
     this.rollOutstanding = false;
   }
 
+  toGlobal(seat, pos) {
+    return ((seat * 10) + pos - 1) % 40;
+  }
+
+  // Distance (1..6) from one of our main-track pawns to an opponent pawn on
+  // the ring, or 0 when nothing is in dice range. Used to demand that exact
+  // roll (DEMO_DICE=1 on the dev stack) so every run exercises a capture.
+  captureDemand() {
+    if (!this.pawns) {
+      return 0;
+    }
+    for (const myPos of this.pawns[this.seat]) {
+      if (myPos < 1 || myPos > 40) continue;
+      const myGlobal = this.toGlobal(this.seat, myPos);
+      for (let s = 0; s < 4; s += 1) {
+        if (s === this.seat) continue;
+        for (const oppPos of this.pawns[s]) {
+          if (oppPos < 1 || oppPos > 40) continue;
+          const dist = (this.toGlobal(s, oppPos) - myGlobal + 40) % 40;
+          if (dist >= 1 && dist <= 6 && myPos + dist <= 40) {
+            return dist;
+          }
+        }
+      }
+    }
+    return 0;
+  }
+
+  // Prefer a pawn whose landing square holds an opponent; else the first legal.
+  pickPawn() {
+    const legal = this.pendingLegal;
+    if (!this.pawns || this.lastDice == null) {
+      return legal[0];
+    }
+    for (const idx of legal) {
+      const pos = this.pawns[this.seat][idx];
+      const landing = pos === 0 ? 1 : pos + this.lastDice;
+      if (landing > 40) continue;
+      const landingGlobal = this.toGlobal(this.seat, landing);
+      for (let s = 0; s < 4; s += 1) {
+        if (s === this.seat) continue;
+        if (this.pawns[s].some((p) => p >= 1 && p <= 40 && this.toGlobal(s, p) === landingGlobal)) {
+          return idx;
+        }
+      }
+    }
+    return legal[0];
+  }
+
   // Idempotent: inspects current intent state and sends at most one message.
   maybeAct() {
     if (this.turnSeat !== this.seat || this.gameOver) {
@@ -194,14 +246,15 @@ class TestPlayer {
     if (this.pendingLegal && this.pendingLegal.length > 0) {
       if (!this.moveSent) {
         this.moveSent = true;
-        this.send(OpCode.MOVE_REQUEST, { pawnIndex: this.pendingLegal[0] });
+        this.send(OpCode.MOVE_REQUEST, { pawnIndex: this.pickPawn() });
       }
       return;
     }
     if (!this.rollOutstanding) {
       this.rollOutstanding = true;
       this.rollSentAt = Date.now();
-      this.send(OpCode.ROLL_REQUEST);
+      const demand = this.captureDemand();
+      this.send(OpCode.ROLL_REQUEST, demand ? { demand } : {});
     }
   }
 
@@ -244,8 +297,6 @@ async function main() {
   await bob.joinMatch(found.matchId);
 
   await delay(1500);
-  assert(alice.seat === 0, `alice got seat 0 (got ${alice.seat})`);
-  assert(bob.seat === 1, `bob got seat 1 (got ${bob.seat})`);
   assert(alice.lobbyState?.hostUserId === alice.session.user_id, 'alice is host');
   log(`lobby formed, code ${created.code}`);
 
@@ -257,16 +308,18 @@ async function main() {
   assert(alice.chatMessages.includes('hi alice'), 'alice received bob chat');
   log('chat verified');
 
-  // --- premature start (not all ready) must be rejected ---
+  // --- premature start (nobody seated yet) must be rejected ---
   deliberateRejectionDone = false;
   alice.send(OpCode.START);
   await delay(1200);
-  assert(deliberateRejectionDone, 'START before ready was rejected');
+  assert(deliberateRejectionDone, 'START before seats claimed was rejected');
 
-  // --- ready + start ---
-  alice.send(OpCode.READY, { ready: true });
-  bob.send(OpCode.READY, { ready: true });
+  // --- claim seats (players join unassigned; claiming a base auto-readies) ---
+  alice.send(OpCode.CLAIM_SEAT, { seat: 0 });
+  bob.send(OpCode.CLAIM_SEAT, { seat: 1 });
   await delay(1200);
+  assert(alice.seat === 0, `alice claimed seat 0 (got ${alice.seat})`);
+  assert(bob.seat === 1, `bob claimed seat 1 (got ${bob.seat})`);
   const gameOverPromise = new Promise((resolve) => {
     alice.onGameOver = resolve;
   });
@@ -307,14 +360,19 @@ async function main() {
     log(`bob reconnected, STATE_SYNC ok (pawns before leave: ${JSON.stringify(pawnsBefore)})`);
   })();
 
-  // --- wrong-turn roll must be rejected (once, deliberately) ---
+  // --- wrong-turn roll must be rejected (deliberately; retried because the
+  // turn can legitimately flip while the probe is in flight) ---
   const wrongTurnCheck = (async () => {
     await delay(4000);
-    deliberateRejectionDone = false;
-    const wrongPlayer = alice.turnSeat === alice.seat ? bob : alice;
-    wrongPlayer.send(OpCode.ROLL_REQUEST);
-    await delay(1500);
-    assert(deliberateRejectionDone, 'wrong-turn ROLL_REQUEST was rejected');
+    let rejected = false;
+    for (let attempt = 0; attempt < 3 && !rejected; attempt += 1) {
+      deliberateRejectionDone = false;
+      const wrongPlayer = alice.turnSeat === alice.seat ? bob : alice;
+      wrongPlayer.send(OpCode.ROLL_REQUEST);
+      await delay(1500);
+      rejected = deliberateRejectionDone;
+    }
+    assert(rejected, 'wrong-turn ROLL_REQUEST was rejected');
   })();
 
   const winner = await Promise.race([

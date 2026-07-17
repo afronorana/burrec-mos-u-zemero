@@ -32,6 +32,13 @@ WebGL renders fine headless; screenshot and crop with `sips` to inspect 3D detai
 Gotchas that cost time:
 - `AppButton` (afrons-game-ui) renders `<a class="button">`, **not** `<button>` —
   use `locator('a.button', { hasText })`, not `getByRole('button')`.
+- `AppTabs` options are `button.app-tabs__tab` — target those directly; a
+  `[class*=tab]` + hasText locator matches the *container* and the click lands
+  on whatever tab sits at its center.
+- `AppGameCode` is ONE hidden `input.game-code__input` behind the letter cells —
+  `fill()` it; don't try to type into the cells.
+- Claiming a base needs a 3D canvas click; in dev just call
+  `window.__burrecApp.handleBaseClick(seatIdx)` (goes through MatchController).
 - Two online players: use two browser **contexts** (dev deviceId is per-tab
   sessionStorage, but displayName is localStorage — same context = shared name).
 - Login flow: fill `input.input`, click "Enter Game".

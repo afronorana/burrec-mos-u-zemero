@@ -250,7 +250,6 @@ const FIELD_CLEARANCE_Y = 0.022;
 const FIELD_CENTER_Y = BOARD_TOP_SURFACE_Y + 0.04 + FIELD_CLEARANCE_Y;
 const START_FIELD_CENTER_Y = BOARD_TOP_SURFACE_Y + 0.05 + FIELD_CLEARANCE_Y;
 const PAWN_CENTER_Y = FIELD_CENTER_Y + 0.085;
-const PAWN_ACTIVE_LIFT_Y = 0.04;
 const DICE_VISUAL_FLOAT_Y = 0.016;
 
 export default {
@@ -271,6 +270,11 @@ export default {
     'store.settings.environment'() {
       this.applyEnvironment();
     },
+    // Per-match environment chosen by the room creator — overrides the local
+    // preference while connected to that match.
+    'store.online.environment'() {
+      this.applyEnvironment();
+    },
     pendingDiceRoll(val) {
       this.store.gamePlayStatus.isDiceRolling = Boolean(val);
     },
@@ -278,7 +282,7 @@ export default {
       this.applyPitRimColor();
     },
     'store.currentScreen'(newScreen, oldScreen) {
-      const isOrbitScreen = (s) => ['main-menu', 'home', 'create-room', 'join-room'].includes(s) || !s;
+      const isOrbitScreen = (s) => ['main-menu', 'home', 'create-room', 'join-room', 'admin'].includes(s) || !s;
       const isFixedScreen = (s) => ['lobby', 'game-screen'].includes(s);
 
       if (isFixedScreen(newScreen) && isOrbitScreen(oldScreen)) {
@@ -313,6 +317,7 @@ export default {
       shadowLight: null,
       controls: null,
       diceMesh: null,
+      diceVisualLiftY: DICE_VISUAL_FLOAT_Y,
       dicePhysicsBody: null,
       physicsWorld: null,
       physicsLastTime: null,
@@ -455,7 +460,7 @@ export default {
         EventBus.listen(EventKeys.net.diceResult, this.handleNetDiceResult),
         EventBus.listen(EventKeys.net.turnChange, this.handleNetTurnChange),
         EventBus.listen(EventKeys.net.stateSync, this.handleNetStateSync),
-        EventBus.listen(EventKeys.net.lobbyUpdated, this.syncOnlinePlayersFromLobby),
+        EventBus.listen(EventKeys.net.lobbyUpdated, this.handleLobbyUpdated),
         EventBus.listen(EventKeys.pawn.captured, this.spawnHitEffect),
       ];
     },
@@ -946,8 +951,12 @@ export default {
       diceMesh.name = 'dice';
       // Bigger, easier-to-read dice on phones (visual only — physics/pit
       // unchanged; syncDice sets position/quaternion but never scale).
+      // The scaled mesh reaches further below its center than the physics
+      // cube, so lift the visual by the extra half-size or it sinks into
+      // the pit floor.
       if (this.isMobile) {
         diceMesh.scale.setScalar(1.5);
+        this.diceVisualLiftY = DICE_VISUAL_FLOAT_Y + ((1.5 - 1) * DICE_SIZE) / 2;
       }
       this.diceMesh = markRaw(diceMesh);
       this.scene.add(diceMesh);
@@ -965,27 +974,41 @@ export default {
         
         this.updateCameraPath();
 
-        if (this.homeBaseHelpers && this.store.currentScreen === 'lobby') {
+        if (this.homeBaseHelpers && this.baseHelpersVisible()) {
+          const inGame = this.store.currentScreen === 'game-screen';
+          const selfSeated = this.store.online.mySeat >= 0;
           const basePulse = getClickablePulse(performance.now());
           this.homeBaseHelpers.forEach((group, baseIdx) => {
-            group.visible = true;
-            const isEmpty = !this.store.online.seats[baseIdx];
+            const claimable = this.isSeatClaimable(baseIdx);
+            // Mid-game the helpers only mark claimable bases; in the lobby
+            // taken bases keep their small static ring.
+            group.visible = inGame ? claimable : true;
+            if (!group.visible) {
+              return;
+            }
 
             const rings = this.homeBaseRippleRings[baseIdx];
             if (rings) {
               rings.forEach((ring, ringIdx) => {
-                if (isEmpty) {
-                  // Selectable: same sharp pulse as the dice/pawn cues,
-                  // just in this base's color.
+                if (claimable) {
+                  // Selectable: same sharp pulse as the dice/pawn cues, just
+                  // in this base's color — frozen once the local player has
+                  // picked their own color (the cue is for choosers only).
                   if (ringIdx > 0) {
                     ring.visible = false;
                     return;
                   }
                   const palette = HOME_BASE_PULSE_COLORS[baseIdx];
-                  const scale = 1.45 * basePulse.scale;
-                  ring.scale.set(scale, scale, 1);
-                  ring.material.color.copy(palette.base).lerp(palette.bright, basePulse.wave);
-                  ring.material.opacity = 0.95;
+                  if (selfSeated) {
+                    ring.scale.set(1.45, 1.45, 1);
+                    ring.material.color.copy(palette.base);
+                    ring.material.opacity = 0.5;
+                  } else {
+                    const scale = 1.45 * basePulse.scale;
+                    ring.scale.set(scale, scale, 1);
+                    ring.material.color.copy(palette.base).lerp(palette.bright, basePulse.wave);
+                    ring.material.opacity = 0.95;
+                  }
                   ring.visible = true;
                 } else {
                   const scale = ringIdx === 0 ? 0.95 : 0.7;
@@ -1031,7 +1054,7 @@ export default {
 
       const mesh = this.diceMesh;
       const body = this.dicePhysicsBody;
-      const targetY = body.position.y + DICE_VISUAL_FLOAT_Y;
+      const targetY = body.position.y + this.diceVisualLiftY;
 
       if (
         mesh.position.x !== body.position.x ||
@@ -1182,6 +1205,10 @@ export default {
       if (this.pawnOutlineSyncPending) {
         this.pawnOutlineSyncPending = false;
         this.applyOutlineAppearance();
+        // Fresh pawn materials default to full opacity — re-apply the
+        // connected/disconnected dimming (matters for drop-in joiners whose
+        // meshes are created after the seat snapshot arrived).
+        this.applySeatPresence();
       }
     },
 
@@ -1198,9 +1225,11 @@ export default {
     },
 
     getAnimatedPawnPosition(pawn, now) {
+      // Clickable pawns keep their resting height — the pulsing ground ring
+      // is the "movable" cue, no lift needed.
       const coordinates = pawn.getCoordinates(PAWN_CENTER_Y);
       const targetX = coordinates.x;
-      const targetY = coordinates.y + (pawn.isActive ? PAWN_ACTIVE_LIFT_Y : 0);
+      const targetY = coordinates.y;
       const targetZ = coordinates.z;
 
       let motion = this.pawnMotionStates[pawn.id];
@@ -1846,7 +1875,9 @@ export default {
     applyEnvironment() {
       if (!this.scene || !this.camera) return;
 
-      const env = this.store.settings.environment || 'day';
+      // The match's environment (set by whoever created the room) wins while
+      // online; the local setting is the solo/menu fallback.
+      const env = this.store.online.environment || this.store.settings.environment || 'day';
 
       this.scene.background = this.getSkyGradientTexture(env);
 
@@ -2188,11 +2219,11 @@ export default {
 
       const interactiveObjects = [];
 
-      if (this.store.currentScreen === 'lobby' && this.homeBaseHelpers) {
+      if (this.homeBaseHelpers && this.baseHelpersVisible()) {
         this.homeBaseHelpers.forEach((group, baseIdx) => {
-          // Only free seats are claimable; keep taken ones out so they don't
-          // advertise a pointer cursor for a dead click.
-          if (this.store.online.seats[baseIdx]) {
+          // Only claimable seats are targets; keep taken ones out so they
+          // don't advertise a pointer cursor for a dead click.
+          if (!this.isSeatClaimable(baseIdx)) {
             return;
           }
           interactiveObjects.push(group);
@@ -2412,6 +2443,41 @@ export default {
       this.clearHoveredTarget();
     },
 
+    // Seats changed (join/leave/claim): in the lobby rebuild the roster; in a
+    // running game refresh the connected/disconnected pawn dimming.
+    handleLobbyUpdated() {
+      this.syncOnlinePlayersFromLobby();
+      this.applySeatPresence();
+      this.hoverNeedsUpdate = true;
+    },
+
+    // A departed player's pawns go semi-transparent until they reconnect or
+    // someone takes the seat over. Pawn materials are shared per seat, so
+    // dimming one material pair dims exactly that player's four pawns.
+    applySeatPresence() {
+      if (!this.store.online.enabled) {
+        return;
+      }
+      (this.store.online.seats || []).forEach((seat) => {
+        if (!seat) {
+          return;
+        }
+        const dim = seat.connected === false;
+        [`pawn-body-material-${seat.seat}`, `pawn-head-material-${seat.seat}`].forEach((key) => {
+          const material = this.sharedMaterials[key];
+          if (!material) {
+            return;
+          }
+          const opacity = dim ? 0.35 : 1;
+          if (material.opacity !== opacity) {
+            material.transparent = dim;
+            material.opacity = opacity;
+            material.needsUpdate = true;
+          }
+        });
+      });
+    },
+
     syncOnlinePlayersFromLobby() {
       if (this.store.currentScreen !== 'lobby') {
         return;
@@ -2430,12 +2496,31 @@ export default {
       this.hoverNeedsUpdate = true;
     },
 
-    handleBaseClick(idx) {
-      // Online lobby only: clicking an empty base claims that seat/color.
+    // Base helpers are live in the lobby, and mid-game for a connected user
+    // who has no seat yet (joined an ongoing match with a free/abandoned slot).
+    baseHelpersVisible() {
       if (this.store.currentScreen === 'lobby') {
-        if (!this.store.online.seats[idx]) {
-          MatchController.requestClaimSeat(idx);
-        }
+        return true;
+      }
+      return this.store.currentScreen === 'game-screen' &&
+        this.store.online.enabled &&
+        this.store.online.mySeat < 0 &&
+        !this.store.winner;
+    },
+
+    // Lobby: any empty seat. Mid-game: an empty seat (fresh pawns from home)
+    // or a disconnected player's seat (take their pawns over as they stand).
+    isSeatClaimable(baseIdx) {
+      const seat = this.store.online.seats[baseIdx];
+      if (this.store.currentScreen === 'game-screen') {
+        return !seat || seat.connected === false;
+      }
+      return !seat;
+    },
+
+    handleBaseClick(idx) {
+      if (this.baseHelpersVisible() && this.isSeatClaimable(idx)) {
+        MatchController.requestClaimSeat(idx);
       }
     },
 
@@ -2674,6 +2759,11 @@ export default {
     // MatchController.resumeSession — the URL wins (seamless refresh / shared
     // link), else a stored record drives the "continue?" prompt.
     checkResumeOnLoad() {
+      // StartScreen routed a #admin hash before this ran — leave it alone.
+      if (this.store.currentScreen === 'admin') {
+        return;
+      }
+
       const online = this.store.online;
       const fromUrl = readMatchUrl();
 
@@ -2724,6 +2814,7 @@ export default {
       this.store.online.seatToPlayerIndex = seatToPlayerIndex;
       this.store.currentScreen = 'game-screen';
       this.setTurnBySeat(payload.turnSeat, payload.round || 1);
+      this.applySeatPresence();
     },
 
     // Online replacement for changePlayersTurn/repeatPlayersTurn: seats may be
@@ -3443,7 +3534,7 @@ export default {
     },
 
     isMenuMode() {
-      const orbitingScreens = ['main-menu', 'home', 'create-room', 'join-room'];
+      const orbitingScreens = ['main-menu', 'home', 'create-room', 'join-room', 'admin'];
       return orbitingScreens.includes(this.store.currentScreen);
     },
 

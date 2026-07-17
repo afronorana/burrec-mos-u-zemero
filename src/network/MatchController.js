@@ -58,9 +58,15 @@ class MatchControllerService {
     NakamaClient.onDisconnect = () => this.handleDisconnect();
   }
 
+  // The creator's environment travels with the match — everyone who joins
+  // sees the room in the environment it was created with.
+  creationEnvironment() {
+    return ApplicationStore.settings.environment || 'day';
+  }
+
   async createPrivate(displayName) {
     await this.ensureConnected(displayName);
-    const result = await NakamaClient.rpc('create_private_match');
+    const result = await NakamaClient.rpc('create_private_match', { environment: this.creationEnvironment() });
     if (!result.matchId) {
       throw new Error(result.error || 'create_failed');
     }
@@ -69,7 +75,7 @@ class MatchControllerService {
 
   async createPublic(displayName) {
     await this.ensureConnected(displayName);
-    const result = await NakamaClient.rpc('create_public_match');
+    const result = await NakamaClient.rpc('create_public_match', { environment: this.creationEnvironment() });
     if (!result.matchId) {
       throw new Error(result.error || 'create_failed');
     }
@@ -95,7 +101,8 @@ class MatchControllerService {
   async quickMatch(displayName) {
     await this.ensureConnected(displayName);
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      const result = await NakamaClient.rpc('quick_match');
+      // Environment only applies when quick_match has to create a fresh room.
+      const result = await NakamaClient.rpc('quick_match', { environment: this.creationEnvironment() });
       if (!result.matchId) {
         throw new Error(result.error || 'join_failed');
       }
@@ -119,7 +126,11 @@ class MatchControllerService {
     online.mode = info.mode || null;
     online.joinCode = info.joinCode || null;
     online.lastError = null;
-    ApplicationStore.currentScreen = 'lobby';
+    // Joining an ongoing match: the server's STATE_SYNC (sent during the
+    // join) may already have routed us to the game screen — don't stomp it.
+    if (ApplicationStore.currentScreen !== 'game-screen') {
+      ApplicationStore.currentScreen = 'lobby';
+    }
 
     this.persistSession();
 
@@ -222,6 +233,8 @@ class MatchControllerService {
     online.mySeat = -1;
     online.hostUserId = null;
     online.seats = [];
+    online.displayNames = {};
+    online.environment = null;
     online.seatToPlayerIndex = {};
     online.pendingDice = null;
     online.diceInFlight = false;
@@ -319,6 +332,8 @@ class MatchControllerService {
     online.seats = payload.seats || [];
     online.hostUserId = payload.hostUserId || null;
     online.joinCode = payload.joinCode || online.joinCode;
+    online.displayNames = payload.displayNames || online.displayNames;
+    online.environment = payload.environment || online.environment;
     // A code in the payload means this is a private room — infer it when we
     // resumed from a bare matchId and never learned the mode.
     if (online.joinCode && !online.mode) {
@@ -410,6 +425,8 @@ class MatchControllerService {
     online.seats = payload.seats || [];
     online.hostUserId = payload.hostUserId || null;
     online.joinCode = payload.joinCode || online.joinCode;
+    online.displayNames = payload.displayNames || online.displayNames;
+    online.environment = payload.environment || online.environment;
     if (online.joinCode && !online.mode) {
       online.mode = 'private';
     }

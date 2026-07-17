@@ -13,6 +13,7 @@
 #        RESEND_API_KEY=<from resend.com — empty disables email sending>
 #        EMAIL_FROM=Burrec <noreply@example.com>
 #        APPLE_BUNDLE_ID=            # Apple Services ID; empty = Apple sign-in off
+#        ADMIN_KEY=<long random string; empty disables the #admin dashboard>
 #      (all the "long random string" values: openssl rand -hex 24)
 #   2. Build the runtime bundle locally (pnpm nakama:build) and copy ./build
 #      along with this file, Caddyfile and local.yml to the droplet. Build the
@@ -59,6 +60,7 @@ services:
         --runtime.env "PUBLIC_URL=https://${NAKAMA_DOMAIN}"
         --runtime.env "EMAIL_DEV_ECHO=0"
         --runtime.env "DEMO_DICE=0"
+        --runtime.env "ADMIN_KEY=${ADMIN_KEY:-}"
         --social.apple.bundle_id "${APPLE_BUNDLE_ID:-}"
     restart: unless-stopped
     depends_on:

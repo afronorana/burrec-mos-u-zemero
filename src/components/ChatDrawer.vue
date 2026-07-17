@@ -77,23 +77,36 @@ export default {
 </script>
 
 <style scoped>
-/* Middle-right, just below center — pairs with the settings button above. */
+/* Desktop: bottom-right, lifted above the bottom-right seat chip. */
 .chat-drawer {
   position: fixed;
   right: 16px;
-  top: calc(50% + 6px);
+  bottom: 76px;
   z-index: 30;
   pointer-events: all;
 }
 
-/* The panel opens to the left of the toggle, vertically centered on it. */
+/* The panel opens to the left of the toggle, growing upward from it. */
 .chat-drawer-panel {
   position: absolute;
   right: calc(100% + 10px);
-  top: 50%;
-  transform: translateY(-50%);
+  bottom: 0;
   width: min(320px, calc(100vw - 86px));
   padding: 12px;
+}
+
+/* Mobile: top-right, just below the top-right seat chip; panel opens down. */
+@media (max-width: 768px) {
+  .chat-drawer {
+    top: 72px;
+    right: 12px;
+    bottom: auto;
+  }
+
+  .chat-drawer-panel {
+    bottom: auto;
+    top: 0;
+  }
 }
 
 .chat-pop-enter-active,
@@ -104,7 +117,7 @@ export default {
 .chat-pop-enter-from,
 .chat-pop-leave-to {
   opacity: 0;
-  transform: translateY(-50%) translateX(8px);
+  transform: translateX(8px);
 }
 
 .chat-drawer-unread {

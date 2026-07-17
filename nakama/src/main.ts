@@ -1,6 +1,7 @@
 import { MATCH_MODULE } from '../../shared/protocol.js';
 import { ludoMatchHandler } from './match_handler';
 import {
+  rpcAdminStats,
   rpcCreatePrivateMatch,
   rpcCreatePublicMatch,
   rpcHealthcheck,
@@ -27,6 +28,7 @@ function InitModule(
   initializer.registerRpc('create_public_match', rpcCreatePublicMatch);
   initializer.registerRpc('quick_match', rpcQuickMatch);
   initializer.registerRpc('join_by_code', rpcJoinByCode);
+  initializer.registerRpc('admin_stats', rpcAdminStats);
   initializer.registerAfterAuthenticateEmail(afterAuthenticateEmail);
   initializer.registerRpc('auth_status', rpcAuthStatus);
   initializer.registerRpc('request_password_reset', rpcRequestPasswordReset);

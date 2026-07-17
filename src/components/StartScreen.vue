@@ -42,6 +42,7 @@
       <create-room-screen v-else-if="store.currentScreen === 'create-room'" key="create-room" />
       <join-room-screen v-else-if="store.currentScreen === 'join-room'" key="join-room" />
       <lobby-screen v-else-if="store.currentScreen === 'lobby'" key="lobby" />
+      <admin-screen v-else-if="store.currentScreen === 'admin'" key="admin" />
     </transition>
 
     <game-interface v-if="store.currentScreen === 'game-screen'" />
@@ -86,9 +87,6 @@
           />
         </div>
 
-        <outline-appearance-select :label="t('outlineStyle')" select-id="outline-style-menu" />
-        <render-quality-slider :label="t('renderQuality')" slider-id="render-quality-menu" />
-
         <div class="menu-row" style="margin-top: 20px;">
           <app-button red @click="store.settingsOpen = false">{{ t('back') }}</app-button>
           <app-button :disabled="!settingsName.trim()" @click="saveSettings">{{ t('save') }}</app-button>
@@ -123,9 +121,8 @@ import HomeScreen from './HomeScreen.vue';
 import CreateRoomScreen from './CreateRoomScreen.vue';
 import JoinRoomScreen from './JoinRoomScreen.vue';
 import LobbyScreen from './LobbyScreen.vue';
+import AdminScreen from './AdminScreen.vue';
 import AuthModal from './AuthModal.vue';
-import OutlineAppearanceSelect from './OutlineAppearanceSelect.vue';
-import RenderQualitySlider from './RenderQualitySlider.vue';
 import ApplicationStore from '../utils/ApplicationStore';
 import MatchController from '../network/MatchController';
 import { clearMatchSession } from '../utils/matchSession';
@@ -139,9 +136,8 @@ export default {
     CreateRoomScreen,
     JoinRoomScreen,
     LobbyScreen,
+    AdminScreen,
     AuthModal,
-    OutlineAppearanceSelect,
-    RenderQualitySlider,
     SettingsIcon: Settings,
   },
   data() {
@@ -196,6 +192,13 @@ export default {
     // Email links land here as #verify=<token> / #reset=<token>. Consume the
     // hash before App.vue's resume-on-load reads it for #m= match records.
     const hash = window.location.hash || '';
+
+    // Hidden admin dashboard: burrec.com/#admin
+    if (hash === '#admin') {
+      this.store.currentScreen = 'admin';
+      return;
+    }
+
     const verify = hash.match(/^#verify=([A-Za-z0-9]+)$/);
     const reset = hash.match(/^#reset=([A-Za-z0-9]+)$/);
     if (verify || reset) {

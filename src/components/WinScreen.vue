@@ -1,5 +1,12 @@
 <template>
   <div class="win-overlay" v-if="store.winner">
+    <!-- Full-screen confetti burst (same dotlottie asset as Shtet Qytet),
+         played once when the winner appears; pointer-events stay off so the
+         button underneath keeps working. -->
+    <div v-if="showConfetti" class="win-confetti-overlay" aria-hidden="true">
+      <dot-lottie-vue class="win-confetti-lottie" autoplay :loop="false" :src="confettiSrc" />
+    </div>
+
     <app-panel class="menu-card win-card">
       <p class="win-icon">
         <trophy-icon :size="48" class="lucide-trophy" />
@@ -18,16 +25,61 @@ import ApplicationStore from '../utils/ApplicationStore';
 import MatchController from '../network/MatchController';
 import { t } from '../utils/i18n';
 import { Trophy } from '@lucide/vue';
+import { DotLottieVue, setWasmUrl } from '@lottiefiles/dotlottie-vue';
+import confettiSrc from '../assets/lottie/Confetti.lottie?url';
+import dotLottieWasmUrl from '../assets/wasm/dotlottie-player.wasm?url';
+
+const CONFETTI_DURATION_MS = 10000;
+
+// Serve the dotlottie player wasm from our own bundle — no CDN fetch.
+setWasmUrl(dotLottieWasmUrl);
 
 export default {
-  components: { TrophyIcon: Trophy },
+  components: { TrophyIcon: Trophy, DotLottieVue },
   data() {
     return {
       store: ApplicationStore,
+      confettiSrc,
+      showConfetti: false,
+      confettiTimeout: null,
     };
+  },
+  watch: {
+    'store.winner'(winner) {
+      if (winner) {
+        this.playConfetti();
+      } else {
+        this.stopConfetti();
+      }
+    },
+  },
+  mounted() {
+    if (this.store.winner) {
+      this.playConfetti();
+    }
+  },
+  beforeUnmount() {
+    this.stopConfetti();
   },
   methods: {
     t,
+    playConfetti() {
+      this.showConfetti = true;
+      if (this.confettiTimeout) {
+        clearTimeout(this.confettiTimeout);
+      }
+      this.confettiTimeout = setTimeout(() => {
+        this.showConfetti = false;
+        this.confettiTimeout = null;
+      }, CONFETTI_DURATION_MS);
+    },
+    stopConfetti() {
+      this.showConfetti = false;
+      if (this.confettiTimeout) {
+        clearTimeout(this.confettiTimeout);
+        this.confettiTimeout = null;
+      }
+    },
     async backToMenu() {
       if (this.store.online.enabled) {
         await MatchController.leaveMatch(); // returns to the online menu
@@ -49,6 +101,18 @@ export default {
   justify-content: center;
   background: rgba(0, 0, 0, 0.55);
   z-index: 40;
+}
+
+.win-confetti-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.win-confetti-lottie {
+  width: 100%;
+  height: 100%;
 }
 
 .win-card {

@@ -1,39 +1,45 @@
 <template>
   <div class="lobby-layer">
-    <app-panel class="lobby-card">
-      <h2 class="panel-title">{{ t('online.lobby') }}</h2>
+    <!-- Top-center column: its own instruction panel, then (host only) the
+         room code + start controls stacked beneath it. -->
+    <div class="lobby-top">
+      <app-panel v-if="instructionText" class="lobby-card lobby-instruction-card">
+        <p class="lobby-instruction">{{ instructionText }}</p>
+      </app-panel>
 
-      <div v-if="store.online.mode === 'private' && store.online.joinCode" class="lobby-code-row">
-        <app-game-code
-          :model-value="store.online.joinCode"
-          readonly
-          class="lobby-code"
-        />
-        <app-button small slate-blue class="lobby-copy-btn" @click="copyCode" :title="copied ? t('online.copied') : t('online.copy')">
-          <component :is="copied ? 'CheckIcon' : 'CopyIcon'" :size="14" />
+      <!-- Room code is admin-only; non-hosts never see it. -->
+      <app-panel v-if="isHost" class="lobby-card lobby-host-card">
+        <div v-if="store.online.mode === 'private' && store.online.joinCode" class="lobby-code-row">
+          <app-game-code
+            :model-value="store.online.joinCode"
+            readonly
+            class="lobby-code"
+          />
+          <app-button small slate-blue class="lobby-copy-btn" @click="copyCode" :title="copied ? t('online.copied') : t('online.copy')">
+            <component :is="copied ? 'CheckIcon' : 'CopyIcon'" :size="14" />
+          </app-button>
+        </div>
+
+        <app-button
+          class="lobby-start-btn"
+          :disabled="!canStart"
+          @click="startGame"
+        >
+          {{ t('online.start') }}
         </app-button>
-      </div>
+      </app-panel>
+    </div>
 
-      <p v-if="!mySeatObject" class="lobby-tip">
-        {{ t('online.chooseColorPrompt') }}
-      </p>
+    <!-- Small leave button, pinned top-left to the right of the top-left seat
+         chip on desktop (item: "Leave lobby" small, top-left). -->
+    <app-button small red class="lobby-leave-btn" @click="askLeave">{{ t('online.leaveLobby') }}</app-button>
 
-      <app-button
-        v-if="isHost"
-        class="lobby-start-btn"
-        :disabled="!canStart"
-        @click="startGame"
-      >
-        {{ t('online.start') }}
-      </app-button>
+    <!-- Settings button commented out for now (kept for easy re-enable).
+    <app-button orange class="hud-icon-btn lobby-settings-btn" :title="t('settings.title')" @click="openSettings">
+      <settings-icon :size="18" />
+    </app-button>
+    -->
 
-      <div class="menu-row lobby-actions">
-        <app-button orange class="hud-icon-btn lobby-settings-btn" :title="t('settings.title')" @click="openSettings">
-          <settings-icon :size="18" />
-        </app-button>
-        <app-button red class="lobby-leave-btn" @click="askLeave">{{ t('online.leaveLobby') }}</app-button>
-      </div>
-    </app-panel>
 
     <!-- Confirm before leaving the lobby -->
     <div v-if="confirmLeave" class="global-settings-modal-backdrop" @click.self="confirmLeave = false">
@@ -115,6 +121,23 @@ export default {
       const seated = (this.store.online.seats || []).filter(Boolean);
       return seated.length >= 2 && seated.every((seat) => seat.ready);
     },
+    // Display name of the admin (host), resolved from their seat.
+    adminName() {
+      const hostSeat = (this.store.online.seats || []).find(
+          (seat) => seat && seat.userId === this.store.online.hostUserId,
+      );
+      return hostSeat ? hostSeat.displayName : '';
+    },
+    // Instruction shown in its own panel: pick a color until you've claimed a
+    // seat, then (for non-hosts) wait on the admin to start. The host sees no
+    // instruction once seated — the Start button carries the intent.
+    instructionText() {
+      if (!this.mySeatObject) return t('online.chooseColorPrompt');
+      if (this.isHost) return '';
+      return this.adminName
+          ? t('online.waitingForAdmin', { name: this.adminName })
+          : t('online.waitingForHost');
+    },
   },
   methods: {
     t,
@@ -161,13 +184,35 @@ export default {
   pointer-events: none;
 }
 
-.lobby-card {
+/* Top-center stack: instruction panel, then the host's code + start card. */
+.lobby-top {
   position: absolute;
   top: 16px;
   left: 50%;
   transform: translateX(-50%);
   width: min(340px, 92vw);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.lobby-card {
+  width: 100%;
   pointer-events: all;
+}
+
+.lobby-instruction-card {
+  text-align: center;
+}
+
+.lobby-instruction {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--agu-color-base, #263f2a);
 }
 
 .lobby-code-row {
@@ -182,40 +227,22 @@ export default {
   --agu-code-cell-size: 44px;
 }
 
-.lobby-tip {
-  margin: 0 0 14px;
-  font-size: 0.85rem;
-  line-height: 1.5;
-  text-align: center;
-  color: var(--agu-color-base, #263f2a);
-  opacity: 0.75;
-}
-
-.lobby-tip::before {
-  content: '💡 ';
-}
-
 .lobby-start-btn {
   display: block;
   width: 100%;
-  margin: 0 0 12px;
+  margin: 0;
   font-size: 1.1rem;
   padding: 16px 24px;
 }
 
-.lobby-actions {
-  margin-top: 0;
-  display: flex;
-  align-items: stretch;
-  gap: 10px;
-}
-
-.lobby-settings-btn {
-  flex: 0 0 auto;
-}
-
+/* Small leave button sitting to the right of the top-left seat chip
+   (chip is 16px in + 150px min-width + 10px gap ≈ 176px). */
 .lobby-leave-btn {
-  flex: 1;
+  position: absolute;
+  top: 22px;
+  left: 176px;
+  pointer-events: all;
+  z-index: 5;
 }
 
 /* ── Seat chips ──────────────────────────────────────────── */
@@ -324,8 +351,16 @@ export default {
     width: 100%;
   }
 
-  .lobby-card {
+  /* Seats are a bottom grid on mobile, so push the top stack below the
+     leave button (top-left) and the chat toggle (top-right, ~top:72). */
+  .lobby-top {
+    top: 120px;
     width: min(300px, 94vw);
+  }
+
+  .lobby-leave-btn {
+    top: 8px;
+    left: 8px;
   }
 
   .lobby-code {

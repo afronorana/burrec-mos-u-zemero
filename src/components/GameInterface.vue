@@ -5,6 +5,15 @@
 
     <div v-if="store.demoMode" class="hud-demo-badge">DEMO — 1-6 rolls</div>
 
+    <!-- Private-room code, visible for the whole game (small, top-center).
+         Yields the slot to the connection banner when that shows. -->
+    <div v-if="store.online.joinCode && !connectionMessage" class="hud-room-code">
+      {{ t('online.roomCodeLabel') }}: {{ store.online.joinCode }}
+    </div>
+
+    <!-- Joined an ongoing match without a seat yet: prompt the color pick. -->
+    <div v-if="needsSeat" class="hud-choose-banner">{{ t('online.chooseColorPrompt') }}</div>
+
     <!-- Settings: middle-right trigger, centered modal -->
     <div class="hud-settings-area">
       <app-button
@@ -123,6 +132,9 @@ export default {
     };
   },
   computed: {
+    needsSeat() {
+      return this.store.online.enabled && this.store.online.mySeat < 0 && !this.store.winner;
+    },
     connectionMessage() {
       if (!this.store.online.enabled) return '';
       const state = this.store.online.connectionState;
@@ -253,6 +265,41 @@ export default {
   border: 2px solid var(--agu-color-base, #263f2a);
   border-radius: 8px;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
+  pointer-events: none;
+}
+
+/* Small always-on room code, sharing the connection banner's top-center
+   slot (the banner wins while it is shown). */
+.hud-room-code {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 3px 10px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1.5px solid var(--agu-color-base, #263f2a);
+  border-radius: 6px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--agu-color-base, #263f2a);
+  pointer-events: none;
+}
+
+/* "Choose a color on the board" for seatless drop-in joiners. */
+.hud-choose-banner {
+  position: absolute;
+  top: 52px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  background: #ffffff;
+  border: 2px solid var(--agu-color-base, #263f2a);
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--agu-color-base, #263f2a);
   pointer-events: none;
 }
 
