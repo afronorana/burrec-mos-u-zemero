@@ -21,7 +21,7 @@ pnpm nakama:down    # stop it
 node nakama/tests/e2e_match.mjs  # two-client end-to-end match test (needs nakama:up + nakama:build)
 ```
 
-Deployment is GitHub Pages serving the `docs/` folder from the branch (no CI workflow — a deploy means running `pnpm build` and committing the regenerated `docs/`). `vite.config.js` sets `base: '/burrec-mos-u-zemero/'` accordingly. `docs/ROADMAP.md` (planned features) also lives in that folder — don't delete it when rebuilding. `.env.production` (Nakama host/key) is baked into the build — changing the game server requires a rebuild. The Nakama server deploys separately to a docker host behind Caddy TLS: see `nakama/DEPLOY.md`.
+Production is `burrec.com`, served from a DigitalOcean droplet (Caddy TLS + reverse proxy to Nakama; see `nakama/DEPLOY.md`) — `docs/` also still gets committed and can serve as a GitHub Pages mirror, which is why `vite.config.js` uses a relative `base: './'` rather than a repo-path base. `.github/workflows/deploy.yml` deploys automatically on every push to `master` (or manual dispatch): always rebuilds and rsyncs the client, and only rebuilds/ships the Nakama bundle + restarts the server stack when server-relevant files changed (restarting drops all live matches). `docs/ROADMAP.md` (planned features) lives in that folder — `pnpm build` cleans `docs/` before writing, so anything not tracked in git there gets silently deleted on the next build. `.env.production` (Nakama host/key) is committed and baked into the build at build time.
 
 ## Live code path vs legacy code
 

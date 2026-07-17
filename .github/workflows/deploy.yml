@@ -1,0 +1,72 @@
+name: Deploy to production
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch: {}
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build client
+        run: pnpm build
+
+      - name: Detect Nakama server changes
+        id: server
+        run: |
+          BEFORE="${{ github.event.before }}"
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BEFORE" 2>/dev/null; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only "$BEFORE" "${{ github.sha }}" | grep -qE '^(nakama/src/|nakama/local\.yml|nakama/docker-compose\.prod\.yml|nakama/Caddyfile|shared/protocol\.js)'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build Nakama server bundle
+        if: steps.server.outputs.changed == 'true'
+        run: pnpm nakama:build
+
+      - name: Set up deploy key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.DROPLET_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy client site
+        run: |
+          rsync -av --delete -e "ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes" \
+            docs/ "root@${{ secrets.DROPLET_HOST }}:/opt/burrec-nakama/site/"
+
+      - name: Deploy Nakama server + restart stack
+        if: steps.server.outputs.changed == 'true'
+        run: |
+          scp -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -r nakama/build \
+            "root@${{ secrets.DROPLET_HOST }}:/opt/burrec-nakama/"
+          scp -i ~/.ssh/deploy_key -o IdentitiesOnly=yes \
+            nakama/docker-compose.prod.yml nakama/Caddyfile nakama/local.yml \
+            "root@${{ secrets.DROPLET_HOST }}:/opt/burrec-nakama/"
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes "root@${{ secrets.DROPLET_HOST }}" \
+            'cd /opt/burrec-nakama && docker compose -f docker-compose.prod.yml --env-file .env.prod up -d'

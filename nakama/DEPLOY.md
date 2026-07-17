@@ -118,6 +118,19 @@ Vite bakes these at build time — any change requires `pnpm build`.
 
 ## Updating
 
+**Automatic**: `.github/workflows/deploy.yml` runs on every push to `master`
+(or manual dispatch from the Actions tab). It always builds and rsyncs the
+client to `site/`; it only rebuilds/ships the Nakama bundle and restarts the
+stack when `nakama/src/`, `shared/protocol.js`, or the droplet config files
+(`local.yml`, `docker-compose.prod.yml`, `Caddyfile`) changed in that push —
+restarting `nakama` drops all live matches, so it's skipped when unneeded.
+It authenticates as a dedicated deploy key (`DEPLOY_SSH_KEY` repo secret,
+`ssh-ed25519 ... github-actions-deploy@burrec` in the droplet's
+`authorized_keys`, separate from any personal key) against `DROPLET_HOST`
+(repo secret).
+
+**Manual** (fallback, or for a step the workflow doesn't cover):
+
 Server module:
 
 ```bash
