@@ -68,17 +68,6 @@ class Player {
 
     this.setAvaliablePawns(diceResult);
 
-    if (this.pawnsAvailable()) {
-      this.indicatorIntervals.push(
-          setInterval(function() {
-            // let intensity = storeX.getters.flashIntensity ? 0 : 4;
-            // storeX.commit('switchIntensity', intensity);
-          }, 300),
-      );
-    }
-
-    // console.log(this.name, ' rolled ', diceResult);
-
     /** Check if player has available pawns **/
     if (this.pawnsAvailable() !== 0 || this.stillHome) {
 

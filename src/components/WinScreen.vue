@@ -2,9 +2,10 @@
   <div class="win-overlay" v-if="store.winner">
     <!-- Full-screen confetti burst (same dotlottie asset as Shtet Qytet),
          played once when the winner appears; pointer-events stay off so the
-         button underneath keeps working. -->
+         button underneath keeps working. The player is an async component so
+         its JS+wasm never touch the initial page load. -->
     <div v-if="showConfetti" class="win-confetti-overlay" aria-hidden="true">
-      <dot-lottie-vue class="win-confetti-lottie" autoplay :loop="false" :src="confettiSrc" />
+      <confetti-player class="win-confetti-lottie" autoplay :loop="false" :src="confettiSrc" />
     </div>
 
     <app-panel class="menu-card win-card">
@@ -21,21 +22,29 @@
 </template>
 
 <script>
+import { defineAsyncComponent } from 'vue';
 import ApplicationStore from '../utils/ApplicationStore';
 import MatchController from '../network/MatchController';
 import { t } from '../utils/i18n';
 import { Trophy } from '@lucide/vue';
-import { DotLottieVue, setWasmUrl } from '@lottiefiles/dotlottie-vue';
 import confettiSrc from '../assets/lottie/Confetti.lottie?url';
-import dotLottieWasmUrl from '../assets/wasm/dotlottie-player.wasm?url';
 
 const CONFETTI_DURATION_MS = 10000;
 
-// Serve the dotlottie player wasm from our own bundle — no CDN fetch.
-setWasmUrl(dotLottieWasmUrl);
+// The dotlottie player (JS + 1.5MB wasm) is only needed the moment a game
+// ends — load it lazily so it stays out of the startup bundle. The wasm is
+// served from our own bundle (no CDN fetch).
+const ConfettiPlayer = defineAsyncComponent(async () => {
+  const [player, wasmUrl] = await Promise.all([
+    import('@lottiefiles/dotlottie-vue'),
+    import('../assets/wasm/dotlottie-player.wasm?url'),
+  ]);
+  player.setWasmUrl(wasmUrl.default);
+  return player.DotLottieVue;
+});
 
 export default {
-  components: { TrophyIcon: Trophy, DotLottieVue },
+  components: { TrophyIcon: Trophy, ConfettiPlayer },
   data() {
     return {
       store: ApplicationStore,

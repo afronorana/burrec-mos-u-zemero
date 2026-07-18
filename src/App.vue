@@ -22,7 +22,7 @@ import EventBus from './utils/eventhandler';
 import EventKeys from './utils/EventKeys';
 import { PAWN_STEP_DURATION_MS } from './utils/movementConstants';
 import { getOutlineAppearancePreset } from './utils/outlineAppearance';
-import { getRenderQualityPreset } from './utils/renderQuality';
+import { getRenderQualityPreset, RENDER_QUALITY_MIN } from './utils/renderQuality';
 import { PLAYER_COLORS } from './utils/playerColors';
 import Player from './utils/Player';
 import MatchController from './network/MatchController';
@@ -245,6 +245,59 @@ const DICE_SETTLE_RULES = {
   recoveryCooldownMs: 180,
   maxRecoveryAttempts: 3,
 };
+// Local-space outline sample points for the 2D hover highlight — constant,
+// so they're computed once here; per-frame projection reuses one scratch
+// vector instead of allocating hundreds of Vector3s (see drawObjectHighlight2D).
+const _highlightProjScratch = new THREE.Vector3();
+const DICE_LOCAL_CORNERS = (() => {
+  const h = DICE_SIZE / 2;
+  const corners = [];
+  [-h, h].forEach((x) => [-h, h].forEach((y) => [-h, h].forEach((z) => {
+    corners.push(new THREE.Vector3(x, y, z));
+  })));
+  return corners;
+})();
+const PAWN_BODY_LOCAL_POINTS = (() => {
+  const pts = [];
+  const n = 20;
+  const levels = [
+    { y: -0.025, r: 0.28 },
+    { y: 0.175, r: 0.227 },
+    { y: 0.35, r: 0.18 },
+    { y: 0.55, r: 0.127 },
+    { y: 0.725, r: 0.08 },
+  ];
+  for (const { y, r } of levels) {
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      pts.push(new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r));
+    }
+  }
+  return pts;
+})();
+const PAWN_HEAD_LOCAL_POINTS = (() => {
+  const pts = [];
+  const n = 20;
+  const r = 0.18;
+  const cy = 0.85;
+  const sinLatitudes = [-0.85, -0.6, -0.35, -0.1, 0.15, 0.4, 0.65, 0.85, 1.0];
+  for (const sinLat of sinLatitudes) {
+    const ringR = r * Math.sqrt(Math.max(0, 1 - (sinLat * sinLat)));
+    const ringY = cy + (sinLat * r);
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      pts.push(new THREE.Vector3(Math.cos(a) * ringR, ringY, Math.sin(a) * ringR));
+    }
+  }
+  return pts;
+})();
+// Reused across frames by getAnimatedPawnPosition — values are consumed
+// immediately, never kept.
+const _pawnCoordsScratch = { x: 0, y: 0, z: 0 };
+// Ripple targets: at most one per pool ring, reused every frame.
+const _rippleTargets = [];
+const RIPPLE_TARGET_POOL = [0, 1, 2, 3, 4].map(() => ({ x: 0, y: 0, z: 0, scale: 0.6 }));
+
 const BOARD_TOP_SURFACE_Y = 0.06;
 const FIELD_CLEARANCE_Y = 0.022;
 const FIELD_CENTER_Y = BOARD_TOP_SURFACE_Y + 0.04 + FIELD_CLEARANCE_Y;
@@ -302,6 +355,7 @@ export default {
       }
 
       this.applyPitRimColor();
+      this.requestRender();
 
       if (newScreen === 'lobby') {
         this.syncOnlinePlayersFromLobby();
@@ -366,6 +420,11 @@ export default {
       overlayHasContent: false,
       demoKeyBuffer: '',
       activeHitEffects: markRaw([]),
+      // Demand rendering: render passes run only when something changed.
+      renderNeeded: true,
+      lastRenderAt: 0,
+      // Rolling window of consecutive rendered-frame deltas (auto quality).
+      autoQuality: markRaw({ deltas: [], lastSampleAt: 0, dropsLeft: 2 }),
     };
   },
   mounted() {
@@ -932,6 +991,7 @@ export default {
       const player = this.store.players[this.store.currentPlayerId];
       const useColor = this.store.currentScreen === 'game-screen' && player;
       this.dicePitRimMaterial.color.set(useColor ? player.color : DICE_PIT_NEUTRAL_COLOR);
+      this.requestRender();
     },
 
     createPhysicsWorld() {
@@ -968,10 +1028,48 @@ export default {
       this.syncDice();
     },
 
+    // A render pass is needed next frame — set by everything that changes
+    // what's on screen outside the per-frame animation sources.
+    requestRender() {
+      this.renderNeeded = true;
+    },
+
+    // Sources that animate every frame while active. Everything else marks
+    // itself dirty via requestRender/requestShadowUpdate, so idle frames
+    // (e.g. waiting on a remote player's turn) skip the GPU entirely.
+    needsContinuousRender() {
+      if (this.isMenuMode() || this.cameraTransition) {
+        return true; // cinematic orbit / camera flight
+      }
+      if (this.pendingDiceRoll || this.diceSnapTween || this.diceOffsetTween) {
+        return true;
+      }
+      if (this.dicePhysicsBody && this.dicePhysicsBody.sleepState !== CANNON.Body.SLEEPING) {
+        return true;
+      }
+      if (this.activeHitEffects.length) {
+        return true;
+      }
+      // Pulsing claim rings for players still choosing a color.
+      if (this.baseHelpersVisible() && this.store.online.mySeat < 0) {
+        return true;
+      }
+      // Pulsing ripples under the dice/movable pawns on the local turn.
+      if (this.isHumanTurn() && (this.store.gamePlayStatus.isRolling || this.store.gamePlayStatus.isMoving)) {
+        return true;
+      }
+      // The 2D hover outline breathes its color while something is hovered.
+      if (this.hoveredTarget) {
+        return true;
+      }
+      return false;
+    },
+
     renderScene() {
       const animate = () => {
         this.animationFrameId = requestAnimationFrame(animate);
-        
+        const frameNow = performance.now();
+
         this.updateCameraPath();
 
         if (this.homeBaseHelpers && this.baseHelpersVisible()) {
@@ -1017,16 +1115,23 @@ export default {
           });
         } else if (this.homeBaseHelpers) {
           this.homeBaseHelpers.forEach((group) => {
-            group.visible = false;
+            if (group.visible) {
+              group.visible = false;
+              this.requestRender();
+            }
           });
         }
 
-        this.animateClickableRipples(performance.now());
+        this.animateClickableRipples(frameNow);
 
+        let cameraMoved = false;
         if (this.controls && !this.isMenuMode() && !this.cameraTransition) {
-          this.controls.update();
+          cameraMoved = this.controls.update() === true;
         }
-        
+
+        // Simulation always runs (it's cheap and sets renderNeeded via
+        // requestShadowUpdate when meshes actually move); only the GPU work
+        // below is skipped on unchanged frames.
         this.stepPhysicsWorld();
         this.syncDice();
         this.syncPawns();
@@ -1034,12 +1139,60 @@ export default {
         if (this.hoverNeedsUpdate) {
           this.refreshHoveredTarget();
         }
-        this.renderer.render(this.scene, this.camera);
+
+        const shouldRender = this.renderNeeded || cameraMoved || this.needsContinuousRender();
+        // Menu screens orbit forever — 30fps is plenty for the backdrop.
+        const menuThrottled = this.isMenuMode() && (frameNow - this.lastRenderAt) < 30;
+
+        if (shouldRender && !menuThrottled) {
+          this.renderNeeded = false;
+          this.renderer.render(this.scene, this.camera);
+          this.updateHitEffects();
+          this.sampleRenderPerformance(frameNow);
+          this.lastRenderAt = frameNow;
+        } else {
+          // Only consecutive rendered frames are meaningful fps samples.
+          this.autoQuality.lastSampleAt = 0;
+        }
+        // Cheap when idle (a few flag checks); also clears the hover overlay
+        // the frame after a hover ends.
         this.renderHighlights2D();
-        this.updateHitEffects();
       };
 
       animate();
+    },
+
+    // Auto quality: while frames render back-to-back (dice rolling, pawn
+    // hops, menu orbit), collect frame deltas; when a full window's median
+    // says the device can't hold ~38fps, step the quality preset down once.
+    // Never steps up (no oscillation) and stops after two drops.
+    sampleRenderPerformance(now) {
+      const aq = this.autoQuality;
+      if (aq.dropsLeft <= 0) {
+        return;
+      }
+      // Menu frames are throttled to 30fps by design — not a health signal.
+      if (this.isMenuMode()) {
+        aq.lastSampleAt = 0;
+        return;
+      }
+      if (aq.lastSampleAt) {
+        const delta = now - aq.lastSampleAt;
+        if (delta > 0 && delta < 250) {
+          aq.deltas.push(delta);
+        }
+      }
+      aq.lastSampleAt = now;
+
+      if (aq.deltas.length >= 90) {
+        const sorted = aq.deltas.slice().sort((a, b) => a - b);
+        const median = sorted[Math.floor(sorted.length / 2)];
+        aq.deltas.length = 0;
+        if (median > 26 && this.store.settings.quality > RENDER_QUALITY_MIN) {
+          this.store.settings.quality -= 1; // watcher applies the preset
+          aq.dropsLeft -= 1;
+        }
+      }
     },
 
     syncDice() {
@@ -1221,8 +1374,9 @@ export default {
 
     getAnimatedPawnPosition(pawn, now) {
       // Clickable pawns keep their resting height — the pulsing ground ring
-      // is the "movable" cue, no lift needed.
-      const coordinates = pawn.getCoordinates(PAWN_CENTER_Y);
+      // is the "movable" cue, no lift needed. The scratch target avoids one
+      // object allocation per pawn per frame.
+      const coordinates = pawn.getCoordinates(PAWN_CENTER_Y, _pawnCoordsScratch);
       const targetX = coordinates.x;
       const targetY = coordinates.y;
       const targetZ = coordinates.z;
@@ -1481,7 +1635,7 @@ export default {
       if (wantsDice) {
         this.drawObjectHighlight2D(
           ctx, canvas,
-          [this.getDiceOutlinePoints()],
+          [{ points: DICE_LOCAL_CORNERS, matrix: this.diceMesh.matrixWorld }],
           1,
           pulseColor,
         );
@@ -1492,7 +1646,10 @@ export default {
         if (mesh) {
           this.drawObjectHighlight2D(
             ctx, canvas,
-            [this.getPawnBodyOutlinePoints(mesh), this.getPawnHeadOutlinePoints(mesh)],
+            [
+              { points: PAWN_BODY_LOCAL_POINTS, matrix: mesh.matrixWorld },
+              { points: PAWN_HEAD_LOCAL_POINTS, matrix: mesh.matrixWorld },
+            ],
             1,
             pulseColor,
           );
@@ -1503,59 +1660,16 @@ export default {
       this.overlayHasContent = drew;
     },
 
-    getDiceOutlinePoints() {
-      const h = DICE_SIZE / 2;
-      return [
-        new THREE.Vector3(-h, -h, -h), new THREE.Vector3(-h, -h,  h),
-        new THREE.Vector3(-h,  h, -h), new THREE.Vector3(-h,  h,  h),
-        new THREE.Vector3( h, -h, -h), new THREE.Vector3( h, -h,  h),
-        new THREE.Vector3( h,  h, -h), new THREE.Vector3( h,  h,  h),
-      ].map((v) => v.applyMatrix4(this.diceMesh.matrixWorld));
-    },
-
-    getPawnBodyOutlinePoints(group) {
-      const pts = [];
-      const n = 20;
-      const levels = [
-        { y: -0.025, r: 0.28 },
-        { y: 0.175,  r: 0.227 },
-        { y: 0.35,   r: 0.18 },
-        { y: 0.55,   r: 0.127 },
-        { y: 0.725,  r: 0.08 },
-      ];
-      for (const { y, r } of levels) {
-        for (let i = 0; i < n; i++) {
-          const a = (i / n) * Math.PI * 2;
-          pts.push(new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r));
-        }
-      }
-      return pts.map((v) => v.applyMatrix4(group.matrixWorld));
-    },
-
-    getPawnHeadOutlinePoints(group) {
-      const pts = [];
-      const n = 20;
-      const r = 0.18;
-      const cy = 0.85;
-      const sinLatitudes = [-0.85, -0.6, -0.35, -0.1, 0.15, 0.4, 0.65, 0.85, 1.0];
-      for (const sinLat of sinLatitudes) {
-        const ringR = r * Math.sqrt(Math.max(0, 1 - sinLat * sinLat));
-        const ringY = cy + sinLat * r;
-        for (let i = 0; i < n; i++) {
-          const a = (i / n) * Math.PI * 2;
-          pts.push(new THREE.Vector3(Math.cos(a) * ringR, ringY, Math.sin(a) * ringR));
-        }
-      }
-      return pts.map((v) => v.applyMatrix4(group.matrixWorld));
-    },
-
-    drawObjectHighlight2D(ctx, canvas, worldPointSets, opacity, color) {
+    // pointSets: [{ points: constant local-space Vector3[], matrix: world
+    // matrix }] — projection reuses one scratch vector, no allocation beyond
+    // the tiny screen-point literals the hull needs.
+    drawObjectHighlight2D(ctx, canvas, pointSets, opacity, color) {
       const w = canvas.width;
       const h = canvas.height;
 
-      const hulls = worldPointSets.map((worldPoints) => {
-        const screenPts = worldPoints.map((wp) => {
-          const v = wp.clone().project(this.camera);
+      const hulls = pointSets.map(({ points, matrix }) => {
+        const screenPts = points.map((lp) => {
+          const v = _highlightProjScratch.copy(lp).applyMatrix4(matrix).project(this.camera);
           return { x: (v.x * 0.5 + 0.5) * w, y: (-v.y * 0.5 + 0.5) * h };
         });
         return this.convexHull2D(screenPts);
@@ -2010,6 +2124,7 @@ export default {
     },
 
     applyOutlineAppearance() {
+      this.requestRender();
       const preset = getOutlineAppearancePreset(this.store.settings.outlineAppearance);
       const outlineMaterial = this.getOutlineShellMaterial();
       outlineMaterial.opacity = preset.visible ? preset.lineOpacity : 0;
@@ -2042,11 +2157,13 @@ export default {
 
     // Marks the shadow map dirty so the next renderer.render redraws it.
     // Must be called whenever a shadow caster or a light moves/changes —
-    // shadowMap.autoUpdate is off.
+    // shadowMap.autoUpdate is off. A shadow redraw implies a visual change,
+    // so this also schedules a render pass.
     requestShadowUpdate() {
       if (this.renderer) {
         this.renderer.shadowMap.needsUpdate = true;
       }
+      this.renderNeeded = true;
     },
 
     applyRenderQuality() {
@@ -2164,6 +2281,7 @@ export default {
       this.renderer.setSize(width, height, false);
       this.resizeOverlayCanvas();
       this.hoverNeedsUpdate = true;
+      this.requestRender();
     },
 
     resizeOverlayCanvas() {
@@ -2444,6 +2562,7 @@ export default {
       this.syncOnlinePlayersFromLobby();
       this.applySeatPresence();
       this.hoverNeedsUpdate = true;
+      this.requestRender(); // seat rings appear/freeze/vanish with the roster
     },
 
     // A departed player's pawns go semi-transparent until they reconnect or
@@ -2468,6 +2587,7 @@ export default {
             material.transparent = dim;
             material.opacity = opacity;
             material.needsUpdate = true;
+            this.requestRender();
           }
         });
       });
@@ -2604,40 +2724,40 @@ export default {
       }
     },
 
+    // Reuses a module-scoped array + object pool (one entry per ripple ring)
+    // instead of allocating fresh literals every frame.
     getClickableRippleTargets() {
-      const targets = [];
+      _rippleTargets.length = 0;
       if (!this.isHumanTurn()) {
-        return targets;
+        return _rippleTargets;
       }
 
       if (this.diceMesh && this.store.gamePlayStatus.isRolling) {
-        targets.push({
-          x: this.diceMesh.position.x,
-          y: DICE_PIT.floorY + 0.012,
-          z: this.diceMesh.position.z,
-          scale: 0.6,
-        });
+        const target = RIPPLE_TARGET_POOL[_rippleTargets.length];
+        target.x = this.diceMesh.position.x;
+        target.y = DICE_PIT.floorY + 0.012;
+        target.z = this.diceMesh.position.z;
+        _rippleTargets.push(target);
       }
 
       if (this.store.gamePlayStatus.isMoving) {
         this.store.players.forEach((player) => {
           player.pawns.forEach((pawn) => {
-            if (!pawn.isActive) return;
+            if (!pawn.isActive || _rippleTargets.length >= RIPPLE_TARGET_POOL.length) return;
             const mesh = this.pawnMeshes[pawn.id];
             if (!mesh) return;
-            targets.push({
-              x: mesh.position.x,
-              // Just above the tallest field disc (start fields: center 0.132
-              // + half height 0.05) so the ring isn't occluded by the discs.
-              y: START_FIELD_CENTER_Y + 0.058,
-              z: mesh.position.z,
-              scale: 0.6,
-            });
+            const target = RIPPLE_TARGET_POOL[_rippleTargets.length];
+            target.x = mesh.position.x;
+            // Just above the tallest field disc (start fields: center 0.132
+            // + half height 0.05) so the ring isn't occluded by the discs.
+            target.y = START_FIELD_CENTER_Y + 0.058;
+            target.z = mesh.position.z;
+            _rippleTargets.push(target);
           });
         });
       }
 
-      return targets;
+      return _rippleTargets;
     },
 
     animateClickableRipples(now) {
@@ -2650,7 +2770,11 @@ export default {
       this.clickableRipples.forEach((ripple, poolIdx) => {
         const target = targets[poolIdx];
         if (!target) {
-          ripple.group.visible = false;
+          if (ripple.group.visible) {
+            // One more render pass to actually erase the ring.
+            ripple.group.visible = false;
+            this.requestRender();
+          }
           return;
         }
 

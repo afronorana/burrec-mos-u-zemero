@@ -35,7 +35,7 @@ Only files reachable from `index.html → src/main.js → src/App.vue` are live:
 - `shared/protocol.js` (opcodes — imported by both the client and the Nakama server bundle)
 - `nakama/src/` (server runtime: `main.ts`, `match_handler.ts`, `ludo_logic.ts`, `rpc.ts`, `auth.ts`, `stats.ts`)
 
-Everything else is a dead earlier implementation (vue-gl `vgl-*` templates, jQuery/Vuex/Pinia bootstrap): `src/core/`, `src/mixins/`, `src/store/useMainStore.js`, `src/utils/app.js`, `src/utils/components.js`, `src/components/PawnFigure.vue`, `DiceFigure.vue`, `PawnGeometryMaterial.vue`. Same for the `jquery`, `lodash`, `vuex`, `pinia`, `bootstrap-sass` dependencies. Don't extend the legacy files or take patterns from them.
+The dead earlier implementation (vue-gl `vgl-*` templates, jQuery/Vuex/Pinia bootstrap: `src/core/`, `src/mixins/`, `src/store/`, `src/utils/app.js`, `src/utils/components.js`, `PawnFigure.vue`, `DiceFigure.vue`, `PawnGeometryMaterial.vue`) and its dependencies (`jquery`, `lodash`, `vuex`, `pinia`, `bootstrap-sass`, …) were deleted in July 2026 — don't resurrect patterns from git history.
 
 ## Architecture
 
@@ -50,7 +50,8 @@ Three layers communicate through a shared reactive singleton and an event bus �
 - *Toon look*: every mesh gets an inverted-hull outline shell (`attachOutlineShell` / `createOutlinedInstancedSet`, `userData.isOutlineShell`). Geometries, materials, and textures are cached in `sharedGeometries/Materials/Textures` via `getShared*` — reuse those helpers instead of constructing Three objects inline.
 - *Dice*: physics-based. `startDiceRoll` throws the body with a random impulse inside a walled tray; `stepPhysicsWorld` watches for settling, detects the up face by dotting face normals with world-up, nudges tilted dice (max 3 recovery attempts), then snaps face-up and calls `completeDiceRoll` → `Player.rollDice`.
 - *Pawn animation is one-way*: game logic changes `Pawn` state instantly (per-step timers); the render loop's `syncPawns` reads `pawn.getCoordinates()` each frame and tweens meshes toward it, keyed on a logical position string (`getPawnWorldState().key`).
-- *Interaction*: raycasting only targets objects valid for the current phase (`getInteractiveHit` checks `isRolling`/`isMoving` + `isHumanTurn`). Highlights are not 3D — a 2D overlay canvas projects object outline points to screen space, takes the convex hull, and strokes it (`renderHighlights2D`).
+- *Interaction*: raycasting only targets objects valid for the current phase (`getInteractiveHit` checks `isRolling`/`isMoving` + `isHumanTurn`). Highlights are not 3D — a 2D overlay canvas projects constant local-space outline points (module-level `PAWN_BODY/HEAD_LOCAL_POINTS`, `DICE_LOCAL_CORNERS`) to screen space through a scratch vector, takes the convex hull, and strokes it (`renderHighlights2D`).
+- *Demand rendering*: the rAF loop always runs the simulation, but `renderer.render` only fires when something changed — continuous sources (menu orbit, dice physics awake, pulsing cues, hover, hit effects, camera damping via `controls.update()`'s return) are enumerated in `needsContinuousRender()`; every discrete visual change must call `requestRender()` (or `requestShadowUpdate()`, which implies it) or it won't appear. Menu orbit renders at ~30fps. `sampleRenderPerformance` watches consecutive rendered-frame deltas and steps `settings.quality` down (never up, max twice) on slow devices — the manual quality UI was removed.
 
 **Events: `utils/eventhandler.js` + `utils/EventKeys.js`** — a tiny EventTarget wrapper. UI components fire `game.start` / `game.rollDice`; Pawn/Player fire `turns.endTurn` / `turns.repeatTurn`; App.vue subscribes in `addEventListeners`. Add new keys to `EventKeys.js`, never string literals.
 

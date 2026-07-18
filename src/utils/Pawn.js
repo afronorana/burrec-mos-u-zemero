@@ -105,7 +105,9 @@ class Pawn {
     return `${x} ${y} ${z}`;
   }
 
-  getCoordinates(height = 0) {
+  // Pass `target` to reuse an object instead of allocating — the render loop
+  // calls this per pawn per frame.
+  getCoordinates(height = 0, target = null) {
     let x, y, z;
     let fields = ApplicationStore.fields;
     if (!this.position) {
@@ -123,6 +125,12 @@ class Pawn {
       z = fields.target[this.playerIndex].fields[this.position - 41].z;
     }
 
+    if (target) {
+      target.x = x;
+      target.y = y;
+      target.z = z;
+      return target;
+    }
     return { x, y, z };
   }
 
