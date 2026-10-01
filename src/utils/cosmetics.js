@@ -5,7 +5,7 @@
 
 import * as THREE from 'three';
 import { markRaw } from 'vue';
-import { PROP_IDS, FINISHER_IDS } from '../../shared/protocol';
+import { PROP_IDS, FINISHER_IDS, FLAG_CODES, DEFAULT_FLAG } from '../../shared/protocol';
 
 // Picker labels: i18n key + emoji, in catalog order.
 export const PROP_OPTIONS = PROP_IDS.map((id) => ({
@@ -20,9 +20,96 @@ export const FINISHER_OPTIONS = FINISHER_IDS.map((id) => ({
   icon: { shove: '🤜', kick: '🦶', bat: '🏏', bowling: '🎳' }[id],
 }));
 
+// ── Flags ──────────────────────────────────────────────────────────────
+// The `flag` Prop waves one country flag (ids in shared/protocol.js, SVGs in
+// public/flags/, from the MIT-licensed flag-icons set).
+export const flagUrl = (code) => `${import.meta.env.BASE_URL}flags/${code}.svg`;
+
+// Not ISO regions, so Intl.DisplayNames can't name them.
+const FLAG_NAME_OVERRIDES = {
+  'gb-eng': { en: 'England', sq: 'Anglia' },
+  'gb-sct': { en: 'Scotland', sq: 'Skocia' },
+  'gb-wls': { en: 'Wales', sq: 'Uells' },
+  'gb-nir': { en: 'Northern Ireland', sq: 'Irlanda e Veriut' },
+};
+
+const regionNamesByLocale = {};
+
+export function flagName(code, locale) {
+  const override = FLAG_NAME_OVERRIDES[code];
+  if (override) {
+    return override[locale] || override.en;
+  }
+  try {
+    if (!regionNamesByLocale[locale]) {
+      regionNamesByLocale[locale] = new Intl.DisplayNames([locale, 'en'], { type: 'region' });
+    }
+    return regionNamesByLocale[locale].of(code.toUpperCase()) || code.toUpperCase();
+  } catch (error) {
+    return code.toUpperCase();
+  }
+}
+
+// Picker order: Albania and Kosovo first, the rest alphabetical by name.
+const PINNED_FLAGS = [DEFAULT_FLAG, 'xk'];
+
+export function flagOptions(locale) {
+  const collator = new Intl.Collator(locale);
+  const rest = FLAG_CODES
+      .filter((code) => !PINNED_FLAGS.includes(code))
+      .map((code) => ({ code, name: flagName(code, locale) }))
+      .sort((a, b) => collator.compare(a.name, b.name));
+  return PINNED_FLAGS.map((code) => ({ code, name: flagName(code, locale) })).concat(rest);
+}
+
+// The SVG rasterized once into a 4:3 canvas texture; white until it loads,
+// then onLoad (App.vue's requestRender) shows it.
+function createFlagTexture(code, onLoad) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 192;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+  const image = new Image();
+  image.onload = () => {
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    texture.needsUpdate = true;
+    onLoad();
+  };
+  image.src = flagUrl(code);
+  return texture;
+}
+
+const FLAG_CLOTH = { width: 0.4, height: 0.3, depth: 0.012 };
+
+// A thin slab hanging off +X from the pole (x = 0), with a static ripple
+// that grows away from the pole. Static on purpose: a waving flag would
+// force continuous rendering for the whole match. `pad` grows it all round
+// for the baked outline shell, which follows the same ripple.
+function buildFlagClothGeometry(pad = 0) {
+  const { width, height, depth } = FLAG_CLOTH;
+  const geometry = new THREE.BoxGeometry(width + (pad * 2), height + (pad * 2), depth + (pad * 2.2), 16, 1, 1);
+  geometry.translate((width / 2), 0, 0);
+  const position = geometry.attributes.position;
+  for (let i = 0; i < position.count; i += 1) {
+    const t = Math.max(0, position.getX(i) / width);
+    position.setZ(i, position.getZ(i) + (0.035 * t * Math.sin(t * Math.PI * 2.2)));
+    position.setY(i, position.getY(i) - (0.025 * t * t));
+  }
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
 // Prop materials are per seat (suffix `-${seat}`) so App.applySeatPresence
 // can dim a disconnected player's props together with their pawns.
+// (The flag cloth's key also carries the country: `prop-flag-${code}-${seat}`.)
 export const PROP_MATERIAL_PREFIXES = ['prop-gold', 'prop-party', 'prop-white', 'prop-pole'];
+
+export const flagMaterialKey = (code, seat) => `prop-flag-${code}-${seat}`;
 
 const PROP_COLORS = {
   'prop-gold': '#f5c542',
@@ -83,30 +170,39 @@ const PROP_BUILDERS = {
     return group;
   },
 
-  flag(kit, seat, bodyMaterial) {
+  flag(kit, seat, flagCode) {
+    const code = FLAG_CODES.includes(flagCode) ? flagCode : DEFAULT_FLAG;
     const group = markRaw(new THREE.Group());
     const pole = kit.createOutlinedMesh(
-        kit.getSharedGeometry('prop-flag-pole', () => new THREE.CylinderGeometry(0.014, 0.014, 0.62, 8)),
+        kit.getSharedGeometry('prop-flag-pole', () => new THREE.CylinderGeometry(0.016, 0.016, 0.86, 8)),
         propMaterial(kit, 'prop-pole', seat),
-        { castShadow: true, outlineScale: 1.3 },
+        // Thicken the line, not the length (it would poke out above the knob).
+        { castShadow: true, outlineScale: { x: 1.3, y: 1.01, z: 1.3 } },
     );
-    pole.position.set(0.19, 1.02, 0);
-    // The cloth reuses the pawn body material: player color, and it dims with
-    // the seat for free.
+    pole.position.set(0.19, 1.15, 0);
+    const knob = kit.createOutlinedMesh(
+        kit.getSharedGeometry('prop-flag-knob', () => new THREE.SphereGeometry(0.03, 10, 8)),
+        propMaterial(kit, 'prop-gold', seat),
+        { outlineScale: 1.15 },
+    );
+    knob.position.set(0.19, 1.6, 0);
+
+    const texture = kit.getSharedTexture(`flag-${code}`, () => createFlagTexture(code, kit.requestRender));
     const cloth = kit.createOutlinedMesh(
-        kit.getSharedGeometry('prop-flag-cloth', () => new THREE.BoxGeometry(0.24, 0.15, 0.014)),
-        bodyMaterial,
-        { castShadow: true, outlineScale: 1.08 },
+        kit.getSharedGeometry('prop-flag-cloth', () => buildFlagClothGeometry()),
+        kit.createToonMaterial(flagMaterialKey(code, seat), { color: '#ffffff', map: texture }),
+        { castShadow: true },
     );
-    cloth.position.set(0.32, 1.25, 0);
-    group.add(pole, cloth);
+    cloth.add(kit.createBakedOutline(kit.getSharedGeometry('prop-flag-cloth-outline', () => buildFlagClothGeometry(0.008))));
+    cloth.position.set(0.2, 1.4, 0);
+    group.add(pole, knob, cloth);
     return group;
   },
 };
 
-export function buildPropMesh(propId, kit, seat, bodyMaterial) {
+export function buildPropMesh(propId, kit, seat, flagCode) {
   const build = PROP_BUILDERS[propId] || PROP_BUILDERS.none;
-  return build(kit, seat, bodyMaterial);
+  return build(kit, seat, flagCode);
 }
 
 // ── Finishers ───────────────────────────────────────────────────────────

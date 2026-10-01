@@ -25,6 +25,10 @@
             </app-button>
           </template>
 
+          <app-button orange class="menu-btn-full intro-wardrobe-btn" :disabled="busy" @click="openWardrobe">
+            🎩 {{ t('cosmetics.title') }}
+          </app-button>
+
           <div class="intro-account">
             <button v-if="isSignedIn" type="button" class="intro-account-link" @click="openAccount">
               👤 {{ accountLabel }}
@@ -43,6 +47,7 @@
       <join-room-screen v-else-if="store.currentScreen === 'join-room'" key="join-room" />
       <lobby-screen v-else-if="store.currentScreen === 'lobby'" key="lobby" />
       <admin-screen v-else-if="store.currentScreen === 'admin'" key="admin" />
+      <wardrobe-screen v-else-if="store.currentScreen === 'wardrobe'" key="wardrobe" />
     </transition>
 
     <game-interface v-if="store.currentScreen === 'game-screen'" />
@@ -65,7 +70,6 @@
     <div
       v-if="store.settingsOpen"
       class="global-settings-modal-backdrop"
-      :class="{ 'global-settings-modal-backdrop--previewing': store.finisherPreview }"
       @click.self="store.settingsOpen = false"
     >
       <app-panel class="global-settings-card">
@@ -92,7 +96,13 @@
           />
         </div>
 
-        <cosmetics-picker />
+        <div class="form-row">
+          <label class="select-label">{{ t('cosmetics.finishers') }}</label>
+          <app-tabs
+            v-model="finishersSetting"
+            :options="[{ value: 'on', label: t('settings.soundOn') }, { value: 'off', label: t('settings.soundOff') }]"
+          />
+        </div>
 
         <div class="menu-row" style="margin-top: 20px;">
           <app-button red @click="store.settingsOpen = false">{{ t('back') }}</app-button>
@@ -129,8 +139,8 @@ import CreateRoomScreen from './CreateRoomScreen.vue';
 import JoinRoomScreen from './JoinRoomScreen.vue';
 import LobbyScreen from './LobbyScreen.vue';
 import AdminScreen from './AdminScreen.vue';
+import WardrobeScreen from './WardrobeScreen.vue';
 import AuthModal from './AuthModal.vue';
-import CosmeticsPicker from './CosmeticsPicker.vue';
 import ApplicationStore from '../utils/ApplicationStore';
 import MatchController from '../network/MatchController';
 import { clearMatchSession } from '../utils/matchSession';
@@ -145,8 +155,8 @@ export default {
     JoinRoomScreen,
     LobbyScreen,
     AdminScreen,
+    WardrobeScreen,
     AuthModal,
-    CosmeticsPicker,
     SettingsIcon: Settings,
   },
   data() {
@@ -177,6 +187,17 @@ export default {
     accountLabel() {
       const account = this.store.online.account;
       return account.email || t(`auth.method_${account.method}`);
+    },
+    // Viewer preference (show other players' Finishers in full or "lite"),
+    // not a Cosmetic — those are only edited in the menu wardrobe.
+    finishersSetting: {
+      get() {
+        return this.store.settings.finishersEnabled ? 'on' : 'off';
+      },
+      set(val) {
+        this.store.settings.finishersEnabled = val === 'on';
+        window.localStorage.setItem('burrec.settings.finishers', val === 'on' ? '1' : '0');
+      },
     },
     soundSetting: {
       get() {
@@ -230,6 +251,9 @@ export default {
       this.store.online.displayName = name;
       window.localStorage.setItem('burrec.online.displayName', name);
       return name;
+    },
+    openWardrobe() {
+      this.store.currentScreen = 'wardrobe';
     },
     openSignIn() {
       this.store.online.authView = 'login';
@@ -295,6 +319,9 @@ export default {
   margin-top: 18px;
   font-size: 1.15rem;
   padding: 16px 24px;
+}
+.intro-wardrobe-btn {
+  margin-top: 10px;
 }
 .intro-resume-note {
   margin: 16px 0 0;

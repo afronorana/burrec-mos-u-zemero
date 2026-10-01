@@ -79,10 +79,12 @@ const ApplicationStore = reactive({
     locale: window.localStorage.getItem('burrec.settings.locale') || 'en',
     environment: window.localStorage.getItem('burrec.settings.environment') || 'day',
     soundEnabled: window.localStorage.getItem('burrec.settings.sound') !== '0',
-    // This player's Cosmetics (Prop + Finisher), sent to every match joined.
+    // This player's Cosmetics (Prop + Finisher + flag), edited only in the
+    // menu wardrobe and sent with every match join.
     cosmetics: sanitizeCosmetics({
       prop: window.localStorage.getItem('burrec.settings.prop'),
       finisher: window.localStorage.getItem('burrec.settings.finisher'),
+      flag: window.localStorage.getItem('burrec.settings.flag'),
     }),
     // Off: captures skip the zoom + tool and just burst and fly home.
     finishersEnabled: window.localStorage.getItem('burrec.settings.finishers') !== '0',
@@ -218,9 +220,17 @@ const ApplicationStore = reactive({
   isMobile: false,
   // Global settings modal, openable from the intro/create/join/lobby gear.
   settingsOpen: false,
-  // Finisher id being previewed from the cosmetics picker (App.vue plays it
-  // on the board; modals fade out while it runs).
-  finisherPreview: null,
+  // Wardrobe screen: the unsaved draft Cosmetics, the preview panel's
+  // viewport rect (CSS px, set by WardrobeScreen) that App.vue renders the
+  // preview stage into, the drag-rotated yaw, and a Finisher replay request
+  // ({ id, nonce } — a new nonce restarts it).
+  wardrobe: {
+    draft: null,
+    rect: null,
+    yaw: 0,
+    dragging: false,
+    play: null,
+  },
   // Testing shortcut: typing TEST toggles it, then keys 1-6 roll that exact
   // value. Only effective when the server runs with DEMO_DICE=1 (dev).
   demoMode: false,

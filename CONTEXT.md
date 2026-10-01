@@ -17,7 +17,7 @@ A player's chosen **Prop** and **Finisher** together; purely presentational, nev
 _Avoid_: skin, loadout
 
 **Prop**:
-A cosmetic item (crown, party hat, flag, …) worn by all four of a player's pawns; one per player.
+A cosmetic item (crown, party hat, a country flag, …) worn by all four of a player's pawns; one per player.
 _Avoid_: hat, accessory, item
 
 **Finisher**:
@@ -30,7 +30,7 @@ _Avoid_: kill animation, capture animation
 - Every **Capture** plays the capturing player's **Finisher**, never the captured player's
 - A single move may **Capture** several pawns; they share one **Finisher**
 - A seat's **Cosmetics** stay with the seat when its owner disconnects, even while the AI plays it
-- **Cosmetics** can change at any time, mid-match included
+- **Cosmetics** are chosen in the Wardrobe (main menu) only and are locked once a match has started
 
 ## Flagged ambiguities
 

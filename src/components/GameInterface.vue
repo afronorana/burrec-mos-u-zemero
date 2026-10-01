@@ -29,7 +29,6 @@
     <div
       v-if="settingsOpen"
       class="global-settings-modal-backdrop"
-      :class="{ 'global-settings-modal-backdrop--previewing': store.finisherPreview }"
       @click.self="settingsOpen = false"
     >
       <app-panel class="global-settings-card">
@@ -49,7 +48,13 @@
           <app-tabs v-model="soundSetting" :options="[{ value: 'on', label: t('settings.soundOn') }, { value: 'off', label: t('settings.soundOff') }]" />
         </div>
 
-        <cosmetics-picker />
+        <div class="form-row">
+          <label class="select-label">{{ t('cosmetics.finishers') }}</label>
+          <app-tabs
+            v-model="finishersSetting"
+            :options="[{ value: 'on', label: t('settings.soundOn') }, { value: 'off', label: t('settings.soundOff') }]"
+          />
+        </div>
 
         <app-button red class="hud-full-width" @click="askLeave">{{ t('online.leaveGame') }}</app-button>
 
@@ -118,7 +123,6 @@
 
 <script>
 import ChatDrawer from './ChatDrawer.vue';
-import CosmeticsPicker from './CosmeticsPicker.vue';
 import ApplicationStore from '../utils/ApplicationStore';
 import MatchController from '../network/MatchController';
 import { t } from '../utils/i18n';
@@ -128,7 +132,6 @@ import { Settings, X } from '@lucide/vue';
 export default {
   components: {
     ChatDrawer,
-    CosmeticsPicker,
     SettingsIcon: Settings,
     XIcon: X,
   },
@@ -152,6 +155,17 @@ export default {
       if (state === 'reconnecting') return t('online.connecting');
       if (state === 'disconnected') return t('online.disconnected');
       return '';
+    },
+    // Viewer preference (show other players' Finishers in full or "lite"),
+    // not a Cosmetic — those are only edited in the menu wardrobe.
+    finishersSetting: {
+      get() {
+        return this.store.settings.finishersEnabled ? 'on' : 'off';
+      },
+      set(val) {
+        this.store.settings.finishersEnabled = val === 'on';
+        window.localStorage.setItem('burrec.settings.finishers', val === 'on' ? '1' : '0');
+      },
     },
     soundSetting: {
       get() {

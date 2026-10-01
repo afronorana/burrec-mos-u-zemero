@@ -391,13 +391,6 @@ html, body, #app {
   pointer-events: all;
 }
 
-/* A Finisher preview plays on the board behind the modal — step aside. */
-.global-settings-modal-backdrop--previewing {
-  opacity: 0;
-  pointer-events: none !important;
-  transition: opacity 150ms ease;
-}
-
 .global-settings-modal-backdrop {
   position: absolute;
   inset: 0;

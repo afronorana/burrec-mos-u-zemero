@@ -37,6 +37,7 @@ import {
 } from './utils/natureKit';
 import {
   PROP_MATERIAL_PREFIXES,
+  flagMaterialKey,
   FINISHER_TIMING,
   LITE_FINISHER_TIMING,
   STAGE_GAP,
@@ -46,7 +47,7 @@ import {
   attackerLunge,
 } from './utils/cosmetics';
 import { playFinisherImpact, playFinisherWindup } from './utils/sound';
-import { DEFAULT_FINISHER, DEFAULT_PROP } from '../shared/protocol';
+import { DEFAULT_FINISHER, DEFAULT_FLAG, DEFAULT_PROP } from '../shared/protocol';
 
 const OUTLINE_COLOR = '#1b1411';
 const BOARD_CENTER = { x: 5, z: 5 };
@@ -173,6 +174,20 @@ const _finisherCamPos = new THREE.Vector3();
 const _finisherCamLook = new THREE.Vector3();
 const _finisherBasePos = new THREE.Vector3();
 const _finisherSpin = new THREE.Quaternion();
+const _wardrobeCamPos = new THREE.Vector3();
+const _wardrobeCamLook = new THREE.Vector3();
+const _wardrobeScratch = new THREE.Vector3();
+
+// Wardrobe preview stage (its own little scene, see renderWardrobeStage):
+// the pawn stands at the origin; a Finisher preview hits a victim along +X
+// with the camera side-on from +Z. Idle framing is a close-up of the pawn,
+// action framing is wide enough for the tools and the launch.
+const WARDROBE_BACKGROUND = '#1b1d24';
+const WARDROBE_FRAMING = {
+  idle: { pos: [0.2, 1.55, 4.7], look: [0.2, 0.82, 0] },
+  action: { pos: [0.45, 1.9, 6.4], look: [0.45, 0.65, 0] },
+};
+const WARDROBE_VICTIM_HOME = { x: 9, y: 0, z: -2 };
 const _attackerPoseScratch = { x: 0, y: 0, z: 0 };
 const _diceFaceQuaternion = new THREE.Quaternion();
 const _diceFaceScratch = new THREE.Vector3();
@@ -425,9 +440,9 @@ export default {
         this.applyPawnProps();
       },
     },
-    'store.finisherPreview'(finisherId) {
-      if (finisherId) {
-        this.startPreviewFinisher(finisherId);
+    'store.wardrobe.play'(request) {
+      if (request) {
+        this.startWardrobeFinisher(request.id);
       }
     },
     pendingDiceRoll(val) {
@@ -437,7 +452,7 @@ export default {
       this.applyPitRimColor();
     },
     'store.currentScreen'(newScreen, oldScreen) {
-      const isOrbitScreen = (s) => ['main-menu', 'home', 'create-room', 'join-room', 'admin'].includes(s) || !s;
+      const isOrbitScreen = (s) => ['main-menu', 'home', 'create-room', 'join-room', 'admin', 'wardrobe'].includes(s) || !s;
       const isFixedScreen = (s) => ['lobby', 'game-screen'].includes(s);
 
       if (isFixedScreen(newScreen) && isOrbitScreen(oldScreen)) {
@@ -455,6 +470,10 @@ export default {
         if (this.controls) {
           this.controls.enabled = false;
         }
+      }
+
+      if (oldScreen === 'wardrobe' && this.finisher?.wardrobe) {
+        this.endFinisher();
       }
 
       this.applyPitRimColor();
@@ -521,6 +540,8 @@ export default {
       activeHitEffects: markRaw([]),
       // The running Finisher (see startFinisher), or null.
       finisher: null,
+      // Wardrobe preview scene, built on first visit (ensureWardrobeStage).
+      wardrobeStage: null,
       swallowNextClick: false,
       // Rolling window of consecutive rendered-frame deltas (auto quality).
       autoQuality: markRaw({ deltas: [], lastSampleAt: 0, dropsLeft: 2 }),
@@ -1196,6 +1217,9 @@ export default {
 
         this.updateCameraPath(frameNow);
         this.updateFinisher(frameNow);
+        if (this.store.currentScreen === 'wardrobe') {
+          this.updateWardrobeStage(frameNow);
+        }
         this.syncHomeBaseHelpers();
         this.updateClickableRipples();
 
@@ -1230,6 +1254,9 @@ export default {
         if (this.renderNeeded && sinceLastRender >= interval) {
           this.renderNeeded = false;
           this.renderer.render(this.scene, this.camera);
+          if (this.store.currentScreen === 'wardrobe') {
+            this.renderWardrobeStage();
+          }
           this.updateHitEffects();
           this.sampleRenderPerformance(frameNow);
           // Keep the cadence phase-locked (avg 24fps on a 60Hz display
@@ -1564,7 +1591,7 @@ export default {
 
       const group = this.buildPawnGroup(pawn.playerIndex, pawn.color);
       group.name = `cube-${pawn.id}`;
-      this.applyPropToPawnGroup(group, pawn.playerIndex, this.propForSeat(pawn.playerIndex));
+      this.applyPropToPawnGroup(group, pawn.playerIndex, this.propForSeat(pawn.playerIndex), this.flagForSeat(pawn.playerIndex));
 
       this.pawnMeshes[pawn.id] = group;
       this.scene.add(group);
@@ -1629,27 +1656,45 @@ export default {
       return this.cosmeticsForSeat(seat)?.finisher || DEFAULT_FINISHER;
     },
 
+    flagForSeat(seat) {
+      return this.cosmeticsForSeat(seat)?.flag || DEFAULT_FLAG;
+    },
+
     cosmeticsKit() {
       return {
         getSharedGeometry: this.getSharedGeometry,
+        getSharedTexture: this.getSharedTexture,
         createToonMaterial: this.createToonMaterial,
         createOutlinedMesh: this.createOutlinedMesh,
+        createBakedOutline: this.createBakedOutline,
+        requestRender: this.requestRender,
       };
     },
 
-    applyPropToPawnGroup(group, seat, propId) {
-      if (group.userData.propId === propId) {
+    // An outline shell from its own pre-built geometry (for shapes a uniform
+    // scale can't outline, e.g. the rippled flag cloth). Scale stays 1.
+    createBakedOutline(geometry) {
+      const outline = markRaw(new THREE.Mesh(geometry, this.getOutlineShellMaterial()));
+      outline.userData.isOutlineShell = true;
+      outline.userData.baseOutlineScale = 1;
+      outline.renderOrder = 1;
+      return outline;
+    },
+
+    applyPropToPawnGroup(group, seat, propId, flagCode = DEFAULT_FLAG) {
+      const propKey = propId === 'flag' ? `flag:${flagCode}` : propId;
+      if (group.userData.propKey === propKey) {
         return;
       }
       if (group.userData.propMesh) {
         group.remove(group.userData.propMesh);
       }
-      const propMesh = buildPropMesh(propId, this.cosmeticsKit(), seat, group.userData.bodyMaterial);
+      const propMesh = buildPropMesh(propId, this.cosmeticsKit(), seat, flagCode);
       if (propMesh) {
         group.add(propMesh);
       }
       group.userData.propMesh = propMesh;
-      group.userData.propId = propId;
+      group.userData.propKey = propKey;
       // New outline shells need the current outline preset; fresh prop
       // materials need the seat's presence dimming (both run in syncPawns).
       this.pawnOutlineSyncPending = true;
@@ -1660,10 +1705,11 @@ export default {
       this.store.players.forEach((player) => {
         const seat = player.turn - 1;
         const propId = this.propForSeat(seat);
+        const flagCode = this.flagForSeat(seat);
         player.pawns.forEach((pawn) => {
           const group = this.pawnMeshes[pawn.id];
           if (group) {
-            this.applyPropToPawnGroup(group, seat, propId);
+            this.applyPropToPawnGroup(group, seat, propId, flagCode);
           }
         });
       });
@@ -1740,7 +1786,9 @@ export default {
     // utils/hitEffects.js) in .hit-effect-layer. CSS runs the pop/fade
     // choreography; the render loop only re-projects the world anchor so
     // the burst stays glued to the board while the camera moves.
-    spawnHitEffect(data) {
+    // `view` ({ camera, rect }) projects into a sub-viewport instead of the
+    // board camera's full window (the wardrobe preview).
+    spawnHitEffect(data, view = null) {
       const layer = this.$refs.hitEffectLayer;
       const svg = getRandomHitEffectSvg();
       if (!layer || !svg) return;
@@ -1756,6 +1804,7 @@ export default {
         el,
         // Anchor slightly above the pawn's head so the burst covers it.
         worldPosition: markRaw(new THREE.Vector3(data.x, data.y + 1.05, data.z)),
+        view,
         expiresAt: performance.now() + HIT_EFFECT_DURATION_MS,
       });
       this.updateHitEffects();
@@ -1773,9 +1822,15 @@ export default {
           continue;
         }
 
-        const v = _hitEffectScratch.copy(effect.worldPosition).project(this.camera);
-        effect.el.style.left = `${((v.x * 0.5 + 0.5) * window.innerWidth).toFixed(1)}px`;
-        effect.el.style.top = `${((-v.y * 0.5 + 0.5) * window.innerHeight).toFixed(1)}px`;
+        const view = effect.view;
+        const v = _hitEffectScratch.copy(effect.worldPosition).project(view ? view.camera : this.camera);
+        const rect = view ? view.rect : null;
+        const left = rect ? rect.left : 0;
+        const top = rect ? rect.top : 0;
+        const width = rect ? rect.width : window.innerWidth;
+        const height = rect ? rect.height : window.innerHeight;
+        effect.el.style.left = `${(left + ((v.x * 0.5 + 0.5) * width)).toFixed(1)}px`;
+        effect.el.style.top = `${(top + ((-v.y * 0.5 + 0.5) * height)).toFixed(1)}px`;
       }
     },
 
@@ -1830,47 +1885,42 @@ export default {
       return null;
     },
 
-    // Picker "▶ preview": two throwaway pawns act it out on our quarter of
-    // the board (own seat color vs the next seat's), with the local Prop.
-    startPreviewFinisher(finisherId) {
-      if (this.finisher || !this.scene) {
-        this.store.finisherPreview = null;
+    // Wardrobe "▶": the preview pawn (wearing the draft Cosmetics) acts the
+    // Finisher out on a throwaway victim in the wardrobe stage — always the
+    // full version, since that's what's being chosen.
+    startWardrobeFinisher(finisherId) {
+      const stage = this.ensureWardrobeStage();
+      if (!stage || this.store.currentScreen !== 'wardrobe') {
+        this.store.wardrobe.play = null;
         return;
       }
-      const mySeat = this.store.online.mySeat;
-      const attackerSeat = mySeat >= 0 ? mySeat : 0;
-      const victimSeat = (attackerSeat + 1) % 4;
-      const field = this.store.fields.path[(attackerSeat * 10) + 5];
-      const homeField = this.store.fields.home[victimSeat].fields[0];
-
-      const attackerMesh = this.buildPawnGroup(attackerSeat, PLAYER_COLORS[attackerSeat]);
-      this.applyPropToPawnGroup(attackerMesh, attackerSeat, this.store.settings.cosmetics.prop);
-      const victimMesh = this.buildPawnGroup(victimSeat, PLAYER_COLORS[victimSeat]);
-      const attackerPos = { x: field.x, y: PAWN_CENTER_Y, z: field.z };
-      attackerMesh.position.set(attackerPos.x, attackerPos.y, attackerPos.z);
-      victimMesh.position.set(attackerPos.x, attackerPos.y, attackerPos.z);
-      this.scene.add(attackerMesh, victimMesh);
-
+      if (this.finisher) {
+        this.endFinisher();
+      }
+      const victimMesh = this.buildPawnGroup('wardrobe-1', PLAYER_COLORS[1]);
+      stage.scene.add(victimMesh);
+      const attackerPos = { x: 0, y: 0, z: 0 };
       this.startFinisher({
         finisherId,
-        attackerMesh,
+        attackerMesh: stage.pawn,
         attackerPos,
         victims: [{
           pawnId: null,
           mesh: victimMesh,
           from: { ...attackerPos },
-          home: { x: homeField.x, y: PAWN_CENTER_Y, z: homeField.z },
+          home: { ...WARDROBE_VICTIM_HOME },
         }],
         lite: false,
-        preview: true,
-        tempMeshes: [attackerMesh, victimMesh],
+        wardrobe: true,
+        tempMeshes: [victimMesh],
       });
     },
 
-    startFinisher({ finisherId, attackerId = null, attackerMesh = null, attackerPos, victims, lite, preview = false, tempMeshes = [] }) {
+    startFinisher({ finisherId, attackerId = null, attackerMesh = null, attackerPos, victims, lite, wardrobe = false, tempMeshes = [] }) {
       if (this.finisher) {
         this.endFinisher();
       }
+      const scene = wardrobe ? this.wardrobeStage.scene : this.scene;
 
       // Hit direction: from the capture square toward the (first) victim's
       // home, so the blow visibly sends it where it lands.
@@ -1898,7 +1948,8 @@ export default {
       const f = {
         id: finisherId,
         lite,
-        preview,
+        wardrobe,
+        scene,
         start: performance.now(),
         timing: lite ? LITE_FINISHER_TIMING : FINISHER_TIMING,
         attackerId,
@@ -1929,11 +1980,12 @@ export default {
           tool.scale.setScalar(0.001);
           stage.add(tool);
         }
-        this.scene.add(stage);
+        scene.add(stage);
         f.stage = stage;
         f.tool = tool;
         this.pawnOutlineSyncPending = true;
-        f.camera = this.planFinisherCamera(f);
+        // The wardrobe stage frames the action itself (updateWardrobeStage).
+        f.camera = wardrobe ? null : this.planFinisherCamera(f);
       }
 
       // Safety net: a hidden tab stops rAF, and the queue must never stall.
@@ -2023,7 +2075,8 @@ export default {
 
       if (!f.impactDone && t >= T.impact) {
         f.impactDone = true;
-        f.victims.forEach((victim) => this.spawnHitEffect(victim.stand));
+        const view = f.wardrobe ? this.wardrobeView() : null;
+        f.victims.forEach((victim) => this.spawnHitEffect(victim.stand, view));
         playFinisherImpact(f.id);
       }
 
@@ -2070,6 +2123,124 @@ export default {
       mesh.visible = true;
     },
 
+    // ── Wardrobe stage ─────────────────────────────────────────────────
+    // A tiny separate scene (dark backdrop, plinth, one pawn) that the main
+    // renderer draws into the wardrobe's preview panel (store.wardrobe.rect)
+    // with a scissored viewport, after the orbiting board. Reusing this
+    // renderer and the shared caches means props and Finishers preview with
+    // exactly the code the match uses.
+    ensureWardrobeStage() {
+      if (this.wardrobeStage) {
+        return this.wardrobeStage;
+      }
+      if (!this.renderer) {
+        return null;
+      }
+      const scene = markRaw(new THREE.Scene());
+      scene.background = markRaw(new THREE.Color(WARDROBE_BACKGROUND));
+      const camera = markRaw(new THREE.PerspectiveCamera(30, 1, 0.1, 60));
+
+      const sky = markRaw(new THREE.HemisphereLight('#fff4e4', '#3b4058', 1.5));
+      const key = markRaw(new THREE.DirectionalLight('#fff1db', 1.5));
+      key.position.set(-2.5, 4, 3.5);
+      const rim = markRaw(new THREE.DirectionalLight('#9fb8ff', 0.9));
+      rim.position.set(3, 2.5, -3);
+      scene.add(sky, key, rim);
+
+      const plinth = this.createOutlinedMesh(
+          this.getSharedGeometry('wardrobe-plinth', () => new THREE.CylinderGeometry(0.62, 0.7, 0.12, 40)),
+          this.createToonMaterial('wardrobe-plinth-material', { color: '#3d4252' }),
+          { outlineScale: 1.02 },
+      );
+      plinth.position.y = -0.06;
+      const pawn = this.buildPawnGroup('wardrobe-0', PLAYER_COLORS[0]);
+      scene.add(plinth, pawn);
+
+      this.wardrobeStage = markRaw({
+        scene,
+        camera,
+        pawn,
+        spin: 0,
+        framing: 0,
+        lastAt: 0,
+        aspect: 0,
+      });
+      this.applyOutlineAppearance();
+      return this.wardrobeStage;
+    },
+
+    wardrobeView() {
+      const stage = this.wardrobeStage;
+      const rect = this.store.wardrobe.rect;
+      return stage && rect ? { camera: stage.camera, rect: { ...rect } } : null;
+    },
+
+    // Per frame while the wardrobe is open: dress the pawn in the draft,
+    // turntable it (plus the viewer's drag), and ease the camera between the
+    // close-up and the wide Finisher framing.
+    updateWardrobeStage(now) {
+      const stage = this.ensureWardrobeStage();
+      const rect = this.store.wardrobe.rect;
+      if (!stage || !rect || rect.width < 2 || rect.height < 2) {
+        return;
+      }
+      const dt = stage.lastAt ? Math.min(now - stage.lastAt, 100) : 0;
+      stage.lastAt = now;
+
+      const look = this.store.wardrobe.draft || this.store.settings.cosmetics;
+      this.applyPropToPawnGroup(stage.pawn, 'wardrobe-0', look.prop, look.flag);
+
+      const acting = Boolean(this.finisher?.wardrobe);
+      if (acting) {
+        // Side-on to the blow, flag trailing away from the victim.
+        stage.pawn.rotation.y = Math.PI * 0.85;
+      } else {
+        if (!this.store.wardrobe.dragging) {
+          stage.spin += dt * 0.0005;
+        }
+        stage.pawn.rotation.y = stage.spin + this.store.wardrobe.yaw;
+        stage.pawn.position.set(0, 0, 0);
+      }
+
+      const goal = acting ? 1 : 0;
+      stage.framing += (goal - stage.framing) * Math.min(1, dt / 220);
+      const { idle, action } = WARDROBE_FRAMING;
+      const amount = stage.framing;
+      _wardrobeCamPos.set(...idle.pos).lerp(_wardrobeCamLook.set(...action.pos), amount);
+      _wardrobeCamLook.set(...idle.look).lerp(_wardrobeScratch.set(...action.look), amount);
+      // Narrow (portrait) panels back the camera off so the scene still fits
+      // horizontally.
+      const aspect = rect.width / rect.height;
+      if (aspect < 1.1) {
+        const back = Math.pow(1.1 / aspect, 0.85);
+        _wardrobeCamPos.sub(_wardrobeCamLook).multiplyScalar(back).add(_wardrobeCamLook);
+      }
+      stage.camera.position.copy(_wardrobeCamPos);
+      stage.camera.lookAt(_wardrobeCamLook);
+      if (stage.aspect !== aspect) {
+        stage.aspect = aspect;
+        stage.camera.aspect = aspect;
+        stage.camera.updateProjectionMatrix();
+      }
+    },
+
+    renderWardrobeStage() {
+      const stage = this.wardrobeStage;
+      const rect = this.store.wardrobe.rect;
+      if (!stage || !rect || rect.width < 2 || rect.height < 2) {
+        return;
+      }
+      const renderer = this.renderer;
+      // WebGL viewports count from the bottom edge.
+      const y = window.innerHeight - rect.top - rect.height;
+      renderer.setScissorTest(true);
+      renderer.setScissor(rect.left, y, rect.width, rect.height);
+      renderer.setViewport(rect.left, y, rect.width, rect.height);
+      renderer.render(stage.scene, stage.camera);
+      renderer.setScissorTest(false);
+      renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
+    },
+
     // Ends (or cuts short) the running Finisher: victims land home, the
     // camera goes back, the event queue resumes.
     endFinisher() {
@@ -2081,9 +2252,9 @@ export default {
       window.clearTimeout(f.fallbackTimer);
 
       if (f.stage) {
-        this.scene.remove(f.stage);
+        f.scene.remove(f.stage);
       }
-      f.tempMeshes.forEach((mesh) => this.scene.remove(mesh));
+      f.tempMeshes.forEach((mesh) => f.scene.remove(mesh));
 
       f.victims.forEach((victim) => {
         if (!victim.pawnId) {
@@ -2121,8 +2292,8 @@ export default {
         }
       }
 
-      if (f.preview) {
-        this.store.finisherPreview = null;
+      if (f.wardrobe) {
+        this.store.wardrobe.play = null;
       }
       this.store.online.finisherInFlight = false;
       this.requestShadowUpdate();
@@ -2559,7 +2730,7 @@ export default {
       outlineMaterial.transparent = true;
       outlineMaterial.needsUpdate = true;
 
-      this.scene?.traverse((object) => {
+      const applyToShell = (object) => {
         if (!object.userData?.isOutlineShell) {
           return;
         }
@@ -2580,7 +2751,9 @@ export default {
             object.userData.baseOutlineScale || 1.02,
             preset.lineScale,
         ));
-      });
+      };
+      this.scene?.traverse(applyToShell);
+      this.wardrobeStage?.scene.traverse(applyToShell);
     },
 
     // Marks the shadow map dirty so the next renderer.render redraws it.
@@ -3017,7 +3190,7 @@ export default {
           return;
         }
         const dim = seat.connected === false;
-        const keys = [`pawn-body-material-${seat.seat}`]
+        const keys = [`pawn-body-material-${seat.seat}`, flagMaterialKey(this.flagForSeat(seat.seat), seat.seat)]
           .concat(PROP_MATERIAL_PREFIXES.map((prefix) => `${prefix}-${seat.seat}`));
         keys.forEach((key) => {
           const material = this.sharedMaterials[key];
@@ -4130,7 +4303,7 @@ export default {
     },
 
     isMenuMode() {
-      const orbitingScreens = ['main-menu', 'home', 'create-room', 'join-room', 'admin'];
+      const orbitingScreens = ['main-menu', 'home', 'create-room', 'join-room', 'admin', 'wardrobe'];
       return orbitingScreens.includes(this.store.currentScreen);
     },
 

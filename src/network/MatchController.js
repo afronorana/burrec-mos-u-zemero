@@ -123,8 +123,8 @@ class MatchControllerService {
   // Join metadata: the name plus this player's Cosmetics (the server
   // whitelists them).
   joinMetadata() {
-    const { prop, finisher } = ApplicationStore.settings.cosmetics;
-    return { displayName: this.online().displayName, prop, finisher };
+    const { prop, finisher, flag } = ApplicationStore.settings.cosmetics;
+    return { displayName: this.online().displayName, prop, finisher, flag };
   }
 
   async joinById(matchId, info) {
@@ -292,12 +292,6 @@ class MatchControllerService {
 
   requestClaimSeat(seatIndex) {
     this.send(OpCode.CLAIM_SEAT, { seat: seatIndex });
-  }
-
-  // Live cosmetics change (settings/lobby picker); no-op outside a match.
-  sendCosmetics() {
-    const { prop, finisher } = ApplicationStore.settings.cosmetics;
-    this.send(OpCode.SET_COSMETICS, { prop, finisher });
   }
 
   handleMatchData(matchData) {

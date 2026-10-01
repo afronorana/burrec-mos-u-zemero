@@ -68,6 +68,7 @@ export interface LudoState {
 export interface Cosmetics {
   prop: string;
   finisher: string;
+  flag: string;
 }
 
 interface StateWrapper {
@@ -483,10 +484,14 @@ const matchInit = function (
   return { state, tickRate: TICK_RATE, label: makeLabel(state) };
 };
 
-// Join metadata may carry { prop, finisher }; a join without them keeps
-// whatever the user had (e.g. a reconnect from an older client).
+// Join metadata may carry { prop, finisher, flag }; a join without them keeps
+// whatever the user had (e.g. a reconnect from an older client). Once the
+// game is running, a rejoining player keeps the Cosmetics they started with.
 function rememberCosmetics(state: LudoState, userId: string, metadata: { [key: string]: any }) {
-  if (metadata && (typeof metadata.prop === 'string' || typeof metadata.finisher === 'string')) {
+  if (state.cosmetics[userId] && state.phase !== 'lobby') {
+    return;
+  }
+  if (metadata && (typeof metadata.prop === 'string' || typeof metadata.finisher === 'string' || typeof metadata.flag === 'string')) {
     state.cosmetics[userId] = sanitizeCosmetics(metadata);
   } else if (!state.cosmetics[userId]) {
     state.cosmetics[userId] = sanitizeCosmetics(null);
@@ -676,7 +681,11 @@ const matchLoop = function (
         handleStart(nk, state, dispatcher, tick, sender);
         break;
       case OpCode.SET_COSMETICS:
-        // Allowed in any phase, seated or not — cosmetics never touch rules.
+        // Cosmetics are picked in the menu wardrobe and ride join metadata;
+        // once the game starts they're locked for the rest of the match.
+        if (state.phase !== 'lobby') {
+          break;
+        }
         state.cosmetics[sender.userId] = sanitizeCosmetics(payload);
         broadcast(dispatcher, OpCode.LOBBY_STATE, lobbyStatePayload(state));
         break;

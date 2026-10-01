@@ -34,24 +34,6 @@
          chip on desktop (item: "Leave lobby" small, top-left). -->
     <app-button small red class="lobby-leave-btn" @click="askLeave">{{ t('online.leaveLobby') }}</app-button>
 
-    <!-- Quick Prop/Finisher change; your pawns on the board show the result. -->
-    <app-button small orange class="lobby-style-btn" @click="styleOpen = true">🎩 {{ t('cosmetics.title') }}</app-button>
-
-    <div
-      v-if="styleOpen"
-      class="global-settings-modal-backdrop"
-      :class="{ 'global-settings-modal-backdrop--previewing': store.finisherPreview }"
-      @click.self="styleOpen = false"
-    >
-      <app-panel class="global-settings-card">
-        <h3 class="panel-title" style="margin-bottom: 16px;">{{ t('cosmetics.title') }}</h3>
-        <cosmetics-picker :show-toggle="false" />
-        <div class="menu-row" style="margin-top: 12px;">
-          <app-button @click="styleOpen = false">{{ t('back') }}</app-button>
-        </div>
-      </app-panel>
-    </div>
-
     <!-- Settings button commented out for now (kept for easy re-enable).
     <app-button orange class="hud-icon-btn lobby-settings-btn" :title="t('settings.title')" @click="openSettings">
       <settings-icon :size="18" />
@@ -107,7 +89,6 @@
 
 <script>
 import ChatDrawer from './ChatDrawer.vue';
-import CosmeticsPicker from './CosmeticsPicker.vue';
 import ApplicationStore from '../utils/ApplicationStore';
 import MatchController from '../network/MatchController';
 import { PLAYER_COLORS } from '../utils/playerColors';
@@ -115,14 +96,13 @@ import { t } from '../utils/i18n';
 import { Copy, Check, Settings } from '@lucide/vue';
 
 export default {
-  components: { ChatDrawer, CosmeticsPicker, CopyIcon: Copy, CheckIcon: Check, SettingsIcon: Settings },
+  components: { ChatDrawer, CopyIcon: Copy, CheckIcon: Check, SettingsIcon: Settings },
   data() {
     return {
       store: ApplicationStore,
       playerColors: PLAYER_COLORS,
       copied: false,
       confirmLeave: false,
-      styleOpen: false,
       // Mirrors how the bases read from the fixed camera:
       // red top-left, yellow top-right / green bottom-left, blue bottom-right.
       seatDisplayOrder: [0, 1, 3, 2],
@@ -265,14 +245,6 @@ export default {
   z-index: 5;
 }
 
-.lobby-style-btn {
-  position: absolute;
-  top: 22px;
-  right: 176px;
-  pointer-events: all;
-  z-index: 5;
-}
-
 /* ── Seat chips ──────────────────────────────────────────── */
 .lobby-seats-layer {
   position: absolute;
@@ -380,11 +352,6 @@ export default {
   .lobby-leave-btn {
     top: 8px;
     left: 8px;
-  }
-
-  .lobby-style-btn {
-    top: 8px;
-    right: 8px;
   }
 
   .lobby-code {
