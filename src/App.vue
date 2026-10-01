@@ -28,6 +28,18 @@ import Player from './utils/Player';
 import MatchController from './network/MatchController';
 import { readMatchUrl, loadActiveMatch } from './utils/matchSession';
 import { getRandomHitEffectSvg, HIT_EFFECT_DURATION_MS } from './utils/hitEffects';
+import {
+  PROP_MATERIAL_PREFIXES,
+  FINISHER_TIMING,
+  LITE_FINISHER_TIMING,
+  STAGE_GAP,
+  buildPropMesh,
+  buildFinisherTool,
+  poseFinisherTool,
+  attackerLunge,
+} from './utils/cosmetics';
+import { playFinisherImpact, playFinisherWindup } from './utils/sound';
+import { DEFAULT_FINISHER, DEFAULT_PROP } from '../shared/protocol';
 
 const OUTLINE_COLOR = '#1b1411';
 const BOARD_CENTER = { x: 5, z: 5 };
@@ -76,6 +88,11 @@ const CAMERA_GAME_TARGET = new THREE.Vector3(5, 0.4, 5);
 // Render-loop scratch objects — reused every frame to avoid GC churn.
 const _cameraLookScratch = new THREE.Vector3();
 const _hitEffectScratch = new THREE.Vector3();
+const _finisherCamPos = new THREE.Vector3();
+const _finisherCamLook = new THREE.Vector3();
+const _finisherBasePos = new THREE.Vector3();
+const _finisherSpin = new THREE.Quaternion();
+const _attackerPoseScratch = { x: 0, y: 0, z: 0 };
 const _diceFaceQuaternion = new THREE.Quaternion();
 const _diceFaceScratch = new THREE.Vector3();
 const _diceBestNormal = new THREE.Vector3();
@@ -328,6 +345,22 @@ export default {
     'store.online.environment'() {
       this.applyEnvironment();
     },
+    // Props follow the match's cosmetics map (replaced wholesale on every
+    // LOBBY_STATE/STATE_SYNC) and, for our own pawns, the local pick.
+    'store.online.cosmetics'() {
+      this.applyPawnProps();
+    },
+    'store.settings.cosmetics': {
+      deep: true,
+      handler() {
+        this.applyPawnProps();
+      },
+    },
+    'store.finisherPreview'(finisherId) {
+      if (finisherId) {
+        this.startPreviewFinisher(finisherId);
+      }
+    },
     pendingDiceRoll(val) {
       this.store.gamePlayStatus.isDiceRolling = Boolean(val);
     },
@@ -420,6 +453,9 @@ export default {
       overlayHasContent: false,
       demoKeyBuffer: '',
       activeHitEffects: markRaw([]),
+      // The running Finisher (see startFinisher), or null.
+      finisher: null,
+      swallowNextClick: false,
       // Demand rendering: render passes run only when something changed.
       renderNeeded: true,
       lastRenderAt: 0,
@@ -520,7 +556,7 @@ export default {
         EventBus.listen(EventKeys.net.turnChange, this.handleNetTurnChange),
         EventBus.listen(EventKeys.net.stateSync, this.handleNetStateSync),
         EventBus.listen(EventKeys.net.lobbyUpdated, this.handleLobbyUpdated),
-        EventBus.listen(EventKeys.pawn.captured, this.spawnHitEffect),
+        EventBus.listen(EventKeys.pawn.captured, this.handleCaptured),
       ];
     },
 
@@ -1047,7 +1083,7 @@ export default {
       if (this.dicePhysicsBody && this.dicePhysicsBody.sleepState !== CANNON.Body.SLEEPING) {
         return true;
       }
-      if (this.activeHitEffects.length) {
+      if (this.activeHitEffects.length || this.finisher) {
         return true;
       }
       // Pulsing claim rings for players still choosing a color.
@@ -1071,6 +1107,7 @@ export default {
         const frameNow = performance.now();
 
         this.updateCameraPath();
+        this.updateFinisher(frameNow);
 
         if (this.homeBaseHelpers && this.baseHelpersVisible()) {
           const inGame = this.store.currentScreen === 'game-screen';
@@ -1125,7 +1162,8 @@ export default {
         this.animateClickableRipples(frameNow);
 
         let cameraMoved = false;
-        if (this.controls && !this.isMenuMode() && !this.cameraTransition) {
+        // A zooming Finisher owns the camera; controls.update() would snap it back.
+        if (this.controls && !this.isMenuMode() && !this.cameraTransition && !this.finisher?.camera) {
           cameraMoved = this.controls.update() === true;
         }
 
@@ -1316,7 +1354,21 @@ export default {
             this.requestShadowUpdate();
           }
 
-          const animatedPosition = this.getAnimatedPawnPosition(pawn, now);
+          // A captured pawn mid-Finisher is posed by updateFinisher; its
+          // logical position is already home and must not start a hop tween.
+          const finisher = this.finisher;
+          if (finisher && finisher.victimIds.has(pawn.id)) {
+            return;
+          }
+
+          let animatedPosition = this.getAnimatedPawnPosition(pawn, now);
+          if (finisher && finisher.attackerId === pawn.id) {
+            // Scratch copy: animatedPosition is the motion state's own object.
+            _attackerPoseScratch.x = animatedPosition.x + finisher.attackerOffset.x;
+            _attackerPoseScratch.y = animatedPosition.y;
+            _attackerPoseScratch.z = animatedPosition.z + finisher.attackerOffset.z;
+            animatedPosition = _attackerPoseScratch;
+          }
           const targetScale = pawn.isActive ? 1.1 : 1;
           // Squash & stretch from the hop, roughly volume-preserving.
           const stretch = this.pawnMotionStates[pawn.id]?.stretch ?? 1;
@@ -1457,20 +1509,34 @@ export default {
         return;
       }
 
+      const group = this.buildPawnGroup(pawn.playerIndex, pawn.color);
+      group.name = `cube-${pawn.id}`;
+      this.applyPropToPawnGroup(group, pawn.playerIndex, this.propForSeat(pawn.playerIndex));
+
+      this.pawnMeshes[pawn.id] = group;
+      this.scene.add(group);
+      // Batched in syncPawns: one applyOutlineAppearance traverse per frame
+      // instead of one per created pawn mesh.
+      this.pawnOutlineSyncPending = true;
+    },
+
+    // Body + head for a seat's color. Materials are shared per seat (the
+    // presence dimming relies on it); also used for Finisher preview pawns.
+    buildPawnGroup(seat, color) {
       const group = markRaw(new THREE.Group());
       const bodyMaterial = this.createToonMaterial(
-          `pawn-body-material-${pawn.playerIndex}`,
+          `pawn-body-material-${seat}`,
           {
-            color: pawn.color,
+            color,
           },
           {
             outlineThickness: 0.01,
           },
       );
       const headMaterial = this.createToonMaterial(
-          `pawn-head-material-${pawn.playerIndex}`,
+          `pawn-head-material-${seat}`,
           {
-            color: pawn.color,
+            color,
           },
           {
             outlineThickness: 0.0095,
@@ -1499,15 +1565,73 @@ export default {
           1.075,
       );
 
-      group.name = `cube-${pawn.id}`;
       group.add(body);
       group.add(head);
+      group.userData.bodyMaterial = bodyMaterial;
+      return group;
+    },
 
-      this.pawnMeshes[pawn.id] = group;
-      this.scene.add(group);
-      // Batched in syncPawns: one applyOutlineAppearance traverse per frame
-      // instead of one per created pawn mesh.
+    // ── Cosmetics ──────────────────────────────────────────────────────
+    // A seat's Cosmetics: our own seat reads the local pick (instant
+    // feedback), everyone else the match's cosmetics map.
+    cosmeticsForSeat(seat) {
+      const online = this.store.online;
+      const seatInfo = (online.seats || [])[seat];
+      if (!seatInfo) {
+        return null;
+      }
+      if (seatInfo.userId === online.selfUserId) {
+        return this.store.settings.cosmetics;
+      }
+      return online.cosmetics[seatInfo.userId] || null;
+    },
+
+    propForSeat(seat) {
+      return this.cosmeticsForSeat(seat)?.prop || DEFAULT_PROP;
+    },
+
+    finisherForSeat(seat) {
+      return this.cosmeticsForSeat(seat)?.finisher || DEFAULT_FINISHER;
+    },
+
+    cosmeticsKit() {
+      return {
+        getSharedGeometry: this.getSharedGeometry,
+        createToonMaterial: this.createToonMaterial,
+        createOutlinedMesh: this.createOutlinedMesh,
+      };
+    },
+
+    applyPropToPawnGroup(group, seat, propId) {
+      if (group.userData.propId === propId) {
+        return;
+      }
+      if (group.userData.propMesh) {
+        group.remove(group.userData.propMesh);
+      }
+      const propMesh = buildPropMesh(propId, this.cosmeticsKit(), seat, group.userData.bodyMaterial);
+      if (propMesh) {
+        group.add(propMesh);
+      }
+      group.userData.propMesh = propMesh;
+      group.userData.propId = propId;
+      // New outline shells need the current outline preset; fresh prop
+      // materials need the seat's presence dimming (both run in syncPawns).
       this.pawnOutlineSyncPending = true;
+      this.requestShadowUpdate();
+    },
+
+    applyPawnProps() {
+      this.store.players.forEach((player) => {
+        const seat = player.turn - 1;
+        const propId = this.propForSeat(seat);
+        player.pawns.forEach((pawn) => {
+          const group = this.pawnMeshes[pawn.id];
+          if (group) {
+            this.applyPropToPawnGroup(group, seat, propId);
+          }
+        });
+      });
     },
 
     createOutlinedMesh(geometry, material, options = {}) {
@@ -1604,6 +1728,356 @@ export default {
         effect.el.style.left = `${((v.x * 0.5 + 0.5) * window.innerWidth).toFixed(1)}px`;
         effect.el.style.top = `${((-v.y * 0.5 + 0.5) * window.innerHeight).toFixed(1)}px`;
       }
+    },
+
+    // ── Finishers ──────────────────────────────────────────────────────
+    // A Capture is logically instant (the victims are already home); the
+    // Finisher only delays the victims' meshes. While it runs,
+    // store.online.finisherInFlight holds MatchController's event queue, and
+    // finisher.done releases it.
+    handleCaptured(data) {
+      const attacker = this.findPawnById(data.attackerId);
+      if (!attacker || !data.victims?.length) {
+        return;
+      }
+      const seat = attacker.playerIndex;
+      const finisherId = this.store.online.moveFinisher || this.finisherForSeat(seat);
+      this.store.online.moveFinisher = null;
+
+      const victims = [];
+      data.victims.forEach((victim) => {
+        const pawn = this.findPawnById(victim.pawnId);
+        if (!pawn) {
+          return;
+        }
+        victims.push({
+          pawnId: pawn.id,
+          mesh: this.pawnMeshes[pawn.id] || null,
+          from: { x: victim.x, y: PAWN_CENTER_Y, z: victim.z },
+          home: pawn.getCoordinates(PAWN_CENTER_Y),
+        });
+      });
+      if (!victims.length) {
+        return;
+      }
+
+      this.startFinisher({
+        finisherId,
+        attackerId: attacker.id,
+        attackerPos: attacker.getCoordinates(PAWN_CENTER_Y),
+        victims,
+        lite: !this.store.settings.finishersEnabled,
+      });
+    },
+
+    findPawnById(pawnId) {
+      for (const player of this.store.players) {
+        for (const pawn of player.pawns) {
+          if (pawn.id === pawnId) {
+            return pawn;
+          }
+        }
+      }
+      return null;
+    },
+
+    // Picker "▶ preview": two throwaway pawns act it out on our quarter of
+    // the board (own seat color vs the next seat's), with the local Prop.
+    startPreviewFinisher(finisherId) {
+      if (this.finisher || !this.scene) {
+        this.store.finisherPreview = null;
+        return;
+      }
+      const mySeat = this.store.online.mySeat;
+      const attackerSeat = mySeat >= 0 ? mySeat : 0;
+      const victimSeat = (attackerSeat + 1) % 4;
+      const field = this.store.fields.path[(attackerSeat * 10) + 5];
+      const homeField = this.store.fields.home[victimSeat].fields[0];
+
+      const attackerMesh = this.buildPawnGroup(attackerSeat, PLAYER_COLORS[attackerSeat]);
+      this.applyPropToPawnGroup(attackerMesh, attackerSeat, this.store.settings.cosmetics.prop);
+      const victimMesh = this.buildPawnGroup(victimSeat, PLAYER_COLORS[victimSeat]);
+      const attackerPos = { x: field.x, y: PAWN_CENTER_Y, z: field.z };
+      attackerMesh.position.set(attackerPos.x, attackerPos.y, attackerPos.z);
+      victimMesh.position.set(attackerPos.x, attackerPos.y, attackerPos.z);
+      this.scene.add(attackerMesh, victimMesh);
+
+      this.startFinisher({
+        finisherId,
+        attackerMesh,
+        attackerPos,
+        victims: [{
+          pawnId: null,
+          mesh: victimMesh,
+          from: { ...attackerPos },
+          home: { x: homeField.x, y: PAWN_CENTER_Y, z: homeField.z },
+        }],
+        lite: false,
+        preview: true,
+        tempMeshes: [attackerMesh, victimMesh],
+      });
+    },
+
+    startFinisher({ finisherId, attackerId = null, attackerMesh = null, attackerPos, victims, lite, preview = false, tempMeshes = [] }) {
+      if (this.finisher) {
+        this.endFinisher();
+      }
+
+      // Hit direction: from the capture square toward the (first) victim's
+      // home, so the blow visibly sends it where it lands.
+      const first = victims[0];
+      let dirX = first.home.x - first.from.x;
+      let dirZ = first.home.z - first.from.z;
+      const length = Math.hypot(dirX, dirZ) || 1;
+      dirX /= length;
+      dirZ /= length;
+      const perpX = -dirZ;
+      const perpZ = dirX;
+
+      // Victims scoot off the attacker's square (spread sideways when several).
+      victims.forEach((victim, index) => {
+        const spread = (index - ((victims.length - 1) / 2)) * 0.42;
+        const gap = lite ? 0 : STAGE_GAP;
+        victim.stand = {
+          x: victim.from.x + (dirX * gap) + (perpX * spread),
+          y: victim.from.y,
+          z: victim.from.z + (dirZ * gap) + (perpZ * spread),
+        };
+        victim.spinAxis = markRaw(new THREE.Vector3(perpX, 0, perpZ));
+      });
+
+      const f = {
+        id: finisherId,
+        lite,
+        preview,
+        start: performance.now(),
+        timing: lite ? LITE_FINISHER_TIMING : FINISHER_TIMING,
+        attackerId,
+        attackerMesh,
+        attackerPos,
+        attackerOffset: { x: 0, z: 0 },
+        victims,
+        victimIds: new Set(victims.map((victim) => victim.pawnId).filter(Boolean)),
+        dir: { x: dirX, z: dirZ },
+        tempMeshes,
+        stage: null,
+        tool: null,
+        camera: null,
+        windupPlayed: false,
+        impactDone: false,
+        fallbackTimer: null,
+      };
+
+      if (!lite) {
+        // Tools live in a stage frame: origin at the first victim's standing
+        // spot, local +Z along the hit direction.
+        const stage = markRaw(new THREE.Group());
+        stage.position.set(first.stand.x, 0, first.stand.z);
+        stage.rotation.y = Math.atan2(dirX, dirZ);
+        stage.position.y = PAWN_CENTER_Y;
+        const tool = buildFinisherTool(finisherId, this.cosmeticsKit());
+        if (tool) {
+          tool.scale.setScalar(0.001);
+          stage.add(tool);
+        }
+        this.scene.add(stage);
+        f.stage = stage;
+        f.tool = tool;
+        this.pawnOutlineSyncPending = true;
+        f.camera = this.planFinisherCamera(f);
+      }
+
+      // Safety net: a hidden tab stops rAF, and the queue must never stall.
+      f.fallbackTimer = window.setTimeout(() => {
+        if (this.finisher === f) {
+          this.endFinisher();
+        }
+      }, f.timing.total + 1500);
+
+      this.finisher = markRaw(f);
+      this.store.online.finisherInFlight = true;
+      this.requestShadowUpdate();
+    },
+
+    // Side-on close-up of attacker + victim, on the side the viewer is
+    // already looking from.
+    planFinisherCamera(f) {
+      if (!this.camera) {
+        return null;
+      }
+      const target = this.controls && !this.isMenuMode() ? this.controls.target : CAMERA_GAME_TARGET;
+      const stand = f.victims[0].stand;
+      const focus = markRaw(new THREE.Vector3(
+          (f.attackerPos.x + stand.x) / 2,
+          PAWN_CENTER_Y + 0.45,
+          (f.attackerPos.z + stand.z) / 2,
+      ));
+      let viewX = this.camera.position.x - target.x;
+      let viewZ = this.camera.position.z - target.z;
+      const viewLength = Math.hypot(viewX, viewZ) || 1;
+      viewX /= viewLength;
+      viewZ /= viewLength;
+      const perpX = -f.dir.z;
+      const perpZ = f.dir.x;
+      const side = (perpX * viewX) + (perpZ * viewZ) >= 0 ? 1 : -1;
+      const camDir = new THREE.Vector3((perpX * side) + (viewX * 0.6), 0, (perpZ * side) + (viewZ * 0.6)).normalize();
+      const controlsEnabled = this.controls ? this.controls.enabled : false;
+      if (this.controls) {
+        this.controls.enabled = false;
+      }
+      return {
+        focus,
+        zoomPos: markRaw(focus.clone().addScaledVector(camDir, 3.3).setY(focus.y + 2.1)),
+        fromPos: markRaw(this.camera.position.clone()),
+        fromTarget: markRaw(target.clone()),
+        controlsEnabled,
+      };
+    },
+
+    updateFinisher(now) {
+      const f = this.finisher;
+      if (!f) {
+        return;
+      }
+      const t = now - f.start;
+      const T = f.timing;
+
+      if (f.camera) {
+        // In menus the orbit keeps running underneath (updateCameraPath ran
+        // this frame), so zoom from / return to the live orbit position.
+        const menu = this.isMenuMode();
+        const basePos = menu ? _finisherBasePos.copy(this.camera.position) : f.camera.fromPos;
+        const baseTarget = menu ? CAMERA_GAME_TARGET : f.camera.fromTarget;
+        const zoomIn = Math.min(1, t / T.zoomIn);
+        const zoomOut = Math.min(1, Math.max(0, (t - T.cameraBack[0]) / (T.cameraBack[1] - T.cameraBack[0])));
+        const ease = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+        const amount = ease(zoomIn) * (1 - ease(zoomOut));
+        _finisherCamPos.lerpVectors(basePos, f.camera.zoomPos, amount);
+        _finisherCamLook.lerpVectors(baseTarget, f.camera.focus, amount);
+        this.camera.position.copy(_finisherCamPos);
+        this.camera.lookAt(_finisherCamLook);
+      }
+
+      if (!f.lite) {
+        poseFinisherTool(f.id, f.tool, t);
+        const lunge = attackerLunge(f.id, t);
+        f.attackerOffset.x = f.dir.x * lunge;
+        f.attackerOffset.z = f.dir.z * lunge;
+        if (f.attackerMesh) {
+          f.attackerMesh.position.set(f.attackerPos.x + f.attackerOffset.x, f.attackerPos.y, f.attackerPos.z + f.attackerOffset.z);
+        }
+        if (!f.windupPlayed && t >= T.toolIn[0]) {
+          f.windupPlayed = true;
+          playFinisherWindup(f.id);
+        }
+      }
+
+      if (!f.impactDone && t >= T.impact) {
+        f.impactDone = true;
+        f.victims.forEach((victim) => this.spawnHitEffect(victim.stand));
+        playFinisherImpact(f.id);
+      }
+
+      f.victims.forEach((victim) => this.poseFinisherVictim(f, victim, t));
+
+      if (t >= T.total) {
+        this.endFinisher();
+        return;
+      }
+      this.requestShadowUpdate();
+    },
+
+    poseFinisherVictim(f, victim, t) {
+      const mesh = victim.pawnId ? this.pawnMeshes[victim.pawnId] : victim.mesh;
+      if (!mesh) {
+        return;
+      }
+      const T = f.timing;
+      let x;
+      let y;
+      let z;
+      let spin = 0;
+
+      if (t < T.impact) {
+        // Hop off the attacker's square, then wait for the blow.
+        const p = f.lite ? 1 : Math.min(1, t / T.scoot);
+        x = victim.from.x + ((victim.stand.x - victim.from.x) * p);
+        z = victim.from.z + ((victim.stand.z - victim.from.z) * p);
+        y = victim.stand.y + (Math.sin(Math.PI * p) * 0.25);
+      } else {
+        // Launched: a spinning cartoon arc that lands exactly on its home field.
+        const p = Math.min(1, (t - T.impact) / T.flight);
+        const distance = Math.hypot(victim.home.x - victim.stand.x, victim.home.z - victim.stand.z);
+        const peak = 1.6 + (distance * 0.18);
+        x = victim.stand.x + ((victim.home.x - victim.stand.x) * p);
+        z = victim.stand.z + ((victim.home.z - victim.stand.z) * p);
+        y = victim.stand.y + ((victim.home.y - victim.stand.y) * p) + (Math.sin(Math.PI * p) * peak);
+        spin = p * Math.PI * (f.lite ? 2 : 4);
+      }
+
+      mesh.position.set(x, y, z);
+      mesh.scale.set(1, 1, 1);
+      mesh.quaternion.copy(_finisherSpin.setFromAxisAngle(victim.spinAxis, spin));
+      mesh.visible = true;
+    },
+
+    // Ends (or cuts short) the running Finisher: victims land home, the
+    // camera goes back, the event queue resumes.
+    endFinisher() {
+      const f = this.finisher;
+      if (!f) {
+        return;
+      }
+      this.finisher = null;
+      window.clearTimeout(f.fallbackTimer);
+
+      if (f.stage) {
+        this.scene.remove(f.stage);
+      }
+      f.tempMeshes.forEach((mesh) => this.scene.remove(mesh));
+
+      f.victims.forEach((victim) => {
+        if (!victim.pawnId) {
+          return;
+        }
+        const mesh = this.pawnMeshes[victim.pawnId];
+        mesh?.quaternion.identity();
+        // Settle the tween state on the logical (home) position so syncPawns
+        // doesn't start a hop from where the mesh used to be.
+        const pawn = this.findPawnById(victim.pawnId);
+        const motion = this.pawnMotionStates[victim.pawnId];
+        if (pawn && motion) {
+          const home = pawn.getCoordinates(PAWN_CENTER_Y);
+          ['current', 'from', 'to'].forEach((key) => {
+            motion[key].x = home.x;
+            motion[key].y = home.y;
+            motion[key].z = home.z;
+          });
+          motion.position = pawn.position;
+          motion.globalPosition = pawn.globalPosition;
+          motion.inDestination = pawn.isInDestinationField;
+          motion.isAnimating = false;
+          motion.stretch = 1;
+        }
+      });
+
+      if (f.camera && this.camera && !this.isMenuMode()) {
+        this.camera.position.copy(f.camera.fromPos);
+        if (this.controls) {
+          this.controls.target.copy(f.camera.fromTarget);
+          this.controls.enabled = f.camera.controlsEnabled;
+          this.controls.update();
+        } else {
+          this.camera.lookAt(f.camera.fromTarget);
+        }
+      }
+
+      if (f.preview) {
+        this.store.finisherPreview = null;
+      }
+      this.store.online.finisherInFlight = false;
+      this.requestShadowUpdate();
+      EventBus.fire(EventKeys.finisher.done);
     },
 
     renderHighlights2D() {
@@ -2309,6 +2783,12 @@ export default {
     },
 
     handlePointerDown(event) {
+      // Tap skips a running Finisher (and must not also click the board).
+      if (this.finisher && !this.finisher.lite) {
+        this.endFinisher();
+        this.swallowNextClick = true;
+        return;
+      }
       this.pointerDownPosition = {
         x: event.clientX,
         y: event.clientY,
@@ -2467,6 +2947,10 @@ export default {
     },
 
     handleCanvasClick(event) {
+      if (this.swallowNextClick) {
+        this.swallowNextClick = false;
+        return;
+      }
       if (this.isDraggingScene) {
         this.isDraggingScene = false;
         this.pointerDownPosition = null;
@@ -2528,6 +3012,7 @@ export default {
     },
 
     resetGameState() {
+      this.endFinisher();
       this.store.players.splice(0, this.store.players.length);
       this.store.currentPlayerId = -1;
       this.store.currentRound = 0;
@@ -2561,6 +3046,7 @@ export default {
     handleLobbyUpdated() {
       this.syncOnlinePlayersFromLobby();
       this.applySeatPresence();
+      this.applyPawnProps();
       this.hoverNeedsUpdate = true;
       this.requestRender(); // seat rings appear/freeze/vanish with the roster
     },
@@ -2577,7 +3063,9 @@ export default {
           return;
         }
         const dim = seat.connected === false;
-        [`pawn-body-material-${seat.seat}`, `pawn-head-material-${seat.seat}`].forEach((key) => {
+        const keys = [`pawn-body-material-${seat.seat}`, `pawn-head-material-${seat.seat}`]
+          .concat(PROP_MATERIAL_PREFIXES.map((prefix) => `${prefix}-${seat.seat}`));
+        keys.forEach((key) => {
           const material = this.sharedMaterials[key];
           if (!material) {
             return;

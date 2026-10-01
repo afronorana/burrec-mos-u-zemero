@@ -1,5 +1,6 @@
 import { markRaw, reactive } from 'vue';
 import * as THREE from 'three';
+import { sanitizeCosmetics } from '../../shared/protocol';
 
 const vector = (x, y, z) => markRaw(new THREE.Vector3(x, y, z));
 
@@ -78,6 +79,13 @@ const ApplicationStore = reactive({
     locale: window.localStorage.getItem('burrec.settings.locale') || 'en',
     environment: window.localStorage.getItem('burrec.settings.environment') || 'day',
     soundEnabled: window.localStorage.getItem('burrec.settings.sound') !== '0',
+    // This player's Cosmetics (Prop + Finisher), sent to every match joined.
+    cosmetics: sanitizeCosmetics({
+      prop: window.localStorage.getItem('burrec.settings.prop'),
+      finisher: window.localStorage.getItem('burrec.settings.finisher'),
+    }),
+    // Off: captures skip the zoom + tool and just burst and fly home.
+    finishersEnabled: window.localStorage.getItem('burrec.settings.finishers') !== '0',
   },
   fields: {
     home: [
@@ -176,6 +184,8 @@ const ApplicationStore = reactive({
     // The room creator's environment ('day'|'night'|'dusk'|'dawn'); overrides
     // settings.environment for everyone while in the match.
     environment: null,
+    // userId -> { prop, finisher } for everyone in the match, seated or not.
+    cosmetics: {},
     seatToPlayerIndex: {}, // seat number -> index into store.players (seats can be non-contiguous)
     // Resume-after-reload plumbing (see utils/matchSession.js):
     resuming: false, // rejoining a match from the URL/record — show the overlay
@@ -183,6 +193,8 @@ const ApplicationStore = reactive({
     pendingResume: null, // { matchId, code } deferred until the visitor sets a name
     pendingDice: null, // last DICE_RESULT payload, consumed when the dice settles
     diceInFlight: false, // gates MOVE_APPLIED/TURN_CHANGE replay while dice physics run
+    finisherInFlight: false, // same gate while a capture's Finisher plays
+    moveFinisher: null, // Finisher stamped on the MOVE_APPLIED being replayed
     chat: [],
     lastError: null,
     // Signed-in account (NakamaClient.refreshAccountStatus): method is
@@ -206,6 +218,9 @@ const ApplicationStore = reactive({
   isMobile: false,
   // Global settings modal, openable from the intro/create/join/lobby gear.
   settingsOpen: false,
+  // Finisher id being previewed from the cosmetics picker (App.vue plays it
+  // on the board; modals fade out while it runs).
+  finisherPreview: null,
   // Testing shortcut: typing TEST toggles it, then keys 1-6 roll that exact
   // value. Only effective when the server runs with DEMO_DICE=1 (dev).
   demoMode: false,

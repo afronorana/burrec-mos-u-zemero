@@ -9,7 +9,7 @@ export var OpCode = {
   LOBBY_STATE: 1, // { phase, seats:[{userId,username,displayName,seat,ready,connected}|null], hostUserId, joinCode }
   GAME_START: 2, // { seats, turnSeat, round }
   DICE_RESULT: 3, // { seat, value, legalPawns:[0..3], rollsLeft, autoEndTurn }
-  MOVE_APPLIED: 4, // { seat, pawnIndex, fromPos, toPos, steps, captures:[{seat,pawnIndex}], extraTurn }
+  MOVE_APPLIED: 4, // { seat, pawnIndex, fromPos, toPos, steps, captures:[{seat,pawnIndex}], extraTurn, finisher }
   TURN_CHANGE: 5, // { turnSeat, round, reason:'end'|'repeat'|'timeout'|'noMoves'|'left' }
   STATE_SYNC: 6, // full snapshot (reconnect/desync recovery)
   GAME_OVER: 7, // { winnerSeat }
@@ -22,7 +22,24 @@ export var OpCode = {
   MOVE_REQUEST: 13, // { pawnIndex }
   SYNC_REQUEST: 14, // {}
   CLAIM_SEAT: 15, // { seat: number }
+  SET_COSMETICS: 16, // { prop, finisher } — answered with a LOBBY_STATE broadcast
 };
+
+// Cosmetics catalog: a player's Prop (worn by all four pawns) and Finisher
+// (the presentation of their captures). Purely visual — the server only
+// whitelists ids and relays them (LOBBY_STATE/STATE_SYNC `cosmetics`, keyed
+// by userId). Add ids here first; unknown ids fall back to the defaults.
+export var PROP_IDS = ['none', 'crown', 'partyHat', 'flag'];
+export var FINISHER_IDS = ['shove', 'kick', 'bat', 'bowling'];
+export var DEFAULT_PROP = 'none';
+export var DEFAULT_FINISHER = 'shove';
+
+export function sanitizeCosmetics(input) {
+  var source = input || {};
+  var prop = PROP_IDS.indexOf(source.prop) !== -1 ? source.prop : DEFAULT_PROP;
+  var finisher = FINISHER_IDS.indexOf(source.finisher) !== -1 ? source.finisher : DEFAULT_FINISHER;
+  return { prop: prop, finisher: finisher };
+}
 
 export function encodePayload(payload) {
   return JSON.stringify(payload == null ? {} : payload);

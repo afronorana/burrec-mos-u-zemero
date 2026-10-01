@@ -28,9 +28,9 @@ Production is `burrec.com`, served from a DigitalOcean droplet (Caddy TLS + reve
 Only files reachable from `index.html → src/main.js → src/App.vue` are live:
 
 - `src/App.vue`
-- `src/components/`: `StartScreen.vue`, `HomeScreen.vue`, `GameInterface.vue`, `CreateRoomScreen.vue`, `JoinRoomScreen.vue`, `LobbyScreen.vue`, `ChatPanel.vue`, `ChatDrawer.vue`, `WinScreen.vue`, `AuthModal.vue`, `AdminScreen.vue`, `OutlineAppearanceSelect.vue`, `RenderQualitySlider.vue`
+- `src/components/`: `StartScreen.vue`, `HomeScreen.vue`, `GameInterface.vue`, `CreateRoomScreen.vue`, `JoinRoomScreen.vue`, `LobbyScreen.vue`, `ChatPanel.vue`, `ChatDrawer.vue`, `WinScreen.vue`, `AuthModal.vue`, `AdminScreen.vue`, `OutlineAppearanceSelect.vue`, `RenderQualitySlider.vue`, `CosmeticsPicker.vue`
 - `src/network/`: `NakamaClient.js`, `MatchController.js`, `ChatController.js`
-- `src/utils/`: `ApplicationStore.js`, `Pawn.js`, `Player.js`, `eventhandler.js`, `EventKeys.js`, `movementConstants.js`, `outlineAppearance.js`, `playerColors.js`, `renderQuality.js`
+- `src/utils/`: `ApplicationStore.js`, `Pawn.js`, `Player.js`, `eventhandler.js`, `EventKeys.js`, `movementConstants.js`, `outlineAppearance.js`, `playerColors.js`, `renderQuality.js`, `cosmetics.js`, `sound.js`, `hitEffects.js`
 - `src/styles/`
 - `shared/protocol.js` (opcodes — imported by both the client and the Nakama server bundle)
 - `nakama/src/` (server runtime: `main.ts`, `match_handler.ts`, `ludo_logic.ts`, `rpc.ts`, `auth.ts`, `stats.ts`)
@@ -74,6 +74,7 @@ Online games are **server-authoritative**: a Nakama TypeScript runtime module (`
 - **Recovery**: any REJECTED or desync path sends SYNC_REQUEST; `handleNetStateSync` rebuilds players and teleports pawns from the snapshot.
 - **Drop-in joins**: `label.open:1` means "a seat is claimable" — an open lobby OR a running game with a free/abandoned slot. Mid-game joiners arrive unseated (server sends them a STATE_SYNC; client shows the choose-color banner), then CLAIM_SEAT during `playing` either creates a fresh seat (pawns from home) or takes over a disconnected seat as-is; the server broadcasts STATE_SYNC to everyone so clients rebuild rosters. Disconnected seats' pawns are dimmed client-side (`applySeatPresence`, per-seat shared materials at 0.35 opacity).
 - **Per-game environment**: the room creator's `settings.environment` rides the create RPCs into matchInit params, is broadcast in LOBBY_STATE/STATE_SYNC, and lands in `store.online.environment`, which overrides the local setting while in a match. `state.displayNames` (userId → name, seated or not) travels the same payloads so chat can name unseated players.
+- **Cosmetics** (terms in `CONTEXT.md`): each player's Prop + Finisher. Ids/whitelist live in `shared/protocol.js` (`sanitizeCosmetics`); they ride join metadata + `SET_COSMETICS`, are stored server-side per userId and broadcast as `cosmetics` in LOBBY_STATE/STATE_SYNC; MOVE_APPLIED stamps the mover's `finisher`. Meshes, tool poses and the Finisher timeline are in `utils/cosmetics.js`; App.vue's `startFinisher`/`updateFinisher`/`endFinisher` run it. A Capture stays logically instant — only the victims' meshes are held (syncPawns skips `finisher.victimIds`), and `store.online.finisherInFlight` pauses MatchController's queue until `finisher.done`. Tap skips; `settings.finishersEnabled` off = "lite" (no zoom/tool, just burst + flight home).
 - **Admin stats**: `stats.ts` keeps one system-owned storage object (games started/finished, per-player counts, last 50 games), written from match start/game-over; `admin_stats` RPC is gated by the `ADMIN_KEY` runtime env (unset = disabled; dev key `dev-admin` in local.yml). Client dashboard at `#admin` (AdminScreen.vue).
 - **Dev identity**: deviceId lives in sessionStorage in dev (per-tab, so two tabs can play each other) and localStorage in prod.
 - Session tokens: `token_expiry_sec` is raised to 7200 in `local.yml` (Nakama's 60s default kills sockets mid-game).

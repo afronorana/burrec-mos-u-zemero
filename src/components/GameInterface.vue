@@ -26,7 +26,12 @@
       </app-button>
     </div>
 
-    <div v-if="settingsOpen" class="global-settings-modal-backdrop" @click.self="settingsOpen = false">
+    <div
+      v-if="settingsOpen"
+      class="global-settings-modal-backdrop"
+      :class="{ 'global-settings-modal-backdrop--previewing': store.finisherPreview }"
+      @click.self="settingsOpen = false"
+    >
       <app-panel class="global-settings-card">
         <h3 class="panel-title" style="margin-bottom: 16px;">{{ t('settings.title') }}</h3>
 
@@ -43,6 +48,8 @@
           <label class="select-label">{{ t('settings.sound') }}</label>
           <app-tabs v-model="soundSetting" :options="[{ value: 'on', label: t('settings.soundOn') }, { value: 'off', label: t('settings.soundOff') }]" />
         </div>
+
+        <cosmetics-picker />
 
         <app-button red class="hud-full-width" @click="askLeave">{{ t('online.leaveGame') }}</app-button>
 
@@ -108,6 +115,7 @@
 
 <script>
 import ChatDrawer from './ChatDrawer.vue';
+import CosmeticsPicker from './CosmeticsPicker.vue';
 import ApplicationStore from '../utils/ApplicationStore';
 import MatchController from '../network/MatchController';
 import { t } from '../utils/i18n';
@@ -117,6 +125,7 @@ import { Settings, X } from '@lucide/vue';
 export default {
   components: {
     ChatDrawer,
+    CosmeticsPicker,
     SettingsIcon: Settings,
     XIcon: X,
   },

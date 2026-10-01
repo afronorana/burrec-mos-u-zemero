@@ -1,7 +1,7 @@
 // Authoritative 'ludo' match handler. All timing lives in matchLoop ticks —
 // the goja runtime has no setTimeout.
 
-import { OpCode, decodePayload, encodePayload } from '../../shared/protocol.js';
+import { OpCode, decodePayload, encodePayload, sanitizeCosmetics } from '../../shared/protocol.js';
 import {
   allHome,
   applyMove,
@@ -38,6 +38,10 @@ export interface LudoState {
   // userId -> displayName for everyone who ever joined (seated or not) —
   // broadcast so chat can name players who haven't picked a color yet.
   displayNames: { [userId: string]: string };
+  // userId -> Cosmetics ({ prop, finisher }), whitelisted. Keyed by user, not
+  // seat, so an unseated joiner's pick is known before they claim a color and
+  // a disconnected seat keeps its owner's look.
+  cosmetics: { [userId: string]: Cosmetics };
   hostUserId: string | null;
   turnSeat: number;
   round: number;
@@ -55,6 +59,11 @@ export interface LudoState {
   // DEMO_DICE=1 runtime env: ROLL_REQUEST may carry { demand: 1..6 } and the
   // server rolls exactly that value (testing shortcut — never enable in prod).
   demoDice: boolean;
+}
+
+export interface Cosmetics {
+  prop: string;
+  finisher: string;
 }
 
 interface StateWrapper {
@@ -104,6 +113,7 @@ function lobbyStatePayload(state: LudoState): object {
     hostUserId: state.hostUserId,
     joinCode: state.joinCode,
     displayNames: state.displayNames,
+    cosmetics: state.cosmetics,
     environment: state.environment,
   };
 }
@@ -115,6 +125,7 @@ function snapshotPayload(state: LudoState): object {
     hostUserId: state.hostUserId,
     joinCode: state.joinCode,
     displayNames: state.displayNames,
+    cosmetics: state.cosmetics,
     environment: state.environment,
     turnSeat: state.turnSeat,
     round: state.round,
@@ -239,6 +250,8 @@ function doMove(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkruntime.Ma
   const seat = state.turnSeat;
   const steps = state.dice as number;
   const result = applyMove(state.pawns, seat, pawnIndex, steps);
+  const mover = state.seats[seat];
+  const moverCosmetics = mover ? state.cosmetics[mover.userId] : null;
 
   broadcast(dispatcher, OpCode.MOVE_APPLIED, {
     seat,
@@ -248,6 +261,9 @@ function doMove(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkruntime.Ma
     steps,
     captures: result.captures,
     extraTurn: result.extraTurn && !result.won,
+    // Stamped here so every client plays the same Finisher even if the
+    // mover changes cosmetics while this event is still queued client-side.
+    finisher: sanitizeCosmetics(moverCosmetics).finisher,
   });
 
   if (result.won) {
@@ -425,6 +441,7 @@ const matchInit = function (
     environment,
     seats: [null, null, null, null],
     displayNames: {},
+    cosmetics: {},
     hostUserId: null,
     turnSeat: -1,
     round: 0,
@@ -445,6 +462,16 @@ const matchInit = function (
   return { state, tickRate: TICK_RATE, label: makeLabel(state) };
 };
 
+// Join metadata may carry { prop, finisher }; a join without them keeps
+// whatever the user had (e.g. a reconnect from an older client).
+function rememberCosmetics(state: LudoState, userId: string, metadata: { [key: string]: any }) {
+  if (metadata && (typeof metadata.prop === 'string' || typeof metadata.finisher === 'string')) {
+    state.cosmetics[userId] = sanitizeCosmetics(metadata);
+  } else if (!state.cosmetics[userId]) {
+    state.cosmetics[userId] = sanitizeCosmetics(null);
+  }
+}
+
 const matchJoinAttempt = function (
   ctx: nkruntime.Context,
   logger: nkruntime.Logger,
@@ -461,6 +488,7 @@ const matchJoinAttempt = function (
     if (existing.connected) {
       return { state, accept: false, rejectMessage: 'already_joined' };
     }
+    rememberCosmetics(state, presence.userId, metadata);
     return { state, accept: true }; // reconnect
   }
 
@@ -480,6 +508,7 @@ const matchJoinAttempt = function (
   if (metadata && typeof metadata.displayName === 'string' && metadata.displayName) {
     state.pendingDisplayNames[presence.userId] = String(metadata.displayName).slice(0, 24);
   }
+  rememberCosmetics(state, presence.userId, metadata);
 
   return { state, accept: true };
 };
@@ -614,6 +643,11 @@ const matchLoop = function (
       }
       case OpCode.START:
         handleStart(nk, state, dispatcher, tick, sender);
+        break;
+      case OpCode.SET_COSMETICS:
+        // Allowed in any phase, seated or not — cosmetics never touch rules.
+        state.cosmetics[sender.userId] = sanitizeCosmetics(payload);
+        broadcast(dispatcher, OpCode.LOBBY_STATE, lobbyStatePayload(state));
         break;
       case OpCode.ROLL_REQUEST:
         handleRollRequest(state, dispatcher, tick, sender, payload);

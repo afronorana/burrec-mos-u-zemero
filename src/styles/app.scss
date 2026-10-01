@@ -391,6 +391,13 @@ html, body, #app {
   pointer-events: all;
 }
 
+/* A Finisher preview plays on the board behind the modal — step aside. */
+.global-settings-modal-backdrop--previewing {
+  opacity: 0;
+  pointer-events: none !important;
+  transition: opacity 150ms ease;
+}
+
 .global-settings-modal-backdrop {
   position: absolute;
   inset: 0;
@@ -407,6 +414,8 @@ html, body, #app {
 
 .global-settings-card {
   width: min(380px, 92vw);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
   animation: modalScaleIn 0.2s ease-out;
 }

@@ -3,8 +3,9 @@
 // intents into match messages.
 //
 // Ordering: MOVE_APPLIED / TURN_CHANGE / GAME_OVER go through a FIFO queue
-// that pauses while dice physics (store.online.diceInFlight) or a pawn move
-// animation (this.moveInFlight) is playing, so server events never interrupt
+// that pauses while dice physics (store.online.diceInFlight), a pawn move
+// animation (this.moveInFlight) or a capture Finisher
+// (store.online.finisherInFlight) is playing, so server events never interrupt
 // a running animation.
 
 import { OpCode, encodePayload, decodePayload } from '../../shared/protocol';
@@ -36,6 +37,7 @@ class MatchControllerService {
       this.pumpQueue();
     });
     EventBus.listen(EventKeys.net.diceResolved, () => this.pumpQueue());
+    EventBus.listen(EventKeys.finisher.done, () => this.pumpQueue());
   }
 
   online() {
@@ -118,9 +120,16 @@ class MatchControllerService {
     }
   }
 
+  // Join metadata: the name plus this player's Cosmetics (the server
+  // whitelists them).
+  joinMetadata() {
+    const { prop, finisher } = ApplicationStore.settings.cosmetics;
+    return { displayName: this.online().displayName, prop, finisher };
+  }
+
   async joinById(matchId, info) {
     const online = this.online();
-    await this.socket.joinMatch(matchId, null, { displayName: online.displayName });
+    await this.socket.joinMatch(matchId, null, this.joinMetadata());
 
     online.matchId = matchId;
     online.mode = info.mode || null;
@@ -173,7 +182,7 @@ class MatchControllerService {
       throw new Error('match_gone');
     }
 
-    await this.socket.joinMatch(matchId, null, { displayName: online.displayName });
+    await this.socket.joinMatch(matchId, null, this.joinMetadata());
 
     online.matchId = matchId;
     online.joinCode = joinCode;
@@ -234,10 +243,13 @@ class MatchControllerService {
     online.hostUserId = null;
     online.seats = [];
     online.displayNames = {};
+    online.cosmetics = {};
     online.environment = null;
     online.seatToPlayerIndex = {};
     online.pendingDice = null;
     online.diceInFlight = false;
+    online.finisherInFlight = false;
+    online.moveFinisher = null;
     online.enabled = false;
     online.resuming = false;
     online.resumePrompt = null;
@@ -280,6 +292,12 @@ class MatchControllerService {
 
   requestClaimSeat(seatIndex) {
     this.send(OpCode.CLAIM_SEAT, { seat: seatIndex });
+  }
+
+  // Live cosmetics change (settings/lobby picker); no-op outside a match.
+  sendCosmetics() {
+    const { prop, finisher } = ApplicationStore.settings.cosmetics;
+    this.send(OpCode.SET_COSMETICS, { prop, finisher });
   }
 
   handleMatchData(matchData) {
@@ -333,6 +351,7 @@ class MatchControllerService {
     online.hostUserId = payload.hostUserId || null;
     online.joinCode = payload.joinCode || online.joinCode;
     online.displayNames = payload.displayNames || online.displayNames;
+    online.cosmetics = payload.cosmetics || online.cosmetics;
     online.environment = payload.environment || online.environment;
     // A code in the payload means this is a private room — infer it when we
     // resumed from a bare matchId and never learned the mode.
@@ -356,7 +375,8 @@ class MatchControllerService {
 
   pumpQueue() {
     while (this.opQueue.length) {
-      if (this.online().diceInFlight || this.moveInFlight) {
+      const online = this.online();
+      if (online.diceInFlight || this.moveInFlight || online.finisherInFlight) {
         return;
       }
 
@@ -386,6 +406,7 @@ class MatchControllerService {
     ApplicationStore.lastRolledDice = payload.steps;
     ApplicationStore.playingPlayerIndex = playerIndex;
     ApplicationStore.gamePlayStatus.isMoving = true;
+    online.moveFinisher = payload.finisher || null;
     pawn.isActive = true;
     this.moveInFlight = true;
     pawn.move();
@@ -426,6 +447,7 @@ class MatchControllerService {
     online.hostUserId = payload.hostUserId || null;
     online.joinCode = payload.joinCode || online.joinCode;
     online.displayNames = payload.displayNames || online.displayNames;
+    online.cosmetics = payload.cosmetics || online.cosmetics;
     online.environment = payload.environment || online.environment;
     if (online.joinCode && !online.mode) {
       online.mode = 'private';
@@ -473,7 +495,7 @@ class MatchControllerService {
         const socket = await NakamaClient.connectSocket();
         this.socket = socket;
         this.wireSocket(socket);
-        await socket.joinMatch(online.matchId, null, { displayName: online.displayName });
+        await socket.joinMatch(online.matchId, null, this.joinMetadata());
         try {
           await ChatController.join(online.matchId);
         } catch (chatError) {

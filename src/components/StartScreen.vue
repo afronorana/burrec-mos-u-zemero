@@ -62,7 +62,12 @@
     <auth-modal v-if="store.online.authOpen" />
 
     <!-- Global settings modal (openable from any menu / the lobby gear) -->
-    <div v-if="store.settingsOpen" class="global-settings-modal-backdrop" @click.self="store.settingsOpen = false">
+    <div
+      v-if="store.settingsOpen"
+      class="global-settings-modal-backdrop"
+      :class="{ 'global-settings-modal-backdrop--previewing': store.finisherPreview }"
+      @click.self="store.settingsOpen = false"
+    >
       <app-panel class="global-settings-card">
         <h3 class="panel-title" style="margin-bottom: 16px;">{{ t('settings.title') }}</h3>
 
@@ -86,6 +91,8 @@
             :options="[{ value: 'on', label: t('settings.soundOn') }, { value: 'off', label: t('settings.soundOff') }]"
           />
         </div>
+
+        <cosmetics-picker />
 
         <div class="menu-row" style="margin-top: 20px;">
           <app-button red @click="store.settingsOpen = false">{{ t('back') }}</app-button>
@@ -123,6 +130,7 @@ import JoinRoomScreen from './JoinRoomScreen.vue';
 import LobbyScreen from './LobbyScreen.vue';
 import AdminScreen from './AdminScreen.vue';
 import AuthModal from './AuthModal.vue';
+import CosmeticsPicker from './CosmeticsPicker.vue';
 import ApplicationStore from '../utils/ApplicationStore';
 import MatchController from '../network/MatchController';
 import { clearMatchSession } from '../utils/matchSession';
@@ -138,6 +146,7 @@ export default {
     LobbyScreen,
     AdminScreen,
     AuthModal,
+    CosmeticsPicker,
     SettingsIcon: Settings,
   },
   data() {

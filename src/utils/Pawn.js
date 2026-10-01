@@ -203,7 +203,10 @@ class Pawn {
 
   // Checks if an opponents pawn is on the target, if so removes it.
   // (Win detection lives in endOfMove / the server — not here.)
+  // Capture is logically instant (returnHome); one pawn.captured event per
+  // move carries every victim so App.vue plays a single Finisher for them.
   removeOpponentPawns(targetField) {
+    const victims = [];
     ApplicationStore.players.forEach(function(player) {
       if (!player.isPlaying) {
         player.pawns.forEach(function(pawn) {
@@ -211,11 +214,14 @@ class Pawn {
             // World coordinates must be read before returnHome resets position.
             const { x, y, z } = pawn.getCoordinates();
             pawn.returnHome();
-            EventBus.fire(EventKeys.pawn.captured, { pawnId: pawn.id, color: pawn.color, x, y, z });
+            victims.push({ pawnId: pawn.id, color: pawn.color, x, y, z });
           }
         });
       }
     });
+    if (victims.length) {
+      EventBus.fire(EventKeys.pawn.captured, { attackerId: this.id, victims });
+    }
   }
 
   enterDestinationZone(steps) {
