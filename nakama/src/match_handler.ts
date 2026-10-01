@@ -51,6 +51,10 @@ export interface LudoState {
   rollsThisTurn: number;
   pawns: number[][];
   turnDeadlineTick: number;
+  // The turn-holder's own deadline while they're disconnected (the live one
+  // is cut to DISCONNECTED_TURN_TIMEOUT_TICKS); restored if they come back
+  // in time, e.g. a page refresh mid-turn.
+  savedTurnDeadline: { seat: number; tick: number } | null;
   emptyTicks: number;
   winnerSeat: number | null;
   presences: { [userId: string]: nkruntime.Presence };
@@ -118,7 +122,16 @@ function lobbyStatePayload(state: LudoState): object {
   };
 }
 
-function snapshotPayload(state: LudoState): object {
+// Time left on the current turn, so clients can show the real remaining
+// time (refresh / drop-in / tab return) instead of restarting the bar.
+function turnMsLeft(state: LudoState, tick: number): number {
+  if (state.phase !== 'playing' || state.turnDeadlineTick <= 0) {
+    return 0;
+  }
+  return Math.max(0, state.turnDeadlineTick - tick) * (1000 / TICK_RATE);
+}
+
+function snapshotPayload(state: LudoState, tick: number): object {
   return {
     phase: state.phase,
     seats: state.seats,
@@ -134,6 +147,7 @@ function snapshotPayload(state: LudoState): object {
     legalPawns: state.legalPawns,
     pawns: state.pawns,
     winnerSeat: state.winnerSeat,
+    turnMsLeft: turnMsLeft(state, tick),
   };
 }
 
@@ -205,6 +219,7 @@ function resetTurnState(state: LudoState) {
 }
 
 function turnDeadline(state: LudoState, tick: number): number {
+  state.savedTurnDeadline = null;
   const seat = state.seats[state.turnSeat];
   const ticks = seat && seat.connected ? TURN_TIMEOUT_TICKS : DISCONNECTED_TURN_TIMEOUT_TICKS;
   return tick + ticks;
@@ -232,6 +247,7 @@ function advanceTurn(state: LudoState, dispatcher: nkruntime.MatchDispatcher, ti
     turnSeat: state.turnSeat,
     round: state.round,
     reason,
+    turnMsLeft: turnMsLeft(state, tick),
   });
 }
 
@@ -243,6 +259,7 @@ function repeatTurn(state: LudoState, dispatcher: nkruntime.MatchDispatcher, tic
     turnSeat: state.turnSeat,
     round: state.round,
     reason: 'repeat',
+    turnMsLeft: turnMsLeft(state, tick),
   });
 }
 
@@ -328,6 +345,7 @@ function handleRollRequest(state: LudoState, dispatcher: nkruntime.MatchDispatch
       legalPawns: legal,
       rollsLeft: 0,
       autoEndTurn: false,
+      turnMsLeft: turnMsLeft(state, tick),
     });
     return;
   }
@@ -346,6 +364,7 @@ function handleRollRequest(state: LudoState, dispatcher: nkruntime.MatchDispatch
       legalPawns: [],
       rollsLeft: MAX_ROLLS_WHEN_ALL_HOME - state.rollsThisTurn,
       autoEndTurn: false,
+      turnMsLeft: turnMsLeft(state, tick),
     });
     return;
   }
@@ -418,6 +437,7 @@ function handleStart(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkrunti
     seats: state.seats,
     turnSeat: state.turnSeat,
     round: state.round,
+    turnMsLeft: turnMsLeft(state, tick),
   });
   dispatcher.matchLabelUpdate(makeLabel(state));
   recordGameStarted(nk);
@@ -451,6 +471,7 @@ const matchInit = function (
     rollsThisTurn: 0,
     pawns: initialPawns(),
     turnDeadlineTick: 0,
+    savedTurnDeadline: null,
     emptyTicks: 0,
     winnerSeat: null,
     presences: {},
@@ -534,8 +555,17 @@ const matchJoin = function (
     const existing = seatOfUser(state, presence.userId);
     if (existing) {
       existing.connected = true;
+      // Back before the shortened deadline ran out: same turn, so give them
+      // back the time they had (never more).
+      const saved = state.savedTurnDeadline;
+      if (saved && saved.seat === existing.seat) {
+        if (state.phase === 'playing' && saved.seat === state.turnSeat && saved.tick > state.turnDeadlineTick) {
+          state.turnDeadlineTick = saved.tick;
+        }
+        state.savedTurnDeadline = null;
+      }
       if (state.phase !== 'lobby') {
-        broadcast(dispatcher, OpCode.STATE_SYNC, snapshotPayload(state), [presence]);
+        broadcast(dispatcher, OpCode.STATE_SYNC, snapshotPayload(state, tick), [presence]);
       }
       continue;
     }
@@ -543,7 +573,7 @@ const matchJoin = function (
     // New players join as unassigned; they pick their seat/color by clicking
     // a base in 3D. Mid-game drop-ins need the snapshot to see the board.
     if (state.phase !== 'lobby') {
-      broadcast(dispatcher, OpCode.STATE_SYNC, snapshotPayload(state), [presence]);
+      broadcast(dispatcher, OpCode.STATE_SYNC, snapshotPayload(state, tick), [presence]);
     }
 
     if (!state.hostUserId) {
@@ -592,6 +622,7 @@ const matchLeave = function (
       if (state.phase === 'playing' && state.turnSeat === seat.seat) {
         const shortened = tick + DISCONNECTED_TURN_TIMEOUT_TICKS;
         if (state.turnDeadlineTick === 0 || shortened < state.turnDeadlineTick) {
+          state.savedTurnDeadline = { seat: seat.seat, tick: state.turnDeadlineTick };
           state.turnDeadlineTick = shortened;
         }
       }
@@ -656,7 +687,7 @@ const matchLoop = function (
         handleMoveRequest(nk, state, dispatcher, tick, sender, payload);
         break;
       case OpCode.SYNC_REQUEST:
-        broadcast(dispatcher, OpCode.STATE_SYNC, snapshotPayload(state), [sender]);
+        broadcast(dispatcher, OpCode.STATE_SYNC, snapshotPayload(state, tick), [sender]);
         break;
       case OpCode.CLAIM_SEAT: {
         const senderSeat = seatOfUser(state, sender.userId);
@@ -730,7 +761,7 @@ const matchLoop = function (
 
           // Everyone rebuilds their roster from a fresh snapshot (the same
           // path used for reconnect recovery).
-          broadcast(dispatcher, OpCode.STATE_SYNC, snapshotPayload(state));
+          broadcast(dispatcher, OpCode.STATE_SYNC, snapshotPayload(state, tick));
           broadcast(dispatcher, OpCode.LOBBY_STATE, lobbyStatePayload(state));
           refreshOpenLabel(state, dispatcher);
         }

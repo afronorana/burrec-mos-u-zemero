@@ -3,7 +3,13 @@ import ApplicationStore from './ApplicationStore';
 // Tiny WebAudio synth — no audio assets to ship. Every effect checks the
 // sound setting at call time, so the settings toggle mutes instantly.
 let audioContext = null;
+let suspendTimer = null;
+// Longest effect (bowling windup) is ~0.75s; give it ample tail.
+const SUSPEND_AFTER_IDLE_MS = 2000;
 
+// Every effect goes through here, so it also arms the idle suspend: a running
+// AudioContext keeps the OS audio device and the audio render thread awake
+// (real battery drain) even when nothing is playing.
 const getContext = () => {
   const Ctor = window.AudioContext || window.webkitAudioContext;
   if (!Ctor) {
@@ -14,10 +20,19 @@ const getContext = () => {
     audioContext = new Ctor();
   }
 
-  // Browsers suspend fresh contexts until a user gesture; resume lazily.
+  // Fresh contexts start suspended until a user gesture, and we suspend
+  // between effects — resume lazily. Sounds scheduled at currentTime while
+  // suspended play as soon as it resumes.
   if (audioContext.state === 'suspended') {
     audioContext.resume();
   }
+
+  clearTimeout(suspendTimer);
+  suspendTimer = setTimeout(() => {
+    if (audioContext.state === 'running') {
+      audioContext.suspend();
+    }
+  }, SUSPEND_AFTER_IDLE_MS);
 
   return audioContext;
 };

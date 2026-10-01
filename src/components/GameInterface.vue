@@ -99,13 +99,16 @@
         <span class="hud-dot hud-dot--sm" :style="{ background: player.color }"></span>
         <span class="hud-seat-chip-name">{{ player.name }}</span>
 
-        <!-- Turn timer: drains over 60s on the active player's chip -->
+        <!-- Turn timer: a CSS scaleX drain (compositor-only, no JS clock),
+             re-keyed per turn. v-timer-drain offsets it by the time already
+             elapsed, so a refresh/remount resumes mid-way. -->
         <div
           v-if="player.isPlaying && store.turnTimer.running"
+          :key="store.turnTimer.startedAt"
           class="hud-seat-chip-timer"
-          :class="{ 'hud-seat-chip-timer--low': turnSecondsLeft !== null && turnSecondsLeft <= 10 }"
+          :class="{ 'hud-seat-chip-timer--low': timerLow }"
         >
-          <div class="hud-seat-chip-timer-fill" :style="{ width: `${turnTimerFraction * 100}%` }"></div>
+          <div v-timer-drain="store.turnTimer" class="hud-seat-chip-timer-fill"></div>
         </div>
       </div>
     </div>
@@ -136,8 +139,7 @@ export default {
       confirmLeave: false,
       settingsName: '',
       speechBubbles: {}, // { [player.turn]: 'message' }
-      timerNow: performance.now(),
-      timerInterval: null,
+      timerLow: false, // last 10s of the turn: red pulsing bar
     };
   },
   computed: {
@@ -151,16 +153,6 @@ export default {
       if (state === 'disconnected') return t('online.disconnected');
       return '';
     },
-    turnTimerFraction() {
-      const timer = this.store.turnTimer;
-      if (!timer.running) return 1;
-      return Math.max(0, 1 - ((this.timerNow - timer.startedAt) / timer.duration));
-    },
-    turnSecondsLeft() {
-      const timer = this.store.turnTimer;
-      if (!timer.running) return null;
-      return Math.max(0, Math.ceil((timer.duration - (this.timerNow - timer.startedAt)) / 1000));
-    },
     soundSetting: {
       get() {
         return this.store.settings.soundEnabled ? 'on' : 'off';
@@ -171,15 +163,25 @@ export default {
       },
     },
   },
+  directives: {
+    // Sets the drain's negative delay once, at mount: a CSS animation starts
+    // when its element appears, so the offset must be "elapsed as of now".
+    // (A reactive :style would go stale on remount, or jump the running
+    // animation when re-rendered.) The element is keyed per turn.
+    timerDrain: {
+      mounted(el, { value: timer }) {
+        el.style.setProperty('--timer-duration', `${timer.duration}ms`);
+        el.style.setProperty('--timer-elapsed', `${timer.startedAt - performance.now()}ms`);
+      },
+    },
+  },
   watch: {
     // Clock tick once per second through the final 10 seconds of a turn.
-    turnSecondsLeft(val, oldVal) {
-      if (
-        val !== null && oldVal !== null &&
-        val < oldVal && val <= 10 && val >= 1
-      ) {
-        playTick();
-      }
+    'store.turnTimer.startedAt'() {
+      this.scheduleTurnTick();
+    },
+    'store.turnTimer.running'() {
+      this.scheduleTurnTick();
     },
     'store.online.chat.length'(newLength) {
       if (newLength === 0) return;
@@ -216,19 +218,36 @@ export default {
     },
   },
   mounted() {
-    // Coarse clock for the turn-timer bar — the store only holds startedAt.
-    this.timerInterval = setInterval(() => {
-      this.timerNow = performance.now();
-    }, 100);
+    this.scheduleTurnTick();
+    // Background tabs throttle timers; resync the red last-10s state (and
+    // the tick schedule) on return. The CSS drain itself never drifts.
+    this.visibilityHandler = () => {
+      if (!document.hidden) this.scheduleTurnTick();
+    };
+    document.addEventListener('visibilitychange', this.visibilityHandler);
   },
   beforeUnmount() {
-    if (this.timerInterval) {
-      clearInterval(this.timerInterval);
-      this.timerInterval = null;
-    }
+    clearTimeout(this.tickTimeout);
+    document.removeEventListener('visibilitychange', this.visibilityHandler);
   },
   methods: {
     t,
+    // Ticks land as the remaining time crosses 10s, 9s, … 1s, and the bar
+    // turns red from the first one. `mark` is the next crossing still owed,
+    // so a late timer can never tick twice.
+    scheduleTurnTick(mark = 10000) {
+      clearTimeout(this.tickTimeout);
+      const timer = this.store.turnTimer;
+      const remaining = timer.duration - (performance.now() - timer.startedAt);
+      this.timerLow = timer.running && remaining <= 10000;
+      if (!timer.running) return;
+      const nextMark = Math.min(mark, (Math.ceil(remaining / 1000) * 1000) - 1000);
+      if (nextMark < 1000) return;
+      this.tickTimeout = setTimeout(() => {
+        playTick();
+        this.scheduleTurnTick(nextMark - 1000);
+      }, remaining - nextMark);
+    },
     saveLocale(val) {
       window.localStorage.setItem('burrec.settings.locale', val);
     },
@@ -395,18 +414,30 @@ export default {
 }
 
 .hud-seat-chip-timer-fill {
+  position: relative;
   height: 100%;
-  border-radius: 3px;
   background: var(--chip-color, #4cf2ca);
-  transition: width 120ms linear;
+  transform-origin: left center;
+  animation: hud-timer-drain var(--timer-duration, 60000ms) linear var(--timer-elapsed, 0ms) forwards;
 }
 
-.hud-seat-chip-timer--low .hud-seat-chip-timer-fill {
+/* Last 10 seconds: a red layer pulsing over the fill. The class is only
+   applied then (a pending delayed animation still ticks the main thread),
+   and both animations are transform/opacity so they run on the compositor. */
+.hud-seat-chip-timer--low .hud-seat-chip-timer-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
   background: var(--agu-color-red, #e9576f);
-  animation: hud-timer-pulse 1s ease-in-out infinite;
+  animation: hud-timer-low 1s ease-in-out infinite;
 }
 
-@keyframes hud-timer-pulse {
+@keyframes hud-timer-drain {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+@keyframes hud-timer-low {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.45; }
 }

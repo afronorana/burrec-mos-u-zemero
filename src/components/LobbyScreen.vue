@@ -306,19 +306,10 @@ export default {
   cursor: pointer;
   background: rgba(255, 255, 255, 0.82);
   border-style: dashed;
-  animation: lobby-chip-pulse 2s ease-in-out infinite;
 }
 
 .lobby-seat-chip--free:hover {
   background: #ffffff;
-  animation-play-state: paused;
-}
-
-/* Expanding ring, echoing the ground ripples on the 3D bases. */
-@keyframes lobby-chip-pulse {
-  0% { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18), 0 0 0 0 rgba(255, 255, 255, 0.55); }
-  70% { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18), 0 0 0 9px rgba(255, 255, 255, 0); }
-  100% { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18), 0 0 0 0 rgba(255, 255, 255, 0); }
 }
 
 .lobby-seat-chip--corner-0 { top: 16px; left: 16px; }
@@ -398,12 +389,6 @@ export default {
 
   .lobby-code {
     --agu-code-cell-size: 38px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .lobby-seat-chip--free {
-    animation: none;
   }
 }
 </style>

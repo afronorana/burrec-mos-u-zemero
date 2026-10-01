@@ -1,0 +1,17 @@
+Gobkit Free Low-Poly Nature Kit
+CC0 1.0 Universal (Public Domain Dedication)
+
+To the extent possible under law, Alsomind Tech Co., Ltd. has waived all
+copyright and related or neighboring rights to the 3D models, textures, and
+meshes in this pack ("the Work").
+
+You can copy, modify, distribute, and use the Work, including for commercial
+purposes, all without asking permission and without attribution.
+
+THE WORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
+
+Full legal text : https://creativecommons.org/publicdomain/zero/1.0/legalcode
+Plain summary   : https://creativecommons.org/publicdomain/zero/1.0/
+
+More free CC0 characters + one-call generation API:
+  https://gobkit.com/freebies?ref=itchio

@@ -302,6 +302,12 @@ class MatchControllerService {
 
   handleMatchData(matchData) {
     const payload = decodePayload(matchData.data);
+    // Client-only arrival stamp: `turnMsLeft` is relative to when the server
+    // sent it, and TURN_CHANGE may sit in opQueue behind animations for a
+    // while — the turn timer anchors to arrival, not to processing.
+    if (payload && typeof payload === 'object') {
+      payload.receivedAt = performance.now();
+    }
 
     switch (matchData.op_code) {
       case OpCode.LOBBY_STATE:

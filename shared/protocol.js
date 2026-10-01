@@ -7,11 +7,11 @@ export var MATCH_MODULE = 'ludo';
 export var OpCode = {
   // server → client
   LOBBY_STATE: 1, // { phase, seats:[{userId,username,displayName,seat,ready,connected}|null], hostUserId, joinCode }
-  GAME_START: 2, // { seats, turnSeat, round }
-  DICE_RESULT: 3, // { seat, value, legalPawns:[0..3], rollsLeft, autoEndTurn }
+  GAME_START: 2, // { seats, turnSeat, round, turnMsLeft }
+  DICE_RESULT: 3, // { seat, value, legalPawns:[0..3], rollsLeft, autoEndTurn, turnMsLeft? } (turnMsLeft unless autoEndTurn)
   MOVE_APPLIED: 4, // { seat, pawnIndex, fromPos, toPos, steps, captures:[{seat,pawnIndex}], extraTurn, finisher }
-  TURN_CHANGE: 5, // { turnSeat, round, reason:'end'|'repeat'|'timeout'|'noMoves'|'left' }
-  STATE_SYNC: 6, // full snapshot (reconnect/desync recovery)
+  TURN_CHANGE: 5, // { turnSeat, round, reason:'end'|'repeat'|'timeout'|'noMoves'|'left', turnMsLeft }
+  STATE_SYNC: 6, // full snapshot incl. turnMsLeft (reconnect/desync recovery)
   GAME_OVER: 7, // { winnerSeat }
   REJECTED: 8, // { reason, forOpCode }
 

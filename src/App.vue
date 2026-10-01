@@ -12,6 +12,7 @@
 <script>
 import { markRaw } from 'vue';
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import * as CANNON from 'cannon-es';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
@@ -28,6 +29,12 @@ import Player from './utils/Player';
 import MatchController from './network/MatchController';
 import { readMatchUrl, loadActiveMatch } from './utils/matchSession';
 import { getRandomHitEffectSvg, HIT_EFFECT_DURATION_MS } from './utils/hitEffects';
+import {
+  loadNatureKit,
+  NATURE_BACKDROP,
+  NATURE_DETAILS,
+  NATURE_MODEL_NAMES,
+} from './utils/natureKit';
 import {
   PROP_MATERIAL_PREFIXES,
   FINISHER_TIMING,
@@ -72,6 +79,65 @@ const TABLE_PHYSICS = {
   floorY: -1.18,
 };
 const DICE_FACE_ORDER = [3, 4, 1, 6, 2, 5];
+// Per-environment lights (applyEnvironment). `ambient` is folded into the
+// hemisphere light rather than being its own AmbientLight.
+const ENVIRONMENT_LIGHTING = {
+  day: {
+    ambient: '#f6f0e7', ambientIntensity: 0.28,
+    sky: '#d2e6ff', ground: '#97ae72', skyIntensity: 0.62,
+    sun: '#fff1db', sunIntensity: 1.45, sunPosition: [-5.5, 13.5, 6.5],
+    fill: '#c7dfff', fillIntensity: 0.42,
+  },
+  night: {
+    ambient: '#1a2b4c', ambientIntensity: 0.45,
+    sky: '#2b3e66', ground: '#0d131f', skyIntensity: 0.65,
+    sun: '#b3ccff', sunIntensity: 0.9, sunPosition: [-5.5, 13.5, 6.5],
+    fill: '#4c70b3', fillIntensity: 0.45,
+  },
+  dusk: {
+    ambient: '#4c2e3d', ambientIntensity: 0.42,
+    sky: '#805373', ground: '#2d1a24', skyIntensity: 0.75,
+    sun: '#ff8855', sunIntensity: 1.55, sunPosition: [-11.5, 6.5, 3.5],
+    fill: '#a65f91', fillIntensity: 0.55,
+  },
+  dawn: {
+    ambient: '#373d59', ambientIntensity: 0.45,
+    sky: '#8c7299', ground: '#26202c', skyIntensity: 0.75,
+    sun: '#ffbb77', sunIntensity: 1.65, sunPosition: [-10.5, 8.5, 4.5],
+    fill: '#7592c9', fillIntensity: 0.52,
+  },
+};
+const _envAmbientScratch = new THREE.Color();
+const DICE_ATLAS_COLUMNS = 3;
+const DICE_ATLAS_ROWS = 2;
+// RoundedBoxGeometry keeps BoxGeometry's six face groups (+x,-x,+y,-y,+z,-z
+// = DICE_FACE_ORDER) with 0..1 UVs per face; squeeze each face's UVs into
+// its pip tile of the atlas, then drop the groups so one material covers it.
+const buildDiceGeometry = () => {
+  const geometry = new RoundedBoxGeometry(DICE_SIZE, DICE_SIZE, DICE_SIZE, 3, DICE_CORNER_RADIUS);
+  const uv = geometry.attributes.uv;
+  const index = geometry.index;
+  const remapped = new Set();
+  geometry.groups.forEach((group, faceIndex) => {
+    const value = DICE_FACE_ORDER[faceIndex];
+    const col = (value - 1) % DICE_ATLAS_COLUMNS;
+    const rowFromTop = Math.floor((value - 1) / DICE_ATLAS_COLUMNS);
+    const row = DICE_ATLAS_ROWS - 1 - rowFromTop; // UV v grows upward
+    for (let i = group.start; i < group.start + group.count; i += 1) {
+      const vertex = index ? index.getX(i) : i;
+      if (remapped.has(vertex)) continue;
+      remapped.add(vertex);
+      uv.setXY(
+          vertex,
+          (col + uv.getX(vertex)) / DICE_ATLAS_COLUMNS,
+          (row + uv.getY(vertex)) / DICE_ATLAS_ROWS,
+      );
+    }
+  });
+  uv.needsUpdate = true;
+  geometry.clearGroups();
+  return geometry;
+};
 const DICE_FACE_NORMALS = {
   1: new THREE.Vector3(0, 1, 0),
   2: new THREE.Vector3(0, 0, 1),
@@ -85,6 +151,21 @@ const DICE_FACE_ENTRIES = Object.entries(DICE_FACE_NORMALS)
     .map(([value, normal]) => [Number(value), normal]);
 const CAMERA_GAME_POSITION = new THREE.Vector3(5.6, 12.4, 16.2);
 const CAMERA_GAME_TARGET = new THREE.Vector3(5, 0.4, 5);
+// Pawn = cone body + ball head merged into one geometry; each part scaled
+// about its own center (the outline shell variant uses > 1).
+const buildPawnGeometry = (bodyScale, headScale) => {
+  const body = new THREE.CylinderGeometry(0.08, 0.28, 0.75, 24)
+      .scale(bodyScale, bodyScale, bodyScale)
+      .translate(0, 0.35, 0);
+  const head = new THREE.SphereGeometry(0.18, 24, 24)
+      .scale(headScale, headScale, headScale)
+      .translate(0, 0.85, 0);
+  const merged = mergeGeometries([body, head]);
+  body.dispose();
+  head.dispose();
+  return merged;
+};
+
 // Render-loop scratch objects — reused every frame to avoid GC churn.
 const _cameraLookScratch = new THREE.Vector3();
 const _hitEffectScratch = new THREE.Vector3();
@@ -230,32 +311,20 @@ const createDicePhysicsBody = () => markRaw(new CANNON.Body({
 // Slightly wide lens so the whole board stays in frame at all times.
 const CAMERA_FOV_LANDSCAPE = 50;
 const CAMERA_FOV_PORTRAIT = 66;
-// Every clickable cue (ground ring + hover outline) shares one crisp
-// two-tone UI-orange pulse: the color breathes smoothly between the two
-// oranges with a small scale wobble — no soft glow, no fading tails.
-const CLICKABLE_PULSE_COLORS = ['#ff7700', '#fdc25b'];
-const CLICKABLE_PULSE_PERIOD_MS = 1600;
-const _pulseColorA = new THREE.Color(CLICKABLE_PULSE_COLORS[0]);
-const _pulseColorB = new THREE.Color(CLICKABLE_PULSE_COLORS[1]);
-const _pulseColorScratch = new THREE.Color();
-const getClickablePulse = (now) => {
-  const phase = (now % CLICKABLE_PULSE_PERIOD_MS) / CLICKABLE_PULSE_PERIOD_MS;
-  const wave = 0.5 + (0.5 * Math.sin(phase * Math.PI * 2));
-  _pulseColorScratch.copy(_pulseColorA).lerp(_pulseColorB, wave);
-  return {
-    // Shared scratch color — consumers use it within the same frame only.
-    color: `#${_pulseColorScratch.getHexString()}`,
-    threeColor: _pulseColorScratch,
-    wave,
-    scale: 0.92 + (0.1 * Math.sin(phase * Math.PI * 2)),
-  };
-};
-// Selectable home bases run the same pulse in their own color: each base
-// breathes between its player color and a brightened version of it.
-const HOME_BASE_PULSE_COLORS = PLAYER_COLORS.map((hex) => ({
-  base: new THREE.Color(hex),
-  bright: new THREE.Color(hex).lerp(new THREE.Color('#ffffff'), 0.45),
-}));
+// Every clickable cue (ground ring + hover outline) is one static UI
+// orange. They used to pulse, but an animated cue forces continuous
+// rendering for as long as it's on screen (a whole turn) — keep them still.
+const CLICKABLE_COLOR_HEX = '#ff7700';
+const CLICKABLE_COLOR = new THREE.Color(CLICKABLE_COLOR_HEX);
+// Selectable home bases wear their own player color.
+const HOME_BASE_RING_COLORS = PLAYER_COLORS.map((hex) => new THREE.Color(hex));
+// Render cap for every source (camera, dice, pawn hops, menu orbit), picked
+// per device by updateRenderCap: phones/tablets and laptops on battery get
+// the low cap, everything else the high one.
+const RENDER_FPS_LOW = 24;
+const RENDER_FPS_HIGH = 48;
+const MENU_ORBIT_RAD_PER_MS = 0.15 / 1000;
+
 const DICE_SETTLE_RULES = {
   minimumMotionMs: 500,
   faceUpDotThreshold: 0.94,
@@ -382,6 +451,7 @@ export default {
         }
       } else if (isOrbitScreen(newScreen) && isFixedScreen(oldScreen)) {
         this.menuOrbitTime = 0;
+        this.menuOrbitLastAt = 0;
         if (this.controls) {
           this.controls.enabled = false;
         }
@@ -422,7 +492,6 @@ export default {
       dicePitRimMaterial: null,
       pawnMeshes: markRaw({}),
       pawnMotionStates: markRaw({}),
-      menuOrbitTime: 0,
       cameraTransition: null,
       overlayCtx: null,
       homeBaseHelpers: null,
@@ -444,24 +513,38 @@ export default {
       clickHandler: null,
       raycaster: null,
       pointer: null,
-      hoveredTarget: null,
       pointerDownPosition: null,
       isDraggingScene: false,
       controlsChangeHandler: null,
-      hoverNeedsUpdate: false,
       isPointerInsideCanvas: false,
-      overlayHasContent: false,
       demoKeyBuffer: '',
       activeHitEffects: markRaw([]),
       // The running Finisher (see startFinisher), or null.
       finisher: null,
       swallowNextClick: false,
-      // Demand rendering: render passes run only when something changed.
-      renderNeeded: true,
-      lastRenderAt: 0,
       // Rolling window of consecutive rendered-frame deltas (auto quality).
       autoQuality: markRaw({ deltas: [], lastSampleAt: 0, dropsLeft: 2 }),
     };
+  },
+  created() {
+    // Per-frame render-loop bookkeeping lives outside data(): written every
+    // rAF tick, never read by a template, so Vue reactivity is pure overhead.
+    this.menuOrbitTime = 0;
+    this.menuOrbitLastAt = 0;
+    this.hoveredTarget = null;
+    this.hoverNeedsUpdate = false;
+    // false, or the hovered target the 2D outline was last drawn for.
+    this.overlayHasContent = false;
+    // Demand rendering: render passes run only when something changed.
+    this.renderNeeded = true;
+    this.lastRenderAt = 0;
+    // Frame cap (updateRenderCap, once isMobile is known in initThreeScene).
+    this.renderFps = RENDER_FPS_LOW;
+    this.renderFrameIntervalMs = 1000 / RENDER_FPS_LOW;
+    this.onBattery = false;
+    this.renderCapDowngraded = false;
+    this.battery = null;
+    this.batteryHandler = null;
   },
   mounted() {
     this.addEventListeners();
@@ -476,8 +559,21 @@ export default {
     this.pointerLeaveHandler = () => this.clearHoveredTarget();
     this.clickHandler = (event) => this.handleCanvasClick(event);
 
+    // A visible-but-unfocused window (game behind another app) keeps rAF
+    // running; freeze the menu orbit — the only endless render source — then.
+    this.windowFocused = document.hasFocus();
+    this.focusHandler = () => {
+      this.windowFocused = true;
+      this.requestRender();
+    };
+    this.blurHandler = () => {
+      this.windowFocused = false;
+    };
+
     window.addEventListener('resize', this.resizeHandler);
     window.addEventListener('keydown', this.keydownHandler);
+    window.addEventListener('focus', this.focusHandler);
+    window.addEventListener('blur', this.blurHandler);
     this.$refs.canvas.addEventListener('pointerdown', this.pointerDownHandler);
     this.$refs.canvas.addEventListener('mousemove', this.pointerMoveHandler);
     this.$refs.canvas.addEventListener('mouseleave', this.pointerLeaveHandler);
@@ -491,6 +587,10 @@ export default {
     if (this.resizeHandler) {
       window.removeEventListener('resize', this.resizeHandler);
     }
+    window.removeEventListener('focus', this.focusHandler);
+    window.removeEventListener('blur', this.blurHandler);
+    this.battery?.removeEventListener('chargingchange', this.batteryHandler);
+    this.battery = undefined;
 
     if (this.keydownHandler) {
       window.removeEventListener('keydown', this.keydownHandler);
@@ -641,6 +741,8 @@ export default {
       this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
       this.store.isMobile = this.isMobile;
       const isMobile = this.isMobile;
+      this.updateRenderCap();
+      this.watchBatteryForRenderCap();
       if (isMobile) {
         controls.minDistance = 11;
         controls.maxDistance = 18;
@@ -675,7 +777,7 @@ export default {
       this.createPhysicsWorld();
       this.createDice();
       this.createHomeBaseHelpers();
-      this.createMeadowDecorations();
+      this.createNatureEnvironment();
       this.applyRenderQuality();
       this.applyOutlineAppearance();
       this.handleResize();
@@ -719,71 +821,44 @@ export default {
 
       this.createDicePit();
 
+      // Every field disc (path, home, target lane, start) is one InstancedMesh
+      // + one outline shell: 2 draw calls for the whole board. Home/start
+      // discs are the path disc scaled per instance (top radius and height
+      // match their old dedicated cylinders) and tinted via instance colors.
       const fieldGeometry = this.getSharedGeometry(
           'field-cylinder',
           () => new THREE.CylinderGeometry(0.27, 0.31, 0.08, 20),
       );
-      const startGeometry = this.getSharedGeometry(
-          'start-cylinder',
-          () => new THREE.CylinderGeometry(0.31, 0.35, 0.1, 20),
-      );
-      const homeGeometry = this.getSharedGeometry(
-          'home-cylinder',
-          () => new THREE.CylinderGeometry(0.37, 0.42, 0.08, 20),
-      );
+      const homeScale = { x: 0.37 / 0.27, y: 1, z: 0.37 / 0.27 };
+      const startScale = { x: 0.31 / 0.27, y: 0.1 / 0.08, z: 0.31 / 0.27 };
+      const pathOutline = { x: 1.06, y: 1.01, z: 1.06 };
+      const playerOutline = { x: 1.062, y: 1.01, z: 1.062 };
+      const startOutline = { x: 1.07, y: 1.012, z: 1.07 };
 
-      const pathTiles = this.createOutlinedInstancedSet(
-          fieldGeometry,
-          this.createToonMaterial('path-material', {
-            color: '#fffaf0',
-            roughness: 0.82,
-            metalness: 0.01,
-          }, {
-            outlineThickness: 0.0068,
-            outlineColor: '#85623c',
-          }),
-          this.store.fields.path.map((field) => ({ x: field.x, y: FIELD_CENTER_Y, z: field.z })),
-          { outlineScale: { x: 1.06, y: 1.01, z: 1.06 }, receiveShadow: true },
-      );
-      this.scene.add(pathTiles);
-
+      const fields = this.store.fields.path.map((field) => ({
+        x: field.x, y: FIELD_CENTER_Y, z: field.z, color: '#fffaf0', outlineScale: pathOutline,
+      }));
       this.store.fields.home.forEach((home, playerIndex) => {
-        const playerFieldMaterial = this.createToonMaterial(
-            `field-material-${playerIndex}`,
-            {
-              color: home.color,
-              roughness: 0.8,
-              metalness: 0.02,
-            },
-            {
-              outlineThickness: 0.0072,
-            },
-        );
-        const homeTiles = this.createOutlinedInstancedSet(
-            homeGeometry,
-            playerFieldMaterial,
-            home.fields.map((field) => ({ x: field.x, y: FIELD_CENTER_Y, z: field.z })),
-            { outlineScale: { x: 1.062, y: 1.01, z: 1.062 }, receiveShadow: true },
-        );
-        this.scene.add(homeTiles);
-
-        const targetTiles = this.createOutlinedInstancedSet(
-            fieldGeometry,
-            playerFieldMaterial,
-            this.store.fields.target[playerIndex].fields.map((field) => ({ x: field.x, y: FIELD_CENTER_Y, z: field.z })),
-            { outlineScale: { x: 1.062, y: 1.01, z: 1.062 }, receiveShadow: true },
-        );
-        this.scene.add(targetTiles);
-
+        home.fields.forEach((field) => fields.push({
+          x: field.x, y: FIELD_CENTER_Y, z: field.z, color: home.color, scale: homeScale, outlineScale: playerOutline,
+        }));
+        this.store.fields.target[playerIndex].fields.forEach((field) => fields.push({
+          x: field.x, y: FIELD_CENTER_Y, z: field.z, color: home.color, outlineScale: playerOutline,
+        }));
+        // Drawn over the plain path disc it sits on (both instances exist).
         const startField = this.store.fields.path[playerIndex * 10];
-        const startMesh = this.createOutlinedInstancedSet(
-            startGeometry,
-            playerFieldMaterial,
-            [{ x: startField.x, y: START_FIELD_CENTER_Y, z: startField.z }],
-            { outlineScale: { x: 1.07, y: 1.012, z: 1.07 }, receiveShadow: true },
-        );
-        this.scene.add(startMesh);
+        fields.push({
+          x: startField.x, y: START_FIELD_CENTER_Y, z: startField.z, color: home.color, scale: startScale, outlineScale: startOutline,
+        });
       });
+
+      const fieldTiles = this.createOutlinedInstancedSet(
+          fieldGeometry,
+          this.createToonMaterial('field-material', { color: '#ffffff' }),
+          fields,
+          { outlineScale: pathOutline, receiveShadow: true },
+      );
+      this.scene.add(fieldTiles);
     },
 
     createCartoonSurroundings() {
@@ -811,61 +886,6 @@ export default {
       meadowEdge.position.set(6.2, -1.9, 5);
       this.scene.add(meadowEdge);
 
-      const hillGeometry = this.getSharedGeometry('surrounding-hill', () => new THREE.SphereGeometry(1, 24, 24));
-      const hillConfigs = [
-        { x: -8.8, y: -0.18, z: -9.4, scale: [7.8, 2.9, 3.4], color: '#7dcb6f' },
-        { x: 5.4, y: 0.06, z: -11.8, scale: [8.8, 3.6, 3.8], color: '#8fda7d' },
-        { x: 18.4, y: -0.2, z: -8.8, scale: [6.8, 2.7, 3], color: '#6fc262' },
-        { x: -9.8, y: -0.12, z: 18.2, scale: [8.6, 3.1, 3.6], color: '#78c768' },
-        { x: 7.8, y: -0.08, z: 20.6, scale: [10.2, 3.7, 4.1], color: '#89d876' },
-        { x: 20.6, y: -0.16, z: 18.4, scale: [7.4, 2.8, 3.3], color: '#73c05e' },
-      ];
-
-      // One instanced draw for all hills; the per-hill tint rides on
-      // instance colors over a white base material.
-      const hills = this.createStaticInstancedMesh(
-          hillGeometry,
-          this.createToonMaterial('surrounding-hill-material', { color: '#ffffff' }),
-          hillConfigs.length,
-      );
-      const matrix = new THREE.Matrix4();
-      const quaternion = new THREE.Quaternion();
-      hillConfigs.forEach((hill, index) => {
-        matrix.compose(
-            new THREE.Vector3(hill.x, hill.y, hill.z),
-            quaternion,
-            new THREE.Vector3(hill.scale[0], hill.scale[1], hill.scale[2]),
-        );
-        hills.setMatrixAt(index, matrix);
-        hills.setColorAt(index, new THREE.Color(hill.color));
-      });
-      hills.instanceColor.needsUpdate = true;
-      this.finalizeInstancedMesh(hills);
-
-      const bushGeometry = this.getSharedGeometry('surrounding-bush', () => new THREE.SphereGeometry(1, 20, 20));
-      const bushConfigs = [
-        { x: -2.6, y: -1.04, z: -5.4, scale: [0.9, 0.68, 0.7] },
-        { x: 12.6, y: -1.02, z: -4.8, scale: [1.1, 0.72, 0.78] },
-        { x: -1.8, y: -1.02, z: 14.9, scale: [1.15, 0.78, 0.84] },
-        { x: 13.8, y: -1.03, z: 15.3, scale: [1.02, 0.7, 0.74] },
-        { x: -5.8, y: -1.02, z: 5.6, scale: [0.96, 0.7, 0.72] },
-        { x: 18.1, y: -1.02, z: 5.2, scale: [1.08, 0.76, 0.8] },
-      ];
-      const bushes = this.createStaticInstancedMesh(
-          bushGeometry,
-          this.createToonMaterial('surrounding-bush-material', { color: '#4ebf63' }),
-          bushConfigs.length,
-      );
-      bushConfigs.forEach((bush, index) => {
-        matrix.compose(
-            new THREE.Vector3(bush.x, bush.y, bush.z),
-            quaternion,
-            new THREE.Vector3(bush.scale[0], bush.scale[1], bush.scale[2]),
-        );
-        bushes.setMatrixAt(index, matrix);
-      });
-      this.finalizeInstancedMesh(bushes);
-
       const sun = this.createOutlinedMesh(
           this.getSharedGeometry('cartoon-sun', () => new THREE.SphereGeometry(1, 24, 24)),
           this.createToonMaterial('cartoon-sun-material', {
@@ -878,8 +898,6 @@ export default {
       sun.position.set(-7.5, 11.6, -17.5);
       sun.scale.set(2.4, 2.4, 2.4);
       this.scene.add(sun);
-
-      this.createCloudsInstanced();
     },
 
     createGroundEnvironment() {
@@ -930,11 +948,12 @@ export default {
     },
 
     createLights() {
-      const ambientLight = markRaw(new THREE.AmbientLight('#f6f0e7', 0.28));
-      const skyLight = markRaw(new THREE.HemisphereLight('#d2e6ff', '#97ae72', 0.62));
-      const sunLight = markRaw(new THREE.DirectionalLight('#fff1db', 1.45));
-      const fillLight = markRaw(new THREE.DirectionalLight('#c7dfff', 0.42));
-      const trayLight = markRaw(new THREE.PointLight('#ffd6a8', 0.18, 12));
+      // Three lights total (colors/intensities come from applyEnvironment):
+      // the hemisphere light also carries the flat ambient term, and there is
+      // no point light — each light is per-fragment work on every surface.
+      const skyLight = markRaw(new THREE.HemisphereLight());
+      const sunLight = markRaw(new THREE.DirectionalLight());
+      const fillLight = markRaw(new THREE.DirectionalLight());
 
       sunLight.position.set(-5.5, 13.5, 6.5);
       sunLight.target.position.set(5.4, 0.7, 5.1);
@@ -950,21 +969,16 @@ export default {
       sunLight.shadow.normalBias = 0.025;
 
       fillLight.position.set(16, 7.5, 14.5);
-      trayLight.position.set(DICE_PIT.center.x, 2.6, DICE_PIT.center.z);
-      
+
       this.shadowLight = sunLight;
-      this.ambientLight = ambientLight;
       this.skyLight = skyLight;
       this.sunLight = sunLight;
       this.fillLight = fillLight;
-      this.trayLight = trayLight;
 
-      this.scene.add(ambientLight);
       this.scene.add(skyLight);
       this.scene.add(sunLight);
       this.scene.add(sunLight.target);
       this.scene.add(fillLight);
-      this.scene.add(trayLight);
 
       this.applyEnvironment();
     },
@@ -1037,10 +1051,8 @@ export default {
 
     createDice() {
       const diceMesh = this.createOutlinedMesh(
-          // RoundedBoxGeometry keeps BoxGeometry's six material groups, so
-          // the per-face pip textures still map.
-          this.getSharedGeometry('dice-box', () => new RoundedBoxGeometry(DICE_SIZE, DICE_SIZE, DICE_SIZE, 3, DICE_CORNER_RADIUS)),
-          this.createDiceMaterials(),
+          this.getSharedGeometry('dice-box', () => buildDiceGeometry()),
+          this.createDiceMaterial(),
           { outlineScale: 1.09, castShadow: true, receiveShadow: true },
       );
 
@@ -1074,8 +1086,11 @@ export default {
     // itself dirty via requestRender/requestShadowUpdate, so idle frames
     // (e.g. waiting on a remote player's turn) skip the GPU entirely.
     needsContinuousRender() {
-      if (this.isMenuMode() || this.cameraTransition) {
-        return true; // cinematic orbit / camera flight
+      if (this.cameraTransition) {
+        return true; // camera flight into the game view
+      }
+      if (this.isMenuMode() && this.windowFocused) {
+        return true; // cinematic orbit (frozen while unfocused)
       }
       if (this.pendingDiceRoll || this.diceSnapTween || this.diceOffsetTween) {
         return true;
@@ -1086,19 +1101,92 @@ export default {
       if (this.activeHitEffects.length || this.finisher) {
         return true;
       }
-      // Pulsing claim rings for players still choosing a color.
-      if (this.baseHelpersVisible() && this.store.online.mySeat < 0) {
-        return true;
-      }
-      // Pulsing ripples under the dice/movable pawns on the local turn.
-      if (this.isHumanTurn() && (this.store.gamePlayStatus.isRolling || this.store.gamePlayStatus.isMoving)) {
-        return true;
-      }
-      // The 2D hover outline breathes its color while something is hovered.
-      if (this.hoveredTarget) {
-        return true;
-      }
       return false;
+    },
+
+    // Home-base rings: static cues, so they only dirty the frame when the
+    // roster/seat state actually flips one of them.
+    syncHomeBaseHelpers() {
+      if (!this.homeBaseHelpers) {
+        return;
+      }
+      if (!this.baseHelpersVisible()) {
+        this.homeBaseHelpers.forEach((group) => {
+          if (group.visible) {
+            group.visible = false;
+            this.requestRender();
+          }
+        });
+        return;
+      }
+
+      const inGame = this.store.currentScreen === 'game-screen';
+      const selfSeated = this.store.online.mySeat >= 0;
+      this.homeBaseHelpers.forEach((group, baseIdx) => {
+        const claimable = this.isSeatClaimable(baseIdx);
+        // Mid-game the helpers only mark claimable bases; in the lobby
+        // taken bases keep their small faint ring.
+        const groupVisible = inGame ? claimable : true;
+        if (group.visible !== groupVisible) {
+          group.visible = groupVisible;
+          this.requestRender();
+        }
+        if (!groupVisible) {
+          return;
+        }
+
+        const color = HOME_BASE_RING_COLORS[baseIdx];
+        this.homeBaseRippleRings[baseIdx]?.forEach((ring, ringIdx) => {
+          let visible = true;
+          let scale;
+          let opacity;
+          if (claimable) {
+            // The cue is for choosers only — once the local player has
+            // picked their color it disappears (the base stays clickable
+            // for seat switching).
+            visible = !selfSeated && ringIdx === 0;
+            scale = 1.45;
+            opacity = 0.95;
+          } else {
+            scale = ringIdx === 0 ? 0.95 : 0.7;
+            opacity = 0.5;
+          }
+          if (ring.visible !== visible || ring.scale.x !== scale || ring.material.opacity !== opacity) {
+            ring.visible = visible;
+            ring.scale.set(scale, scale, 1);
+            ring.material.color.copy(color);
+            ring.material.opacity = opacity;
+            this.requestRender();
+          }
+        });
+      });
+    },
+
+    // 24fps on phones/tablets and on laptops running on battery (Battery
+    // API: Chromium only — elsewhere a laptop counts as plugged in), and
+    // after auto quality found 48 unsustainable; 48fps otherwise.
+    updateRenderCap() {
+      const low = this.isMobile || this.onBattery || this.renderCapDowngraded;
+      this.renderFps = low ? RENDER_FPS_LOW : RENDER_FPS_HIGH;
+      this.renderFrameIntervalMs = 1000 / this.renderFps;
+      // Fresh fps samples for the new cadence.
+      this.autoQuality.deltas.length = 0;
+      this.autoQuality.lastSampleAt = 0;
+    },
+
+    watchBatteryForRenderCap() {
+      navigator.getBattery?.().then((battery) => {
+        if (this.battery === undefined) {
+          return; // unmounted meanwhile
+        }
+        this.battery = battery;
+        this.batteryHandler = () => {
+          this.onBattery = !battery.charging;
+          this.updateRenderCap();
+        };
+        battery.addEventListener('chargingchange', this.batteryHandler);
+        this.batteryHandler();
+      }).catch(() => {});
     },
 
     renderScene() {
@@ -1106,70 +1194,21 @@ export default {
         this.animationFrameId = requestAnimationFrame(animate);
         const frameNow = performance.now();
 
-        this.updateCameraPath();
+        this.updateCameraPath(frameNow);
         this.updateFinisher(frameNow);
+        this.syncHomeBaseHelpers();
+        this.updateClickableRipples();
 
-        if (this.homeBaseHelpers && this.baseHelpersVisible()) {
-          const inGame = this.store.currentScreen === 'game-screen';
-          const selfSeated = this.store.online.mySeat >= 0;
-          const basePulse = getClickablePulse(performance.now());
-          this.homeBaseHelpers.forEach((group, baseIdx) => {
-            const claimable = this.isSeatClaimable(baseIdx);
-            // Mid-game the helpers only mark claimable bases; in the lobby
-            // taken bases keep their small static ring.
-            group.visible = inGame ? claimable : true;
-            if (!group.visible) {
-              return;
-            }
-
-            const rings = this.homeBaseRippleRings[baseIdx];
-            if (rings) {
-              rings.forEach((ring, ringIdx) => {
-                if (claimable) {
-                  // Selectable: same sharp pulse as the dice/pawn cues, just
-                  // in this base's color. The cue is for choosers only — once
-                  // the local player has picked their color it disappears
-                  // (the base stays clickable for seat switching).
-                  if (selfSeated || ringIdx > 0) {
-                    ring.visible = false;
-                    return;
-                  }
-                  const palette = HOME_BASE_PULSE_COLORS[baseIdx];
-                  const scale = 1.45 * basePulse.scale;
-                  ring.scale.set(scale, scale, 1);
-                  ring.material.color.copy(palette.base).lerp(palette.bright, basePulse.wave);
-                  ring.material.opacity = 0.95;
-                  ring.visible = true;
-                } else {
-                  const scale = ringIdx === 0 ? 0.95 : 0.7;
-                  ring.scale.set(scale, scale, 1);
-                  ring.material.color.copy(HOME_BASE_PULSE_COLORS[baseIdx].base);
-                  ring.material.opacity = 0.5;
-                  ring.visible = true;
-                }
-              });
-            }
-          });
-        } else if (this.homeBaseHelpers) {
-          this.homeBaseHelpers.forEach((group) => {
-            if (group.visible) {
-              group.visible = false;
-              this.requestRender();
-            }
-          });
-        }
-
-        this.animateClickableRipples(frameNow);
-
-        let cameraMoved = false;
         // A zooming Finisher owns the camera; controls.update() would snap it back.
         if (this.controls && !this.isMenuMode() && !this.cameraTransition && !this.finisher?.camera) {
-          cameraMoved = this.controls.update() === true;
+          if (this.controls.update() === true) {
+            this.requestRender();
+          }
         }
 
         // Simulation always runs (it's cheap and sets renderNeeded via
         // requestShadowUpdate when meshes actually move); only the GPU work
-        // below is skipped on unchanged frames.
+        // below is skipped on unchanged or capped frames.
         this.stepPhysicsWorld();
         this.syncDice();
         this.syncPawns();
@@ -1177,24 +1216,34 @@ export default {
         if (this.hoverNeedsUpdate) {
           this.refreshHoveredTarget();
         }
+        if (this.needsContinuousRender()) {
+          this.requestRender();
+        }
 
-        const shouldRender = this.renderNeeded || cameraMoved || this.needsContinuousRender();
-        // Menu screens orbit forever — 30fps is plenty for the backdrop.
-        const menuThrottled = this.isMenuMode() && (frameNow - this.lastRenderAt) < 30;
-
-        if (shouldRender && !menuThrottled) {
+        // Every render is capped (24 or 48fps, see updateRenderCap). The
+        // dirty flag survives skipped
+        // frames, so the final state of an animation (camera damping, the
+        // last pawn hop) still gets drawn on the next allowed frame.
+        const sinceLastRender = frameNow - this.lastRenderAt;
+        let rendered = false;
+        const interval = this.renderFrameIntervalMs;
+        if (this.renderNeeded && sinceLastRender >= interval) {
           this.renderNeeded = false;
           this.renderer.render(this.scene, this.camera);
           this.updateHitEffects();
           this.sampleRenderPerformance(frameNow);
-          this.lastRenderAt = frameNow;
-        } else {
+          // Keep the cadence phase-locked (avg 24fps on a 60Hz display
+          // instead of every third frame = 20fps), but never bank more than
+          // one interval after an idle stretch.
+          this.lastRenderAt = sinceLastRender < interval * 2
+            ? frameNow - (sinceLastRender % interval)
+            : frameNow;
+          rendered = true;
+        } else if (!this.renderNeeded) {
           // Only consecutive rendered frames are meaningful fps samples.
           this.autoQuality.lastSampleAt = 0;
         }
-        // Cheap when idle (a few flag checks); also clears the hover overlay
-        // the frame after a hover ends.
-        this.renderHighlights2D();
+        this.renderHighlights2D(rendered);
       };
 
       animate();
@@ -1202,16 +1251,12 @@ export default {
 
     // Auto quality: while frames render back-to-back (dice rolling, pawn
     // hops, menu orbit), collect frame deltas; when a full window's median
-    // says the device can't hold ~38fps, step the quality preset down once.
-    // Never steps up (no oscillation) and stops after two drops.
+    // says the device can't hold the current cap (< 2/3 of it), first drop a
+    // 48fps cap to 24, then step the quality preset down. Never steps up (no
+    // oscillation) and stops after two quality drops.
     sampleRenderPerformance(now) {
       const aq = this.autoQuality;
       if (aq.dropsLeft <= 0) {
-        return;
-      }
-      // Menu frames are throttled to 30fps by design — not a health signal.
-      if (this.isMenuMode()) {
-        aq.lastSampleAt = 0;
         return;
       }
       if (aq.lastSampleAt) {
@@ -1222,11 +1267,19 @@ export default {
       }
       aq.lastSampleAt = now;
 
-      if (aq.deltas.length >= 90) {
+      if (aq.deltas.length >= 48) {
         const sorted = aq.deltas.slice().sort((a, b) => a - b);
         const median = sorted[Math.floor(sorted.length / 2)];
         aq.deltas.length = 0;
-        if (median > 26 && this.store.settings.quality > RENDER_QUALITY_MIN) {
+        if (median <= this.renderFrameIntervalMs * 1.5) {
+          return;
+        }
+        // Can't hold the cap: give up the high frame rate first, and only
+        // then start lowering quality.
+        if (this.renderFps > RENDER_FPS_LOW) {
+          this.renderCapDowngraded = true;
+          this.updateRenderCap();
+        } else if (this.store.settings.quality > RENDER_QUALITY_MIN) {
           this.store.settings.quality -= 1; // watcher applies the preset
           aq.dropsLeft -= 1;
         }
@@ -1520,53 +1573,35 @@ export default {
       this.pawnOutlineSyncPending = true;
     },
 
-    // Body + head for a seat's color. Materials are shared per seat (the
-    // presence dimming relies on it); also used for Finisher preview pawns.
+    // Body + head for a seat's color, baked into ONE geometry (plus one
+    // pre-built outline shell) so a pawn is 2 draw calls and 1 shadow caster
+    // instead of 4 and 2. The material is shared per seat (the presence
+    // dimming relies on it); also used for Finisher preview pawns.
     buildPawnGroup(seat, color) {
       const group = markRaw(new THREE.Group());
-      const bodyMaterial = this.createToonMaterial(
-          `pawn-body-material-${seat}`,
-          {
-            color,
-          },
-          {
-            outlineThickness: 0.01,
-          },
-      );
-      const headMaterial = this.createToonMaterial(
-          `pawn-head-material-${seat}`,
-          {
-            color,
-          },
-          {
-            outlineThickness: 0.0095,
-          },
-      );
+      const bodyMaterial = this.createToonMaterial(`pawn-body-material-${seat}`, { color });
 
-      const body = this.createOutlinedMesh(
-          this.getSharedGeometry('pawn-body', () => new THREE.CylinderGeometry(0.08, 0.28, 0.75, 24)),
+      const pawn = this.createOutlinedMesh(
+          this.getSharedGeometry('pawn-shape', () => buildPawnGeometry(1, 1)),
           bodyMaterial,
           { castShadow: true, receiveShadow: true },
       );
-      body.position.y = 0.35;
-      this.attachOutlineShell(
-          body,
-          1.055,
-      );
 
-      const head = this.createOutlinedMesh(
-          this.getSharedGeometry('pawn-head', () => new THREE.SphereGeometry(0.18, 24, 24)),
-          headMaterial,
-          { castShadow: true, receiveShadow: true },
-      );
-      head.position.y = 0.85;
-      this.attachOutlineShell(
-          head,
-          1.075,
-      );
+      // Each part's shell is scaled about its own center (body 1.055, head
+      // 1.075) — one uniform scale of the merged shape would shift the head
+      // shell — so the shell geometry is baked and the mesh stays at scale 1
+      // (baseOutlineScale 1 = the presets' ±2% line scale doesn't apply).
+      const outline = markRaw(new THREE.Mesh(
+          this.getSharedGeometry('pawn-shape-outline', () => buildPawnGeometry(1.055, 1.075)),
+          this.getOutlineShellMaterial(),
+      ));
+      outline.userData.isOutlineShell = true;
+      outline.userData.baseOutlineScale = 1;
+      outline.renderOrder = 1;
+      pawn.renderOrder = 2;
+      pawn.add(outline);
 
-      group.add(body);
-      group.add(head);
+      group.add(pawn);
       group.userData.bodyMaterial = bodyMaterial;
       return group;
     },
@@ -1644,24 +1679,36 @@ export default {
       return mesh;
     },
 
+    // positions: [{ x, y, z, scale?: {x,y,z}, color?, outlineScale? }] —
+    // optional per-instance scale, instance color (over a white material)
+    // and outline scale (else options.outlineScale).
     createOutlinedInstancedSet(geometry, material, positions, options = {}) {
       const fillMesh = markRaw(new THREE.InstancedMesh(geometry, material, positions.length));
       fillMesh.castShadow = Boolean(options.castShadow);
       fillMesh.receiveShadow = Boolean(options.receiveShadow);
       const matrix = new THREE.Matrix4();
       const quaternion = new THREE.Quaternion();
-      const scale = new THREE.Vector3(1, 1, 1);
+      const translation = new THREE.Vector3();
+      const scale = new THREE.Vector3();
+      const color = new THREE.Color();
 
       positions.forEach((position, index) => {
+        const s = position.scale;
         matrix.compose(
-            new THREE.Vector3(position.x, position.y, position.z),
+            translation.set(position.x, position.y, position.z),
             quaternion,
-            scale,
+            scale.set(s?.x ?? 1, s?.y ?? 1, s?.z ?? 1),
         );
         fillMesh.setMatrixAt(index, matrix);
+        if (position.color) {
+          fillMesh.setColorAt(index, color.set(position.color));
+        }
       });
 
       fillMesh.instanceMatrix.needsUpdate = true;
+      if (fillMesh.instanceColor) {
+        fillMesh.instanceColor.needsUpdate = true;
+      }
 
       if (options.outlineScale) {
         const outlineMesh = markRaw(new THREE.InstancedMesh(
@@ -1675,6 +1722,8 @@ export default {
           x: position.x,
           y: position.y,
           z: position.z,
+          scale: position.scale,
+          outlineScale: position.outlineScale,
         }));
         outlineMesh.renderOrder = 1;
         outlineMesh.castShadow = false;
@@ -2080,12 +2129,15 @@ export default {
       EventBus.fire(EventKeys.finisher.done);
     },
 
-    renderHighlights2D() {
+    // Called every rAF frame; the stroke is only redrawn when the 3D scene
+    // was just rendered (the hovered mesh/camera may have moved) or the
+    // hovered target changed. Otherwise the last drawing stays valid.
+    renderHighlights2D(rendered) {
       const canvas = this.$refs.overlayCanvas;
       const ctx = this.overlayCtx;
       if (!canvas || !ctx) return;
 
-      // Idle "clickable" cues are the ground ripples (animateClickableRipples);
+      // Idle "clickable" cues are the ground rings (updateClickableRipples);
       // the 2D hull outline is hover feedback only, so most frames draw nothing.
       const status = this.store.gamePlayStatus;
       const wantsDice = Boolean(this.diceMesh && status.isRolling
@@ -2102,16 +2154,19 @@ export default {
         return;
       }
 
+      if (!rendered && this.overlayHasContent === this.hoveredTarget) {
+        return;
+      }
+
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       let drew = false;
-      const pulseColor = getClickablePulse(performance.now()).color;
 
       if (wantsDice) {
         this.drawObjectHighlight2D(
           ctx, canvas,
           [{ points: DICE_LOCAL_CORNERS, matrix: this.diceMesh.matrixWorld }],
           1,
-          pulseColor,
+          CLICKABLE_COLOR_HEX,
         );
         drew = true;
       } else {
@@ -2125,13 +2180,14 @@ export default {
               { points: PAWN_HEAD_LOCAL_POINTS, matrix: mesh.matrixWorld },
             ],
             1,
-            pulseColor,
+            CLICKABLE_COLOR_HEX,
           );
           drew = true;
         }
       }
 
-      this.overlayHasContent = drew;
+      // The hovered target the stroke was drawn for (false = blank).
+      this.overlayHasContent = drew ? this.hoveredTarget : false;
     },
 
     // pointSets: [{ points: constant local-space Vector3[], matrix: world
@@ -2151,8 +2207,7 @@ export default {
 
       if (!hulls.length) return;
 
-      // Crisp stroke — no shadow blur; the "pulse" is the caller breathing
-      // the color between the two UI oranges.
+      // Crisp stroke — no shadow blur, no pulse.
       ctx.save();
       ctx.globalAlpha = opacity;
       ctx.lineWidth = 7;
@@ -2282,11 +2337,17 @@ export default {
     applyInstancedOutlineMatrices(outlineMesh, positions, baseScale, lineScale) {
       const matrix = new THREE.Matrix4();
       const quaternion = new THREE.Quaternion();
-      const scale = this.getOutlineScaleVector(baseScale, lineScale);
+      const translation = new THREE.Vector3();
 
       positions.forEach((position, index) => {
+        // Shell = the instance's own scale × its outline scale.
+        const scale = this.getOutlineScaleVector(position.outlineScale || baseScale, lineScale);
+        const s = position.scale;
+        if (s) {
+          scale.multiply(translation.set(s.x, s.y, s.z));
+        }
         matrix.compose(
-            new THREE.Vector3(position.x, position.y, position.z),
+            translation.set(position.x, position.y, position.z),
             quaternion,
             scale,
         );
@@ -2296,41 +2357,33 @@ export default {
       outlineMesh.instanceMatrix.needsUpdate = true;
     },
 
-    createDiceMaterials() {
-      return DICE_FACE_ORDER.map((faceValue) => {
-        const material = this.getSharedMaterial(
-            `dice-face-material-${faceValue}`,
-            () => {
-              const faceMaterial = markRaw(new THREE.MeshLambertMaterial({
-                color: '#ffffff',
-                map: this.getDiceFaceTexture(faceValue),
-              }));
-              this.prepareFillMaterial(faceMaterial);
-              return faceMaterial;
-            },
-        );
-
+    // One material over the 3x2 pip atlas (buildDiceGeometry remaps each
+    // face's UVs into its tile): 1 draw call instead of 6.
+    createDiceMaterial() {
+      return this.getSharedMaterial('dice-material', () => {
+        const material = markRaw(new THREE.MeshLambertMaterial({
+          color: '#ffffff',
+          map: this.getDiceAtlasTexture(),
+        }));
+        this.prepareFillMaterial(material);
         return material;
       });
     },
 
-    getDiceFaceTexture(value) {
+    // Pip faces 1–6 painted into a 3x2 atlas of 256px tiles; tile of face
+    // value v: column (v-1) % 3, row floor((v-1) / 3) from the top. Tile
+    // edges are all the same cream, so mipmap bleed between tiles is invisible.
+    getDiceAtlasTexture() {
       return this.getSharedTexture(
-          `dice-face-texture-${value}`,
+          'dice-atlas-texture',
           () => {
             const canvas = document.createElement('canvas');
-            canvas.width = 256;
-            canvas.height = 256;
+            canvas.width = 256 * DICE_ATLAS_COLUMNS;
+            canvas.height = 256 * DICE_ATLAS_ROWS;
 
             const context = canvas.getContext('2d');
             context.fillStyle = '#fff8e8';
             context.fillRect(0, 0, canvas.width, canvas.height);
-
-            context.strokeStyle = '#e0d2b2';
-            context.lineWidth = 12;
-            context.strokeRect(18, 18, canvas.width - 36, canvas.height - 36);
-
-            context.fillStyle = '#231a15';
             const pipRadius = 22;
             const positions = {
               center: [128, 128],
@@ -2350,12 +2403,22 @@ export default {
               6: ['topLeft', 'topRight', 'middleLeft', 'middleRight', 'bottomLeft', 'bottomRight'],
             };
 
-            faceMap[value].forEach((key) => {
-              const [x, y] = positions[key];
-              context.beginPath();
-              context.arc(x, y, pipRadius, 0, Math.PI * 2);
-              context.fill();
-            });
+            for (let value = 1; value <= 6; value += 1) {
+              const ox = ((value - 1) % DICE_ATLAS_COLUMNS) * 256;
+              const oy = Math.floor((value - 1) / DICE_ATLAS_COLUMNS) * 256;
+
+              context.strokeStyle = '#e0d2b2';
+              context.lineWidth = 12;
+              context.strokeRect(ox + 18, oy + 18, 256 - 36, 256 - 36);
+
+              context.fillStyle = '#231a15';
+              faceMap[value].forEach((key) => {
+                const [x, y] = positions[key];
+                context.beginPath();
+                context.arc(ox + x, oy + y, pipRadius, 0, Math.PI * 2);
+                context.fill();
+              });
+            }
 
             const texture = markRaw(new THREE.CanvasTexture(canvas));
             texture.colorSpace = THREE.SRGBColorSpace;
@@ -2464,137 +2527,28 @@ export default {
 
       this.scene.background = this.getSkyGradientTexture(env);
 
-      if (!this.ambientLight || !this.skyLight || !this.sunLight || !this.fillLight || !this.trayLight) {
+      if (!this.skyLight || !this.sunLight || !this.fillLight) {
         return;
       }
 
-      switch (env) {
-        case 'night':
-          this.ambientLight.color.set('#1a2b4c');
-          this.ambientLight.intensity = 0.45;
+      const look = ENVIRONMENT_LIGHTING[env] || ENVIRONMENT_LIGHTING.day;
+      // A constant ambient term added to both hemisphere colors is exactly
+      // an AmbientLight (three sums both as plain irradiance), so fold it in
+      // — linear-space math, intensity baked into the colors.
+      const ambient = _envAmbientScratch.set(look.ambient).multiplyScalar(look.ambientIntensity);
+      this.skyLight.color.set(look.sky).multiplyScalar(look.skyIntensity).add(ambient);
+      this.skyLight.groundColor.set(look.ground).multiplyScalar(look.skyIntensity).add(ambient);
+      this.skyLight.intensity = 1;
 
-          this.skyLight.color.set('#2b3e66');
-          this.skyLight.groundColor.set('#0d131f');
-          this.skyLight.intensity = 0.65;
+      this.sunLight.color.set(look.sun);
+      this.sunLight.intensity = look.sunIntensity;
+      this.sunLight.position.set(...look.sunPosition);
 
-          this.sunLight.color.set('#b3ccff');
-          this.sunLight.intensity = 0.9;
-          this.sunLight.position.set(-5.5, 13.5, 6.5);
-
-          this.fillLight.color.set('#4c70b3');
-          this.fillLight.intensity = 0.45;
-
-          this.trayLight.color.set('#55aaee');
-          this.trayLight.intensity = 0.22;
-          break;
-
-        case 'dusk':
-          this.ambientLight.color.set('#4c2e3d');
-          this.ambientLight.intensity = 0.42;
-
-          this.skyLight.color.set('#805373');
-          this.skyLight.groundColor.set('#2d1a24');
-          this.skyLight.intensity = 0.75;
-
-          this.sunLight.color.set('#ff8855');
-          this.sunLight.intensity = 1.55;
-          this.sunLight.position.set(-11.5, 6.5, 3.5);
-
-          this.fillLight.color.set('#a65f91');
-          this.fillLight.intensity = 0.55;
-
-          this.trayLight.color.set('#ff8833');
-          this.trayLight.intensity = 0.28;
-          break;
-
-        case 'dawn':
-          this.ambientLight.color.set('#373d59');
-          this.ambientLight.intensity = 0.45;
-
-          this.skyLight.color.set('#8c7299');
-          this.skyLight.groundColor.set('#26202c');
-          this.skyLight.intensity = 0.75;
-
-          this.sunLight.color.set('#ffbb77');
-          this.sunLight.intensity = 1.65;
-          this.sunLight.position.set(-10.5, 8.5, 4.5);
-
-          this.fillLight.color.set('#7592c9');
-          this.fillLight.intensity = 0.52;
-
-          this.trayLight.color.set('#ffbb77');
-          this.trayLight.intensity = 0.28;
-          break;
-
-        case 'day':
-        default:
-          this.ambientLight.color.set('#f6f0e7');
-          this.ambientLight.intensity = 0.28;
-
-          this.skyLight.color.set('#d2e6ff');
-          this.skyLight.groundColor.set('#97ae72');
-          this.skyLight.intensity = 0.62;
-
-          this.sunLight.color.set('#fff1db');
-          this.sunLight.intensity = 1.45;
-          this.sunLight.position.set(-5.5, 13.5, 6.5);
-
-          this.fillLight.color.set('#c7dfff');
-          this.fillLight.intensity = 0.42;
-
-          this.trayLight.color.set('#ffd6a8');
-          this.trayLight.intensity = 0.18;
-          break;
-      }
+      this.fillLight.color.set(look.fill);
+      this.fillLight.intensity = look.fillIntensity;
 
       this.requestShadowUpdate();
       this.hoverNeedsUpdate = true;
-    },
-
-    createCloudsInstanced() {
-      const puffGeometry = this.getSharedGeometry('cartoon-cloud-puff', () => new THREE.SphereGeometry(1, 20, 20));
-      const puffMaterial = this.createToonMaterial('cartoon-cloud-material', { color: '#ffffff' });
-      const clouds = [
-        { x: -9.8, y: 9.4, z: -15.6, scale: 1.35 },
-        { x: 3.8, y: 11.2, z: -18.4, scale: 1.55 },
-        { x: 18.2, y: 10.1, z: -14.8, scale: 1.25 },
-        { x: 15.6, y: 8.5, z: -6.4, scale: 0.96 },
-      ];
-      const puffs = [
-        { x: -1.35, y: 0, z: 0.15, scale: [1.1, 0.82, 0.92] },
-        { x: -0.35, y: 0.3, z: 0, scale: [1.28, 0.96, 1.02] },
-        { x: 0.7, y: 0.2, z: -0.08, scale: [1.15, 0.88, 0.95] },
-        { x: 1.55, y: -0.02, z: 0.1, scale: [0.92, 0.7, 0.8] },
-      ];
-
-      const mesh = this.createStaticInstancedMesh(
-          puffGeometry,
-          puffMaterial,
-          clouds.length * puffs.length,
-      );
-      const matrix = new THREE.Matrix4();
-      const quaternion = new THREE.Quaternion();
-      let index = 0;
-      clouds.forEach((cloud) => {
-        puffs.forEach((puff) => {
-          matrix.compose(
-              new THREE.Vector3(
-                  cloud.x + (puff.x * cloud.scale),
-                  cloud.y + (puff.y * cloud.scale),
-                  cloud.z + (puff.z * cloud.scale),
-              ),
-              quaternion,
-              new THREE.Vector3(
-                  puff.scale[0] * cloud.scale,
-                  puff.scale[1] * cloud.scale,
-                  puff.scale[2] * cloud.scale,
-              ),
-          );
-          mesh.setMatrixAt(index, matrix);
-          index += 1;
-        });
-      });
-      this.finalizeInstancedMesh(mesh);
     },
 
     applyOutlineAppearance() {
@@ -3063,7 +3017,7 @@ export default {
           return;
         }
         const dim = seat.connected === false;
-        const keys = [`pawn-body-material-${seat.seat}`, `pawn-head-material-${seat.seat}`]
+        const keys = [`pawn-body-material-${seat.seat}`]
           .concat(PROP_MATERIAL_PREFIXES.map((prefix) => `${prefix}-${seat.seat}`));
         keys.forEach((key) => {
           const material = this.sharedMaterials[key];
@@ -3154,7 +3108,10 @@ export default {
         group.rotation.x = -Math.PI / 2;
         group.name = `home-base-helper-${baseIdx}`;
 
+        // Never drawn (it would be a draw call that writes nothing) — the
+        // Raycaster ignores `visible`, so it still catches clicks.
         const hitDisc = markRaw(new THREE.Mesh(hitGeo, hitMat));
+        hitDisc.visible = false;
         group.add(hitDisc);
 
         const baseRings = [];
@@ -3248,114 +3205,127 @@ export default {
       return _rippleTargets;
     },
 
-    animateClickableRipples(now) {
+    // Static rings under the dice / movable pawns on the local turn. Only
+    // dirties the frame when a ring appears, moves or disappears.
+    updateClickableRipples() {
       if (!this.clickableRipples) {
         return;
       }
 
       const targets = this.getClickableRippleTargets();
-      const pulse = getClickablePulse(now);
       this.clickableRipples.forEach((ripple, poolIdx) => {
         const target = targets[poolIdx];
+        const group = ripple.group;
         if (!target) {
-          if (ripple.group.visible) {
-            // One more render pass to actually erase the ring.
-            ripple.group.visible = false;
+          if (group.visible) {
+            group.visible = false;
             this.requestRender();
           }
           return;
         }
 
-        ripple.group.visible = true;
-        ripple.group.position.set(target.x, target.y, target.z);
-        // One sharp ring per target: full opacity, hard two-tone color flip,
-        // small scale wobble. The old expanding/fading pair read as a glow.
-        ripple.rings.forEach((ring, ringIdx) => {
-          if (ringIdx > 0) {
-            ring.visible = false;
-            return;
-          }
-          ring.visible = true;
-          const scale = pulse.scale * target.scale;
-          ring.scale.set(scale, scale, 1);
-          ring.material.color.copy(pulse.threeColor);
-          ring.material.opacity = 0.95;
+        if (
+          !group.visible ||
+          group.position.x !== target.x ||
+          group.position.y !== target.y ||
+          group.position.z !== target.z
+        ) {
+          group.visible = true;
+          group.position.set(target.x, target.y, target.z);
+          ripple.rings.forEach((ring, ringIdx) => {
+            ring.visible = ringIdx === 0;
+            ring.scale.set(target.scale, target.scale, 1);
+            ring.material.color.copy(CLICKABLE_COLOR);
+            ring.material.opacity = 0.95;
+          });
+          this.requestRender();
+        }
+      });
+    },
+
+    // Nature Kit scenery (utils/natureKit.js): mountains, hills, trees,
+    // bushes and clouds are always shown; rocks/reeds/grass are the
+    // `decorationMeshes` the lowest quality preset hides. Loads async — the
+    // board is playable before it arrives. Baked into static merged meshes
+    // sharing a Lambert material over the kit's palette texture.
+    async createNatureEnvironment() {
+      const scene = this.scene;
+      let kit;
+      try {
+        kit = await loadNatureKit(NATURE_MODEL_NAMES);
+      } catch (error) {
+        console.warn('Nature kit failed to load', error);
+        return;
+      }
+
+      // Unmounted (or the scene was rebuilt) while loading.
+      if (!this.scene || this.scene !== scene) {
+        Object.values(kit.geometries).forEach((geometry) => geometry.dispose());
+        kit.texture?.dispose();
+        return;
+      }
+
+      const texture = this.getSharedTexture('nature-kit-palette', () => kit.texture);
+      const material = this.createToonMaterial('nature-kit-material', { color: '#ffffff', map: texture });
+      // The kit's clouds sample a grey strip of the palette and read as
+      // rocks against the sky — keep them plain white like the old puffs.
+      const cloudMaterial = this.createToonMaterial('cartoon-cloud-material', { color: '#ffffff' });
+
+      // The scenery never moves, so each set is baked into one static mesh
+      // per material (instance transforms applied to cloned geometry): the
+      // whole backdrop is 2 draw calls (palette + clouds), details 1.
+      const buildSet = (setName, entries, options) => {
+        const byMaterial = new Map();
+        const matrix = new THREE.Matrix4();
+        const position = new THREE.Vector3();
+        const quaternion = new THREE.Quaternion();
+        const scale = new THREE.Vector3();
+        const up = new THREE.Vector3(0, 1, 0);
+
+        entries.forEach((entry) => {
+          const source = kit.geometries[entry.model];
+          // Normalize to the attributes every kit file shares (mergeGeometries
+          // needs identical attribute sets and indexing).
+          const part = new THREE.BufferGeometry();
+          ['position', 'normal', 'uv'].forEach((name) => {
+            if (source.attributes[name]) part.setAttribute(name, source.attributes[name]);
+          });
+          part.setIndex(source.index);
+          // Always a private copy: the transform below must not touch the
+          // source (toNonIndexed on an unindexed geometry returns itself).
+          const baked = source.index ? part.toNonIndexed() : part.clone();
+          position.set(entry.x, entry.y, entry.z);
+          quaternion.setFromAxisAngle(up, entry.yaw || 0);
+          scale.setScalar(entry.scale);
+          baked.applyMatrix4(matrix.compose(position, quaternion, scale));
+
+          const partMaterial = entry.model.startsWith('Cloud') ? cloudMaterial : material;
+          if (!byMaterial.has(partMaterial)) byMaterial.set(partMaterial, []);
+          byMaterial.get(partMaterial).push(baked);
         });
+
+        return [...byMaterial].map(([partMaterial, parts], index) => {
+          const geometry = this.getSharedGeometry(`nature-${setName}-${index}`, () => mergeGeometries(parts));
+          parts.forEach((part) => part.dispose());
+          const mesh = markRaw(new THREE.Mesh(geometry, partMaterial));
+          mesh.receiveShadow = Boolean(options.receiveShadow);
+          mesh.matrixAutoUpdate = false; // identity, never moves
+          this.scene.add(mesh);
+          return mesh;
+        });
+      };
+
+      buildSet('backdrop', NATURE_BACKDROP, { receiveShadow: true });
+      this.decorationMeshes = buildSet('details', NATURE_DETAILS, { receiveShadow: true });
+      // Only the baked copies are kept.
+      Object.values(kit.geometries).forEach((geometry) => geometry.dispose());
+
+      const showDecorations = getRenderQualityPreset(this.store.settings.quality).decorationsEnabled !== false;
+      this.decorationMeshes.forEach((mesh) => {
+        mesh.visible = showDecorations;
       });
-    },
 
-    // Low-poly meadow decorations: dodecahedron rocks in big+small pairs,
-    // pushed out toward the meadow's edge so they frame the table without
-    // crowding it. One instanced draw for everything.
-    createMeadowDecorations() {
-      const groundY = -1.37; // meadow surface
-      const rockGeo = this.getSharedGeometry('deco-rock', () => new THREE.DodecahedronGeometry(1, 0));
-
-      const rockSpots = [
-        { x: -7.4, z: 7.2, yaw: 0.7 },
-        { x: 2.6, z: -6.8, yaw: 2.1 },
-        { x: 17.6, z: 2.8, yaw: 4.0 },
-        { x: 14.2, z: 15.0, yaw: 5.4 },
-        { x: -5.4, z: 14.0, yaw: 1.3 },
-      ];
-      const rocks = this.createStaticInstancedMesh(
-          rockGeo,
-          this.createToonMaterial('deco-rock-mat', { color: '#ffffff' }),
-          rockSpots.length * 2,
-          { castShadow: true, receiveShadow: true },
-      );
-
-      const matrix = new THREE.Matrix4();
-      const quaternion = new THREE.Quaternion();
-      const euler = new THREE.Euler();
-      const color = new THREE.Color();
-
-      rockSpots.forEach((spot, spotIndex) => {
-        const r = 1.5 + (Math.random() * 0.6);
-        euler.set(0, spot.yaw, 0);
-        quaternion.setFromEuler(euler);
-
-        // A flat boulder with a small companion beside it.
-        matrix.compose(
-            new THREE.Vector3(spot.x, groundY + (0.13 * r), spot.z),
-            quaternion,
-            new THREE.Vector3(0.42 * r, 0.18 * r, 0.26 * r),
-        );
-        rocks.setMatrixAt(spotIndex * 2, matrix);
-        rocks.setColorAt(spotIndex * 2, color.set('#9eaeac'));
-
-        matrix.compose(
-            new THREE.Vector3(
-                spot.x + (Math.cos(spot.yaw) * 0.5 * r),
-                groundY + (0.09 * r),
-                spot.z + (Math.sin(spot.yaw) * 0.5 * r),
-            ),
-            quaternion,
-            new THREE.Vector3(0.15 * r, 0.13 * r, 0.14 * r),
-        );
-        rocks.setMatrixAt((spotIndex * 2) + 1, matrix);
-        rocks.setColorAt((spotIndex * 2) + 1, color.set('#8d9c96'));
-      });
-      rocks.instanceColor.needsUpdate = true;
-
-      this.decorationMeshes = [rocks];
-      this.decorationMeshes.forEach((mesh) => this.finalizeInstancedMesh(mesh));
-    },
-
-    createStaticInstancedMesh(geometry, material, count, options = {}) {
-      const mesh = markRaw(new THREE.InstancedMesh(geometry, material, count));
-      mesh.castShadow = Boolean(options.castShadow);
-      mesh.receiveShadow = Boolean(options.receiveShadow);
-      return mesh;
-    },
-
-    // Culling for an InstancedMesh defaults to the geometry's origin-centered
-    // bounds, which would drop the whole set when the origin leaves view —
-    // recompute from the actual instance matrices once they are set.
-    finalizeInstancedMesh(mesh) {
-      mesh.instanceMatrix.needsUpdate = true;
-      mesh.computeBoundingSphere();
-      this.scene.add(mesh);
+      this.requestShadowUpdate();
     },
 
     // ---- Online game flow (server-authoritative) ----
@@ -3420,13 +3390,14 @@ export default {
 
       this.store.online.seatToPlayerIndex = seatToPlayerIndex;
       this.store.currentScreen = 'game-screen';
-      this.setTurnBySeat(payload.turnSeat, payload.round || 1);
+      this.setTurnBySeat(payload.turnSeat, payload.round || 1, payload);
       this.applySeatPresence();
     },
 
     // Online replacement for changePlayersTurn/repeatPlayersTurn: seats may be
     // non-contiguous, so the turn is addressed by seat, not by array rotation.
-    setTurnBySeat(seat, round) {
+    // `timing`: the server payload (turnMsLeft + receivedAt) for the timer.
+    setTurnBySeat(seat, round, timing) {
       const playerIndex = this.store.online.seatToPlayerIndex[seat];
       const player = this.store.players[playerIndex];
       if (!player) {
@@ -3449,7 +3420,7 @@ export default {
       this.store.online.pendingDice = null;
       this.store.gamePlayStatus.isRolling = true;
       this.store.gamePlayStatus.isMoving = false;
-      this.startTurnTimer();
+      this.startTurnTimer(timing);
       this.hoverNeedsUpdate = true;
     },
 
@@ -3457,7 +3428,7 @@ export default {
       if (!this.store.online.enabled) {
         return;
       }
-      this.setTurnBySeat(payload.turnSeat, payload.round);
+      this.setTurnBySeat(payload.turnSeat, payload.round, payload);
     },
 
     handleGameWon(payload) {
@@ -3486,6 +3457,8 @@ export default {
         seats: payload.seats,
         turnSeat: payload.turnSeat,
         round: payload.round,
+        turnMsLeft: payload.turnMsLeft,
+        receivedAt: payload.receivedAt,
       });
 
       (payload.seats || []).forEach((seat) => {
@@ -3571,9 +3544,20 @@ export default {
       this.hoverNeedsUpdate = true;
     },
 
-    startTurnTimer() {
-      this.store.turnTimer.startedAt = performance.now();
-      this.store.turnTimer.running = true;
+    // `timing` is a server payload carrying turnMsLeft (+ the receivedAt
+    // MatchController stamps): back-date startedAt so the bar shows the real
+    // time left after a refresh, a drop-in join or a queued TURN_CHANGE.
+    // Without it the turn starts now.
+    startTurnTimer(timing) {
+      const timer = this.store.turnTimer;
+      const now = performance.now();
+      if (timing && typeof timing.turnMsLeft === 'number') {
+        const msLeft = Math.min(timing.turnMsLeft, timer.duration);
+        timer.startedAt = (timing.receivedAt ?? now) + msLeft - timer.duration;
+      } else {
+        timer.startedAt = now;
+      }
+      timer.running = true;
     },
 
     stopTurnTimer() {
@@ -3880,6 +3864,11 @@ export default {
         }
       }
 
+      // A roll that leaves the turn open restarts the server's deadline.
+      if (typeof payload.turnMsLeft === 'number') {
+        this.startTurnTimer(payload);
+      }
+
       this.onlineDice.serverValue = payload.value;
       this.onlineDice.payload = payload;
       if (this.pendingDiceRoll) {
@@ -4145,14 +4134,21 @@ export default {
       return orbitingScreens.includes(this.store.currentScreen);
     },
 
-    updateCameraPath() {
+    updateCameraPath(now) {
       if (!this.camera) return;
 
       if (this.isMenuMode()) {
         if (this.controls) {
           this.controls.enabled = false;
         }
-        this.menuOrbitTime += 0.0025; // slow cinematic orbit speed
+        // Slow cinematic orbit, time-based so it runs at the same speed on
+        // 60Hz and 120Hz displays (clamped across tab-switch gaps). Holds
+        // still while the window is unfocused.
+        const dt = this.windowFocused && this.menuOrbitLastAt
+          ? Math.min(now - this.menuOrbitLastAt, 100)
+          : 0;
+        this.menuOrbitLastAt = this.windowFocused ? now : 0;
+        this.menuOrbitTime += dt * MENU_ORBIT_RAD_PER_MS;
         const radius = 9.5;
         const target = CAMERA_GAME_TARGET;
         this.camera.position.x = target.x + Math.sin(this.menuOrbitTime) * radius;
