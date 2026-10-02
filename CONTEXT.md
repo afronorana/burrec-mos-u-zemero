@@ -21,7 +21,7 @@ A cosmetic item (crown, party hat, a country flag, …) worn by all four of a pl
 _Avoid_: hat, accessory, item
 
 **Finisher**:
-The presentation of a **Capture** — a short camera-zoomed animation (kick, baseball bat, bowling ball, …) chosen by the capturing player and shown to everyone in the match.
+The presentation of a **Capture** — a short camera-zoomed animation (trapdoor, baseball bat, frying pan, golf club, tennis racket, bowling ball, wooden hammer, falling anvil, spring glove, cannon, magic wand, vampire bats, UFO abduction, …) chosen by the capturing player and shown to everyone in the match.
 _Avoid_: kill animation, capture animation
 
 ## Relationships

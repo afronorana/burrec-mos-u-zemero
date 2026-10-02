@@ -15,8 +15,7 @@
               :class="{ 'wardrobe-chip--active': draft.prop === option.id }"
               @click="draft.prop = option.id"
             >
-              <span class="wardrobe-chip-icon">{{ option.icon }}</span>
-              <span>{{ t(option.labelKey) }}</span>
+              {{ t(option.labelKey) }}
             </button>
           </div>
         </div>
@@ -57,8 +56,7 @@
               :class="{ 'wardrobe-chip--active': draft.finisher === option.id }"
               @click="pickFinisher(option.id)"
             >
-              <span class="wardrobe-chip-icon">{{ option.icon }}</span>
-              <span>{{ t(option.labelKey) }}</span>
+              {{ t(option.labelKey) }}
             </button>
           </div>
         </div>
@@ -87,7 +85,8 @@
         @pointerdown.stop
         @click="play"
       >
-        ▶ {{ t(finisherLabelKey) }}
+        <svg class="wardrobe-replay-icon" viewBox="0 0 10 12" aria-hidden="true"><path d="M0 0 L10 6 L0 12 Z" /></svg>
+        {{ t(finisherLabelKey) }}
       </button>
       <span class="wardrobe-hint">{{ t('cosmetics.dragHint') }}</span>
     </div>
@@ -293,9 +292,12 @@ function normalize(text) {
   box-shadow: 0 0 0 2px #ff7700 inset;
 }
 
-.wardrobe-chip-icon {
-  font-size: 1.05rem;
-  line-height: 1;
+.wardrobe-replay-icon {
+  width: 0.7em;
+  height: 0.8em;
+  margin-right: 4px;
+  vertical-align: -0.05em;
+  fill: currentColor;
 }
 
 .wardrobe-flag-search {

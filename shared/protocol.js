@@ -30,8 +30,11 @@ export var OpCode = {
 // Prop waves. Purely visual — the server only whitelists ids and relays them
 // (LOBBY_STATE/STATE_SYNC `cosmetics`, keyed by userId). Add ids here first;
 // unknown ids fall back to the defaults.
-export var PROP_IDS = ['none', 'crown', 'partyHat', 'flag'];
-export var FINISHER_IDS = ['shove', 'kick', 'bat', 'bowling'];
+export var PROP_IDS = [
+  'none', 'crown', 'partyHat', 'topHat', 'qeleshe', 'santaHat', 'wizardHat', 'rabbitEars', 'catEars', 'vampireEars',
+  'alienAntennae', 'sunglasses', 'clownNose', 'mustache', 'chicken', 'scarf', 'dinoSpikes', 'pumpkin', 'ghost', 'flag',
+];
+export var FINISHER_IDS = ['shove', 'trapdoor', 'bat', 'pan', 'golf', 'racket', 'bowling', 'hammer', 'anvil', 'glove', 'cannon', 'magician', 'vampire', 'ufo'];
 export var DEFAULT_PROP = 'none';
 export var DEFAULT_FINISHER = 'shove';
 export var DEFAULT_FLAG = 'al';

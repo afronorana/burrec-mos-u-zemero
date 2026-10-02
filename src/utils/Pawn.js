@@ -19,6 +19,7 @@ class Pawn {
     this.startingPlace = _startingPlace;
     this.isMoving = false;
     this.activeMoveTimeout = null;
+    this.landingOnCapture = false;
   }
 
   /**
@@ -50,6 +51,7 @@ class Pawn {
   endOfMove() {
     this.isMoving = false;
     this.activeMoveTimeout = null;
+    this.landingOnCapture = false;
 
     if (ApplicationStore.online.enabled) {
       // Online, turn advancement comes only from the server's TURN_CHANGE.
@@ -265,6 +267,9 @@ class Pawn {
     }
 
     const applyStep = (index) => {
+      // Presentation hint for App.vue: this hop may land on a Capture, so the
+      // mesh stops beside the victim instead of on top of it.
+      this.landingOnCapture = captureField !== null && index === states.length - 1;
       this.applyMoveState(states[index], index);
 
       if (index < states.length - 1) {
@@ -275,6 +280,7 @@ class Pawn {
       }
 
       this.activeMoveTimeout = window.setTimeout(() => {
+        this.landingOnCapture = false;
         if (captureField !== null) {
           this.removeOpponentPawns(captureField);
         }

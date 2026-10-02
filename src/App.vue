@@ -35,17 +35,39 @@ import {
   NATURE_DETAILS,
   NATURE_MODEL_NAMES,
 } from './utils/natureKit';
+import { PROP_MATERIAL_PREFIXES, flagMaterialKey, buildPropMesh } from './utils/cosmetics';
 import {
-  PROP_MATERIAL_PREFIXES,
-  flagMaterialKey,
-  FINISHER_TIMING,
+  finisherTiming,
+  FINISHER_LAUNCH_DELAY,
   LITE_FINISHER_TIMING,
   STAGE_GAP,
-  buildPropMesh,
+  TRAPDOOR_ORDER,
+  TRAPDOOR_DEPTH,
+  actionTime,
+  landingTime,
+  cameraShake,
   buildFinisherTool,
   poseFinisherTool,
   attackerLunge,
-} from './utils/cosmetics';
+  attackerStretch,
+  attackerHop,
+  attackerTakeover,
+  victimTremble,
+  victimLean,
+  victimSpin,
+  victimStretch,
+  victimLandingHop,
+  trapdoorVictim,
+  propWobble,
+  buildRabbit,
+  victimForm,
+  rabbitHop,
+  ufoVictim,
+  buildPoof,
+  posePoof,
+  buildDustPuff,
+  poseDustPuff,
+} from './utils/finishers';
 import { playFinisherImpact, playFinisherWindup } from './utils/sound';
 import { DEFAULT_FINISHER, DEFAULT_FLAG, DEFAULT_PROP } from '../shared/protocol';
 
@@ -174,6 +196,8 @@ const _finisherCamPos = new THREE.Vector3();
 const _finisherCamLook = new THREE.Vector3();
 const _finisherBasePos = new THREE.Vector3();
 const _finisherSpin = new THREE.Quaternion();
+const _finisherYaw = new THREE.Quaternion();
+const _worldUp = new THREE.Vector3(0, 1, 0);
 const _wardrobeCamPos = new THREE.Vector3();
 const _wardrobeCamLook = new THREE.Vector3();
 const _wardrobeScratch = new THREE.Vector3();
@@ -189,6 +213,11 @@ const WARDROBE_FRAMING = {
 };
 const WARDROBE_VICTIM_HOME = { x: 9, y: 0, z: -2 };
 const _attackerPoseScratch = { x: 0, y: 0, z: 0 };
+// Props hang off a pivot at the head center (pawn-group local y), so a
+// Finisher can tilt them about it (tiltProp).
+const PROP_PIVOT_Y = 0.85;
+const _propAxis = new THREE.Vector3();
+const _propInverse = new THREE.Quaternion();
 const _diceFaceQuaternion = new THREE.Quaternion();
 const _diceFaceScratch = new THREE.Vector3();
 const _diceBestNormal = new THREE.Vector3();
@@ -732,6 +761,8 @@ export default {
       const renderer = new THREE.WebGLRenderer({
         antialias: true,
         canvas,
+        // The trapdoor's pit is cut into the board with a stencil mask.
+        stencil: true,
       });
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -1445,13 +1476,17 @@ export default {
           if (finisher && finisher.attackerId === pawn.id) {
             // Scratch copy: animatedPosition is the motion state's own object.
             _attackerPoseScratch.x = animatedPosition.x + finisher.attackerOffset.x;
-            _attackerPoseScratch.y = animatedPosition.y;
+            _attackerPoseScratch.y = animatedPosition.y + finisher.attackerHop;
             _attackerPoseScratch.z = animatedPosition.z + finisher.attackerOffset.z;
             animatedPosition = _attackerPoseScratch;
           }
           const targetScale = pawn.isActive ? 1.1 : 1;
-          // Squash & stretch from the hop, roughly volume-preserving.
-          const stretch = this.pawnMotionStates[pawn.id]?.stretch ?? 1;
+          // Squash & stretch from the hop (and the attacker's Finisher
+          // crouch/spring), roughly volume-preserving.
+          let stretch = this.pawnMotionStates[pawn.id]?.stretch ?? 1;
+          if (finisher && finisher.attackerId === pawn.id) {
+            stretch *= finisher.attackerStretch;
+          }
           const heightScale = targetScale * stretch;
           const widthScale = targetScale / Math.sqrt(stretch);
 
@@ -1471,6 +1506,13 @@ export default {
           );
 
           pawnMesh.scale.set(widthScale, heightScale, widthScale);
+          // Face (+Z, where face Props sit) toward the viewer. Only changes
+          // while the camera moves, which renders anyway.
+          const yaw = this.pawnFacingYaw(animatedPosition);
+          if (pawnMesh.rotation.y !== yaw) {
+            pawnMesh.rotation.y = yaw;
+            this.requestRender();
+          }
         });
       });
 
@@ -1490,6 +1532,14 @@ export default {
         // meshes are created after the seat snapshot arrived).
         this.applySeatPresence();
       }
+    },
+
+    // Yaw that turns a pawn's face (local +Z) toward the camera.
+    pawnFacingYaw(position) {
+      if (!this.camera) {
+        return 0;
+      }
+      return Math.atan2(this.camera.position.x - position.x, this.camera.position.z - position.z);
     },
 
     getPawnJumpHeight(pawn) {
@@ -1539,9 +1589,10 @@ export default {
         motion.from.x = motion.current.x;
         motion.from.y = motion.current.y;
         motion.from.z = motion.current.z;
-        motion.to.x = targetX;
+        motion.landOffset = this.captureLandingOffset(pawn);
+        motion.to.x = targetX + (motion.landOffset?.x ?? 0);
         motion.to.y = targetY;
-        motion.to.z = targetZ;
+        motion.to.z = targetZ + (motion.landOffset?.z ?? 0);
         motion.position = pawn.position;
         motion.globalPosition = pawn.globalPosition;
         motion.inDestination = pawn.isInDestinationField;
@@ -1551,9 +1602,9 @@ export default {
       }
 
       if (!motion.isAnimating) {
-        motion.current.x = targetX;
+        motion.current.x = targetX + (motion.landOffset?.x ?? 0);
         motion.current.y = targetY;
-        motion.current.z = targetZ;
+        motion.current.z = targetZ + (motion.landOffset?.z ?? 0);
         motion.stretch = 1;
         return motion.current;
       }
@@ -1584,6 +1635,33 @@ export default {
       return motion.current;
     },
 
+    // A hop that's about to Capture lands beside the victim (STAGE_GAP back
+    // from its square, on the side away from its home: where the Finisher's
+    // attacker stands); the Finisher hops it onto the square once the victim
+    // is sent home. Null when there's no Capture or Finishers are off.
+    captureLandingOffset(pawn) {
+      if (!pawn.landingOnCapture || !this.store.settings.finishersEnabled) {
+        return null;
+      }
+      for (const player of this.store.players) {
+        const victim = player.pawns.find((other) => (
+          other.playerIndex !== pawn.playerIndex
+          && other.position !== 0
+          && !other.isInDestinationField
+          && other.globalPosition === pawn.globalPosition
+        ));
+        if (victim) {
+          const square = victim.getCoordinates();
+          const home = this.store.fields.home[victim.playerIndex].fields[victim.startingPlace - 1];
+          const dirX = home.x - square.x;
+          const dirZ = home.z - square.z;
+          const length = Math.hypot(dirX, dirZ) || 1;
+          return { x: (-dirX / length) * STAGE_GAP, z: (-dirZ / length) * STAGE_GAP };
+        }
+      }
+      return null;
+    },
+
     ensurePawnMesh(pawn) {
       if (this.pawnMeshes[pawn.id]) {
         return;
@@ -1598,6 +1676,21 @@ export default {
       // Batched in syncPawns: one applyOutlineAppearance traverse per frame
       // instead of one per created pawn mesh.
       this.pawnOutlineSyncPending = true;
+    },
+
+    // Tilts a pawn group's Prop by `angle` about a world-space axis through
+    // the head (Finisher overlapping action); 0 puts it back at rest.
+    tiltProp(group, worldAxis, angle) {
+      const pivot = group?.userData.propMesh;
+      if (!pivot) {
+        return;
+      }
+      if (!angle) {
+        pivot.quaternion.identity();
+        return;
+      }
+      _propAxis.copy(worldAxis).applyQuaternion(_propInverse.copy(group.quaternion).invert());
+      pivot.quaternion.setFromAxisAngle(_propAxis, angle);
     },
 
     // Body + head for a seat's color, baked into ONE geometry (plus one
@@ -1667,6 +1760,7 @@ export default {
         createToonMaterial: this.createToonMaterial,
         createOutlinedMesh: this.createOutlinedMesh,
         createBakedOutline: this.createBakedOutline,
+        getSharedMaterial: this.getSharedMaterial,
         requestRender: this.requestRender,
       };
     },
@@ -1690,10 +1784,15 @@ export default {
         group.remove(group.userData.propMesh);
       }
       const propMesh = buildPropMesh(propId, this.cosmeticsKit(), seat, flagCode);
+      let propPivot = null;
       if (propMesh) {
-        group.add(propMesh);
+        propPivot = markRaw(new THREE.Group());
+        propPivot.position.y = PROP_PIVOT_Y;
+        propMesh.position.y -= PROP_PIVOT_Y;
+        propPivot.add(propMesh);
+        group.add(propPivot);
       }
-      group.userData.propMesh = propMesh;
+      group.userData.propMesh = propPivot;
       group.userData.propKey = propKey;
       // New outline shells need the current outline preset; fresh prop
       // materials need the seat's presence dimming (both run in syncPawns).
@@ -1899,15 +1998,21 @@ export default {
       }
       const victimMesh = this.buildPawnGroup('wardrobe-1', PLAYER_COLORS[1]);
       stage.scene.add(victimMesh);
-      const attackerPos = { x: 0, y: 0, z: 0 };
+      // The preview pawn stands at the pedestal's center, beside the victim's
+      // "square"; the victim drops in onto it.
+      const homeLength = Math.hypot(WARDROBE_VICTIM_HOME.x, WARDROBE_VICTIM_HOME.z);
+      const gapX = (WARDROBE_VICTIM_HOME.x / homeLength) * STAGE_GAP;
+      const gapZ = (WARDROBE_VICTIM_HOME.z / homeLength) * STAGE_GAP;
+      const attackerPos = { x: gapX, y: 0, z: gapZ };
       this.startFinisher({
         finisherId,
         attackerMesh: stage.pawn,
         attackerPos,
+        approachFrom: { x: -gapX, z: -gapZ },
         victims: [{
           pawnId: null,
           mesh: victimMesh,
-          from: { ...attackerPos },
+          from: { ...attackerPos, y: 1.6 },
           home: { ...WARDROBE_VICTIM_HOME },
         }],
         lite: false,
@@ -1916,7 +2021,7 @@ export default {
       });
     },
 
-    startFinisher({ finisherId, attackerId = null, attackerMesh = null, attackerPos, victims, lite, wardrobe = false, tempMeshes = [] }) {
+    startFinisher({ finisherId, attackerId = null, attackerMesh = null, attackerPos, approachFrom = null, victims, lite, wardrobe = false, tempMeshes = [] }) {
       if (this.finisher) {
         this.endFinisher();
       }
@@ -1933,17 +2038,19 @@ export default {
       const perpX = -dirZ;
       const perpZ = dirX;
 
-      // Victims scoot off the attacker's square (spread sideways when several).
+      // Victims stay on their square (spread sideways when several; further
+      // apart over trapdoors so the hatches don't overlap).
+      const spacing = finisherId === 'trapdoor' && !lite ? 0.76 : 0.42;
       victims.forEach((victim, index) => {
-        const spread = (index - ((victims.length - 1) / 2)) * 0.42;
-        const gap = lite ? 0 : STAGE_GAP;
+        const spread = (index - ((victims.length - 1) / 2)) * spacing;
         victim.stand = {
-          x: victim.from.x + (dirX * gap) + (perpX * spread),
-          y: victim.from.y,
-          z: victim.from.z + (dirZ * gap) + (perpZ * spread),
+          x: victim.from.x + (perpX * spread),
+          y: attackerPos.y,
+          z: victim.from.z + (perpZ * spread),
         };
         victim.spinAxis = markRaw(new THREE.Vector3(perpX, 0, perpZ));
       });
+      const kit = this.cosmeticsKit();
 
       const f = {
         id: finisherId,
@@ -1951,17 +2058,29 @@ export default {
         wardrobe,
         scene,
         start: performance.now(),
-        timing: lite ? LITE_FINISHER_TIMING : FINISHER_TIMING,
+        timing: lite ? LITE_FINISHER_TIMING : finisherTiming(finisherId),
         attackerId,
         attackerMesh,
         attackerPos,
         attackerOffset: { x: 0, z: 0 },
+        // The attacker stands STAGE_GAP back from the square (where its move
+        // landed: captureLandingOffset) and hops onto it once the victim is
+        // sent home.
+        approach: lite ? null : {
+          from: approachFrom ?? this.pawnMotionStates[attackerId]?.landOffset ?? { x: 0, z: 0 },
+          to: { x: -dirX * STAGE_GAP, z: -dirZ * STAGE_GAP },
+        },
+        attackerStretch: 1,
+        attackerHop: 0,
+        // Camera shake offset for this frame (world units).
+        shake: { x: 0, y: 0, z: 0 },
         victims,
         victimIds: new Set(victims.map((victim) => victim.pawnId).filter(Boolean)),
         dir: { x: dirX, z: dirZ },
+        sideAxis: markRaw(new THREE.Vector3(perpX, 0, perpZ)),
         tempMeshes,
-        stage: null,
-        tool: null,
+        // One { stage, tool } per victim.
+        stages: [],
         camera: null,
         windupPlayed: false,
         impactDone: false,
@@ -1969,24 +2088,74 @@ export default {
       };
 
       if (!lite) {
-        // Tools live in a stage frame: origin at the first victim's standing
-        // spot, local +Z along the hit direction.
-        const stage = markRaw(new THREE.Group());
-        stage.position.set(first.stand.x, 0, first.stand.z);
-        stage.rotation.y = Math.atan2(dirX, dirZ);
-        stage.position.y = PAWN_CENTER_Y;
-        const tool = buildFinisherTool(finisherId, this.cosmeticsKit());
-        if (tool) {
-          tool.scale.setScalar(0.001);
-          stage.add(tool);
-        }
-        scene.add(stage);
-        f.stage = stage;
-        f.tool = tool;
+        // Tools live in a stage frame, one per victim: origin at its standing
+        // spot and base height (the wardrobe stage stands at y 0), local +Z
+        // along the hit direction.
+        f.stages = victims.map((victim) => {
+          const stage = markRaw(new THREE.Group());
+          stage.position.set(victim.stand.x, victim.stand.y, victim.stand.z);
+          stage.rotation.y = Math.atan2(dirX, dirZ);
+          const tool = buildFinisherTool(finisherId, kit);
+          if (tool) {
+            tool.scale.setScalar(0.001);
+            stage.add(tool);
+          }
+          scene.add(stage);
+          return { stage, tool };
+        });
         this.pawnOutlineSyncPending = true;
-        // The wardrobe stage frames the action itself (updateWardrobeStage).
+        // The wardrobe stage frames the action itself (updateWardrobeStage),
+        // from the stage's -X side.
         f.camera = wardrobe ? null : this.planFinisherCamera(f);
+        // Tools are laid out for a camera on the stage's -X side; mirror them
+        // over when the close-up looks from +X.
+        if (f.camera?.side === -1) {
+          f.stages.forEach(({ stage }) => {
+            stage.scale.x = -1;
+          });
+        }
+        if (finisherId === 'trapdoor') {
+          // One lever opens every hatch. Victims draw after the pit, so they
+          // show inside the hole.
+          f.stages.slice(1).forEach(({ tool }) => {
+            tool.userData.lever.visible = false;
+          });
+          victims.forEach((victim) => this.setFinisherRenderOrder(this.finisherVictimMesh(victim), TRAPDOOR_ORDER));
+        }
       }
+
+      // Tools that travel to the victim's home (bats, the UFO) get it in
+      // their stage frame (mirroring included).
+      f.stages.forEach(({ stage, tool }, index) => {
+        if (tool?.userData.home) {
+          stage.updateMatrixWorld(true);
+          const { home } = victims[index];
+          stage.worldToLocal(tool.userData.home.set(home.x, home.y, home.z));
+        }
+      });
+
+      // A dust ring waits at each victim's home for the touchdown; a victim
+      // that gets transformed also turns back in a poof there, and a
+      // magician's victim carries its rabbit form (hidden until the spell).
+      victims.forEach((victim) => {
+        victim.dust = buildDustPuff(kit);
+        victim.dust.position.set(victim.home.x, victim.home.y, victim.home.z);
+        victim.dust.visible = false;
+        scene.add(victim.dust);
+        if (!lite && (finisherId === 'magician' || finisherId === 'vampire')) {
+          victim.poof = buildPoof(kit, finisherId);
+          victim.poof.position.set(victim.home.x, victim.home.y + 0.4, victim.home.z);
+          victim.poof.visible = false;
+          scene.add(victim.poof);
+        }
+        const mesh = this.finisherVictimMesh(victim);
+        if (!lite && finisherId === 'magician' && mesh) {
+          victim.ownParts = mesh.children.filter((child) => child.visible);
+          victim.rabbit = buildRabbit(kit);
+          victim.rabbit.visible = false;
+          mesh.add(victim.rabbit);
+        }
+      });
 
       // Safety net: a hidden tab stops rAF, and the queue must never stall.
       f.fallbackTimer = window.setTimeout(() => {
@@ -1995,6 +2164,10 @@ export default {
         }
       }, f.timing.total + 1500);
 
+      // From here the Finisher places the attacker (f.attackerOffset).
+      if (attackerId && this.pawnMotionStates[attackerId]) {
+        this.pawnMotionStates[attackerId].landOffset = null;
+      }
       this.finisher = markRaw(f);
       this.store.online.finisherInFlight = true;
       this.requestShadowUpdate();
@@ -2008,10 +2181,12 @@ export default {
       }
       const target = this.controls && !this.isMenuMode() ? this.controls.target : CAMERA_GAME_TARGET;
       const stand = f.victims[0].stand;
+      const attackerX = f.attackerPos.x + (f.approach?.to.x ?? 0);
+      const attackerZ = f.attackerPos.z + (f.approach?.to.z ?? 0);
       const focus = markRaw(new THREE.Vector3(
-          (f.attackerPos.x + stand.x) / 2,
+          (attackerX + stand.x) / 2,
           PAWN_CENTER_Y + 0.45,
-          (f.attackerPos.z + stand.z) / 2,
+          (attackerZ + stand.z) / 2,
       ));
       let viewX = this.camera.position.x - target.x;
       let viewZ = this.camera.position.z - target.z;
@@ -2032,6 +2207,8 @@ export default {
         fromPos: markRaw(this.camera.position.clone()),
         fromTarget: markRaw(target.clone()),
         controlsEnabled,
+        // Which side of the hit line (±perpendicular) the close-up is on.
+        side,
       };
     },
 
@@ -2042,6 +2219,13 @@ export default {
       }
       const t = now - f.start;
       const T = f.timing;
+      // Wall time drives the camera; the action freezes for the hit-stop.
+      const at = actionTime(t, T);
+
+      const shake = cameraShake(t, T);
+      f.shake.x = shake * Math.sin(t * 0.071);
+      f.shake.y = shake * 0.6 * Math.sin(t * 0.093 + 1.3);
+      f.shake.z = shake * Math.sin(t * 0.057 + 2.1);
 
       if (f.camera) {
         // In menus the orbit keeps running underneath (updateCameraPath ran
@@ -2055,18 +2239,35 @@ export default {
         const amount = ease(zoomIn) * (1 - ease(zoomOut));
         _finisherCamPos.lerpVectors(basePos, f.camera.zoomPos, amount);
         _finisherCamLook.lerpVectors(baseTarget, f.camera.focus, amount);
+        _finisherCamPos.add(f.shake);
         this.camera.position.copy(_finisherCamPos);
         this.camera.lookAt(_finisherCamLook);
       }
 
       if (!f.lite) {
-        poseFinisherTool(f.id, f.tool, t);
-        const lunge = attackerLunge(f.id, t);
-        f.attackerOffset.x = f.dir.x * lunge;
-        f.attackerOffset.z = f.dir.z * lunge;
+        f.stages.forEach(({ tool }) => poseFinisherTool(f.id, tool, at, T));
+        // Into place beside the square (a hop, unless the move already landed
+        // there), lunging into the blow, then hopping onto the square.
+        const { from, to } = f.approach;
+        const settle = Math.min(1, t / T.scoot);
+        const stay = 1 - attackerTakeover(f.id, at, T);
+        const lunge = attackerLunge(f.id, at, T);
+        f.attackerOffset.x = ((from.x + ((to.x - from.x) * settle)) * stay) + (f.dir.x * lunge);
+        f.attackerOffset.z = ((from.z + ((to.z - from.z) * settle)) * stay) + (f.dir.z * lunge);
+        const settleHop = Math.hypot(to.x - from.x, to.z - from.z) > 0.01 ? Math.sin(Math.PI * settle) * 0.25 : 0;
+        f.attackerStretch = attackerStretch(f.id, at, T);
+        f.attackerHop = settleHop + attackerHop(f.id, at, T);
         if (f.attackerMesh) {
-          f.attackerMesh.position.set(f.attackerPos.x + f.attackerOffset.x, f.attackerPos.y, f.attackerPos.z + f.attackerOffset.z);
+          const width = 1 / Math.sqrt(f.attackerStretch);
+          f.attackerMesh.position.set(
+              f.attackerPos.x + f.attackerOffset.x,
+              f.attackerPos.y + f.attackerHop,
+              f.attackerPos.z + f.attackerOffset.z,
+          );
+          f.attackerMesh.scale.set(width, f.attackerStretch, width);
         }
+        // Overlapping action: the attacker's Prop flops on the blow and the hop.
+        this.tiltProp(this.finisherAttackerGroup(f), f.sideAxis, propWobble('attacker', f.id, t, at, T));
         if (!f.windupPlayed && t >= T.toolIn[0]) {
           f.windupPlayed = true;
           playFinisherWindup(f.id);
@@ -2080,7 +2281,7 @@ export default {
         playFinisherImpact(f.id);
       }
 
-      f.victims.forEach((victim) => this.poseFinisherVictim(f, victim, t));
+      f.victims.forEach((victim) => this.poseFinisherVictim(f, victim, t, at));
 
       if (t >= T.total) {
         this.endFinisher();
@@ -2089,38 +2290,146 @@ export default {
       this.requestShadowUpdate();
     },
 
-    poseFinisherVictim(f, victim, t) {
-      const mesh = victim.pawnId ? this.pawnMeshes[victim.pawnId] : victim.mesh;
+    finisherVictimMesh(victim) {
+      return victim.pawnId ? this.pawnMeshes[victim.pawnId] : victim.mesh;
+    },
+
+    // Raises a pawn's fill meshes to `order` (outline shells are in the
+    // transparent pass and keep theirs); null restores them.
+    setFinisherRenderOrder(group, order) {
+      group?.traverse((object) => {
+        if (!object.isMesh || object.userData.isOutlineShell) {
+          return;
+        }
+        if (order === null) {
+          object.renderOrder = object.userData.baseRenderOrder ?? object.renderOrder;
+          delete object.userData.baseRenderOrder;
+        } else {
+          object.userData.baseRenderOrder ??= object.renderOrder;
+          object.renderOrder = order;
+        }
+      });
+    },
+
+    finisherAttackerGroup(f) {
+      return f.attackerMesh || (f.attackerId ? this.pawnMeshes[f.attackerId] : null);
+    },
+
+    poseFinisherVictim(f, victim, t, at) {
+      const mesh = this.finisherVictimMesh(victim);
       if (!mesh) {
         return;
       }
       const T = f.timing;
+      const id = f.lite ? null : f.id;
+      // The flight's own clock: starts after any launch delay (a pancake, the
+      // hang over the trapdoor).
+      const flightAt = at - (FINISHER_LAUNCH_DELAY[id] || 0);
+      poseDustPuff(victim.dust, at - landingTime(id, T));
+      if (victim.poof) {
+        posePoof(victim.poof, at - landingTime(id, T));
+      }
+      // Transformed (magician, vampire): a rabbit, or gone into bats (or
+      // inside the UFO).
+      const form = id ? victimForm(id, at, T) : 'pawn';
+      if (victim.rabbit) {
+        victim.rabbit.visible = form === 'rabbit';
+        victim.ownParts.forEach((part) => {
+          part.visible = form !== 'rabbit';
+        });
+      }
+      if (form === 'gone') {
+        mesh.visible = false;
+        return;
+      }
+      let facing = null;
+      let shrink = 1;
       let x;
       let y;
       let z;
       let spin = 0;
 
       if (t < T.impact) {
-        // Hop off the attacker's square, then wait for the blow.
+        // Hop off the attacker's square, then tremble and shrink away from
+        // what's coming while the blow winds up.
         const p = f.lite ? 1 : Math.min(1, t / T.scoot);
-        x = victim.from.x + ((victim.stand.x - victim.from.x) * p);
-        z = victim.from.z + ((victim.stand.z - victim.from.z) * p);
-        y = victim.stand.y + (Math.sin(Math.PI * p) * 0.25);
+        const tremble = f.lite ? 0 : victimTremble(t, T);
+        x = victim.from.x + ((victim.stand.x - victim.from.x) * p) + (victim.spinAxis.x * tremble);
+        z = victim.from.z + ((victim.stand.z - victim.from.z) * p) + (victim.spinAxis.z * tremble);
+        // A startled hop in place (the wardrobe's victim drops in instead).
+        const drop = victim.from.y - victim.stand.y;
+        y = drop > 0
+          ? victim.stand.y + (drop * (1 - (p * p)))
+          : victim.stand.y + (Math.sin(Math.PI * p) * 0.25);
+        spin = f.lite ? 0 : victimLean(f.id, t, T);
+      } else if (id === 'trapdoor' && flightAt - T.impact < T.flight) {
+        // Hangs over the open pit peering down, drops through, then springs
+        // up out of its home field; hidden while fully below the board.
+        const { atHome, drop, lookDown } = trapdoorVictim(at, T);
+        const spot = atHome ? victim.home : victim.stand;
+        x = spot.x;
+        z = spot.z;
+        y = spot.y - drop;
+        spin = lookDown;
+        if (drop >= TRAPDOOR_DEPTH) {
+          mesh.visible = false;
+          return;
+        }
+      } else if (id === 'ufo' && ufoVictim(at, T)) {
+        // In the tractor beam: floating up (shrinking, turning) into the
+        // saucer, or set down at home.
+        const beam = ufoVictim(at, T);
+        const spot = at - T.impact < T.flight ? victim.stand : victim.home;
+        x = spot.x;
+        z = spot.z;
+        y = spot.y + beam.lift;
+        shrink = beam.shrink;
+        facing = (f.wardrobe ? 0 : this.pawnFacingYaw(spot)) + beam.spin;
+      } else if (flightAt < T.impact) {
+        // Flattened where it stood (hammer, anvil), or a fresh rabbit
+        // twitching its nose; the flight waits.
+        x = victim.stand.x;
+        z = victim.stand.z;
+        y = victim.stand.y;
+        if (form === 'rabbit') {
+          facing = Math.atan2(victim.home.x - x, victim.home.z - z);
+        }
+      } else if (flightAt - T.impact < T.flight) {
+        // Launched: a spinning cartoon arc that lands exactly on its home
+        // field (a rabbit hops there instead).
+        const p = (flightAt - T.impact) / T.flight;
+        const launch = victim.stand;
+        x = launch.x + ((victim.home.x - launch.x) * p);
+        z = launch.z + ((victim.home.z - launch.z) * p);
+        if (form === 'rabbit') {
+          y = launch.y + ((victim.home.y - launch.y) * p) + rabbitHop(p);
+          facing = Math.atan2(victim.home.x - launch.x, victim.home.z - launch.z);
+        } else {
+          const distance = Math.hypot(victim.home.x - launch.x, victim.home.z - launch.z);
+          const peak = 1.6 + (distance * 0.18);
+          y = launch.y + ((victim.home.y - launch.y) * p) + (Math.sin(Math.PI * p) * peak);
+          spin = victimSpin(p, f.lite);
+        }
       } else {
-        // Launched: a spinning cartoon arc that lands exactly on its home field.
-        const p = Math.min(1, (t - T.impact) / T.flight);
-        const distance = Math.hypot(victim.home.x - victim.stand.x, victim.home.z - victim.stand.z);
-        const peak = 1.6 + (distance * 0.18);
-        x = victim.stand.x + ((victim.home.x - victim.stand.x) * p);
-        z = victim.stand.z + ((victim.home.z - victim.stand.z) * p);
-        y = victim.stand.y + ((victim.home.y - victim.stand.y) * p) + (Math.sin(Math.PI * p) * peak);
-        spin = p * Math.PI * (f.lite ? 2 : 4);
+        // Touched down: squash, a little bounce, settle.
+        x = victim.home.x;
+        z = victim.home.z;
+        y = victim.home.y + victimLandingHop(flightAt, T);
       }
 
+      const stretch = victimStretch(t, at, T, id);
+      // Volume-preserving, but a pancake shouldn't spread across the board.
+      const width = Math.min(1.75, 1 / Math.sqrt(stretch));
       mesh.position.set(x, y, z);
-      mesh.scale.set(1, 1, 1);
-      mesh.quaternion.copy(_finisherSpin.setFromAxisAngle(victim.spinAxis, spin));
+      mesh.scale.set(width * shrink, stretch * shrink, width * shrink);
+      // Spun about the hit's side axis, still facing the viewer.
+      // (A rabbit faces where it's hopping.)
+      const yaw = facing ?? (f.wardrobe ? 0 : this.pawnFacingYaw(mesh.position));
+      _finisherYaw.setFromAxisAngle(_worldUp, yaw);
+      mesh.quaternion.copy(_finisherSpin.setFromAxisAngle(victim.spinAxis, spin)).multiply(_finisherYaw);
       mesh.visible = true;
+      // Overlapping action: its Prop whips on the launch, flops on landing.
+      this.tiltProp(mesh, victim.spinAxis, propWobble('victim', id, t, at, T));
     },
 
     // ── Wardrobe stage ─────────────────────────────────────────────────
@@ -2147,12 +2456,14 @@ export default {
       rim.position.set(3, 2.5, -3);
       scene.add(sky, key, rim);
 
+      // A tall pedestal, wide enough for a Finisher's victim to stand on (and
+      // to hide it falling through the trapdoor).
       const plinth = this.createOutlinedMesh(
-          this.getSharedGeometry('wardrobe-plinth', () => new THREE.CylinderGeometry(0.62, 0.7, 0.12, 40)),
+          this.getSharedGeometry('wardrobe-plinth', () => new THREE.CylinderGeometry(0.95, 0.98, 1.6, 48)),
           this.createToonMaterial('wardrobe-plinth-material', { color: '#3d4252' }),
-          { outlineScale: 1.02 },
+          { outlineScale: { x: 1.02, y: 1.005, z: 1.02 } },
       );
-      plinth.position.y = -0.06;
+      plinth.position.y = -0.8;
       const pawn = this.buildPawnGroup('wardrobe-0', PLAYER_COLORS[0]);
       scene.add(plinth, pawn);
 
@@ -2192,14 +2503,18 @@ export default {
 
       const acting = Boolean(this.finisher?.wardrobe);
       if (acting) {
-        // Side-on to the blow, flag trailing away from the victim.
-        stage.pawn.rotation.y = Math.PI * 0.85;
+        // Facing the camera, turned a touch toward the victim.
+        stage.pawn.rotation.y = 0.3;
       } else {
         if (!this.store.wardrobe.dragging) {
           stage.spin += dt * 0.0005;
         }
         stage.pawn.rotation.y = stage.spin + this.store.wardrobe.yaw;
-        stage.pawn.position.set(0, 0, 0);
+        // Glides back to the center after a Finisher's takeover hop.
+        stage.pawn.position.multiplyScalar(1 - Math.min(1, dt / 160));
+        if (stage.pawn.position.lengthSq() < 1e-6) {
+          stage.pawn.position.set(0, 0, 0);
+        }
       }
 
       const goal = acting ? 1 : 0;
@@ -2214,6 +2529,9 @@ export default {
       if (aspect < 1.1) {
         const back = Math.pow(1.1 / aspect, 0.85);
         _wardrobeCamPos.sub(_wardrobeCamLook).multiplyScalar(back).add(_wardrobeCamLook);
+      }
+      if (acting) {
+        _wardrobeCamPos.add(this.finisher.shake);
       }
       stage.camera.position.copy(_wardrobeCamPos);
       stage.camera.lookAt(_wardrobeCamLook);
@@ -2251,10 +2569,27 @@ export default {
       this.finisher = null;
       window.clearTimeout(f.fallbackTimer);
 
-      if (f.stage) {
-        f.scene.remove(f.stage);
-      }
+      f.stages.forEach(({ stage }) => f.scene.remove(stage));
       f.tempMeshes.forEach((mesh) => f.scene.remove(mesh));
+      f.victims.forEach((victim) => {
+        f.scene.remove(victim.dust);
+        if (victim.poof) {
+          f.scene.remove(victim.poof);
+        }
+        const mesh = this.finisherVictimMesh(victim);
+        if (victim.rabbit) {
+          mesh?.remove(victim.rabbit);
+          victim.ownParts.forEach((part) => {
+            part.visible = true;
+          });
+        }
+        if (mesh) {
+          mesh.visible = true;
+        }
+        this.setFinisherRenderOrder(mesh, null);
+      });
+      f.attackerMesh?.scale.set(1, 1, 1);
+      this.tiltProp(this.finisherAttackerGroup(f), null, 0);
 
       f.victims.forEach((victim) => {
         if (!victim.pawnId) {
@@ -2262,6 +2597,8 @@ export default {
         }
         const mesh = this.pawnMeshes[victim.pawnId];
         mesh?.quaternion.identity();
+        mesh?.scale.set(1, 1, 1);
+        this.tiltProp(mesh, null, 0);
         // Settle the tween state on the logical (home) position so syncPawns
         // doesn't start a hop from where the mesh used to be.
         const pawn = this.findPawnById(victim.pawnId);
