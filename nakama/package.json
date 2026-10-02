@@ -5,7 +5,7 @@
   "scripts": {
     "build": "rollup -c",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test tests/ludo_logic.test.ts"
+    "test": "node --experimental-strip-types --test tests/ludo_logic.test.ts tests/store.test.ts"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^28.0.2",

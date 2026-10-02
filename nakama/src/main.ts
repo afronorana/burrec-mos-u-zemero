@@ -34,6 +34,7 @@ import {
   rpcReportPlayer,
   rpcSetBlock,
 } from './moderation';
+import { rpcClaimItem, rpcStoreState } from './store';
 
 function InitModule(
   ctx: nkruntime.Context,
@@ -55,6 +56,8 @@ function InitModule(
   initializer.registerRpc('verify_email', rpcVerifyEmail);
   initializer.registerRpc('resend_verification', rpcResendVerification);
   initializer.registerRpc('delete_account', rpcDeleteAccount);
+  initializer.registerRpc('store_state', rpcStoreState);
+  initializer.registerRpc('claim_item', rpcClaimItem);
   initializer.registerRpc('block_list', rpcBlockList);
   initializer.registerRpc('set_block', rpcSetBlock);
   initializer.registerRpc('report_player', rpcReportPlayer);

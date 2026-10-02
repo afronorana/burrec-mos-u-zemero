@@ -69,7 +69,7 @@ import {
   poseDustPuff,
 } from './utils/finishers';
 import { playFinisherImpact, playFinisherWindup } from './utils/sound';
-import { DEFAULT_FINISHER, DEFAULT_FLAG, DEFAULT_PROP, NO_FINISHER } from '../shared/protocol';
+import { DEFAULT_FINISHER, DEFAULT_FLAG, DEFAULT_PROP, NO_FINISHER, wearableCosmetics } from '../shared/protocol';
 
 const OUTLINE_COLOR = '#1b1411';
 const BOARD_CENTER = { x: 5, z: 5 };
@@ -1792,7 +1792,7 @@ export default {
         return null;
       }
       if (seatInfo.userId === online.selfUserId && online.account.member) {
-        return this.store.settings.cosmetics;
+        return wearableCosmetics(this.store.settings.cosmetics, online.store.owned);
       }
       return online.cosmetics[seatInfo.userId] || null;
     },

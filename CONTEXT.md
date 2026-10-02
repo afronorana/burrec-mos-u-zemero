@@ -66,6 +66,10 @@ _Avoid_: rarity, level
 A **Member**'s lasting right to wear a specific premium or special **Cosmetics** item. Granted by the server, never by the client; outlives the item's **Price tier** window.
 _Avoid_: purchase, unlock, inventory
 
+**Claim**:
+A **Member** taking a special item at no cost while its window is open, which grants the **Entitlement**. Deliberate: wearing or previewing an item never claims it.
+_Avoid_: redeem, collect, unlock
+
 ## Relationships
 
 - A player has exactly one **Prop** (possibly none) and one **Finisher** — together, their **Cosmetics**
@@ -74,7 +78,8 @@ _Avoid_: purchase, unlock, inventory
 - A seat's **Cosmetics** stay with the seat when its owner disconnects, even while the AI plays it
 - **Cosmetics** are chosen in the Wardrobe (main menu) only and are locked once a match has started
 - A **Guest** may preview every item in the Wardrobe but wears none; in a match a Guest's **Capture** plays the lite presentation, never a **Finisher**
-- A **Member** may wear an item if its **Price tier** is free or they hold an **Entitlement** for it
+- A **Member** may wear an item if its **Price tier** is free or they hold an **Entitlement** for it — a special item needs a **Claim** even while its window is open
+- Every item in the Wardrobe is previewable by everyone; tier only decides what can be worn
 - Every **Report** implies a **Block**; a **Block** never implies a **Report**
 - A **Block** and a **Shadowban** both touch chat only; neither removes anyone from a match or from matchmaking
 - Deleting a **Member** removes their **Entitlements** and **Blocks**, but **Reports** against them remain

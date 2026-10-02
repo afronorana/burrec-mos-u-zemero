@@ -221,8 +221,28 @@ class NakamaClientService {
       window.localStorage.setItem('burrec.online.displayName', name);
     }
 
-    await Promise.all([this.refreshAccountStatus(method), this.loadBlocks()]);
+    await Promise.all([this.refreshAccountStatus(method), this.loadBlocks(), this.loadStore()]);
     return session;
+  }
+
+  async loadStore() {
+    try {
+      const result = await this.rpc('store_state');
+      const store = ApplicationStore.online.store;
+      store.owned = result.owned || [];
+      store.clockOffset = typeof result.now === 'number' ? result.now - Date.now() : 0;
+    } catch (error) {
+      // Non-fatal: only free items look wearable until the next sign-in.
+    }
+  }
+
+  // Claim a special item (CONTEXT.md: Claim) -> refreshed owned list.
+  async claimItem(kind, id) {
+    const result = await this.rpc('claim_item', { kind, id });
+    if (result.error) {
+      throw new Error(result.error);
+    }
+    ApplicationStore.online.store.owned = result.owned || [];
   }
 
   async loadBlocks() {
@@ -300,6 +320,7 @@ class NakamaClientService {
     online.connectionState = 'idle';
     online.account = { method: 'guest', email: null, emailVerified: false, member: false };
     online.blockedIds = [];
+    online.store.owned = [];
   }
 
   // Token RPCs (verify_email / reset_password / request_password_reset) need

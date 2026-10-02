@@ -198,6 +198,12 @@ const ApplicationStore = reactive({
     finisherInFlight: false, // same gate while a capture's Finisher plays
     moveFinisher: null, // Finisher stamped on the MOVE_APPLIED being replayed
     chat: [],
+    // Store (CONTEXT.md: Entitlement): item keys this Member owns, and the
+    // server-minus-local clock offset so special windows follow server time.
+    store: {
+      owned: [],
+      clockOffset: 0,
+    },
     // userIds this player Blocked (server-stored, loaded on sign-in); their
     // chat messages and speech bubbles never show (CONTEXT.md: Block).
     blockedIds: [],

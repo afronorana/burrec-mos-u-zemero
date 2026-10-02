@@ -1,9 +1,10 @@
 // Authoritative 'ludo' match handler. All timing lives in matchLoop ticks —
 // the goja runtime has no setTimeout.
 
-import { OpCode, decodePayload, encodePayload, guestCosmetics, sanitizeCosmetics } from '../../shared/protocol.js';
+import { OpCode, decodePayload, encodePayload, guestCosmetics, sanitizeCosmetics, wearableCosmetics } from '../../shared/protocol.js';
 import { isMember } from './auth';
 import { recordGamesPlayed, touchLastSeen } from './moderation';
+import { ownedItems } from './store';
 import {
   allHome,
   applyMove,
@@ -490,7 +491,8 @@ const matchInit = function (
 // Join metadata may carry { prop, finisher, flag }; a join without them keeps
 // whatever the user had (e.g. a reconnect from an older client). Once the
 // game is running, a rejoining player keeps the Cosmetics they started with.
-// Guests wear nothing whatever their client sends (CONTEXT.md: Guest).
+// Guests wear nothing whatever their client sends (CONTEXT.md: Guest), and
+// a Member only what is free or Entitled (CONTEXT.md: Price tier).
 function rememberCosmetics(nk: nkruntime.Nakama, state: LudoState, userId: string, metadata: { [key: string]: any }) {
   if (state.cosmetics[userId] && state.phase !== 'lobby') {
     return;
@@ -498,7 +500,7 @@ function rememberCosmetics(nk: nkruntime.Nakama, state: LudoState, userId: strin
   if (!isMember(nk, userId)) {
     state.cosmetics[userId] = guestCosmetics();
   } else if (metadata && (typeof metadata.prop === 'string' || typeof metadata.finisher === 'string' || typeof metadata.flag === 'string')) {
-    state.cosmetics[userId] = sanitizeCosmetics(metadata);
+    state.cosmetics[userId] = wearableCosmetics(metadata, ownedItems(nk, userId));
   } else if (!state.cosmetics[userId]) {
     state.cosmetics[userId] = sanitizeCosmetics(null);
   }
@@ -693,7 +695,9 @@ const matchLoop = function (
         if (state.phase !== 'lobby') {
           break;
         }
-        state.cosmetics[sender.userId] = isMember(nk, sender.userId) ? sanitizeCosmetics(payload) : guestCosmetics();
+        state.cosmetics[sender.userId] = isMember(nk, sender.userId)
+          ? wearableCosmetics(payload, ownedItems(nk, sender.userId))
+          : guestCosmetics();
         broadcast(dispatcher, OpCode.LOBBY_STATE, lobbyStatePayload(state));
         break;
       case OpCode.ROLL_REQUEST:

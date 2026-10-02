@@ -74,6 +74,16 @@ const translations = {
       desc: 'Enter your display name to start playing.',
       proceed: 'Enter Game',
     },
+    store: {
+      free: 'Free',
+      special: 'Special',
+      premium: 'Premium',
+      until: 'until {date}',
+      claim: 'Claim free',
+      claimHint: '{item} is a limited special — claim it free until {date} and keep it forever.',
+      closedHint: '{item} was a limited special and can no longer be claimed.',
+      premiumHint: '{item} is a premium item — coming soon.',
+    },
     legal: {
       privacy: 'Privacy Policy',
       terms: 'Terms',
@@ -260,6 +270,8 @@ const translations = {
       auth_required: 'Sign in first.',
       member_required: 'Register to do that.',
       report_throttled: 'Too many reports — try again later.',
+      claim_closed: 'This special is no longer available.',
+      not_claimable: 'This item cannot be claimed.',
     }
   },
   sq: {
@@ -334,6 +346,16 @@ const translations = {
       title: 'Mirësevini në Burrec',
       desc: 'Vendosni emrin tuaj për të filluar lojën.',
       proceed: 'Hyr në Lojë',
+    },
+    store: {
+      free: 'Falas',
+      special: 'Speciale',
+      premium: 'Premium',
+      until: 'deri më {date}',
+      claim: 'Merre falas',
+      claimHint: '{item} është ofertë e kufizuar — merre falas deri më {date} dhe mbaje përgjithmonë.',
+      closedHint: '{item} ishte ofertë e kufizuar dhe nuk mund të merret më.',
+      premiumHint: '{item} është artikull premium — së shpejti.',
     },
     legal: {
       privacy: 'Privatësia',
@@ -521,6 +543,8 @@ const translations = {
       auth_required: 'Hyr më parë.',
       member_required: 'Regjistrohu për ta bërë këtë.',
       report_throttled: 'Shumë raporte — provo përsëri më vonë.',
+      claim_closed: 'Kjo ofertë nuk është më e disponueshme.',
+      not_claimable: 'Ky artikull nuk mund të merret.',
     }
   }
 };

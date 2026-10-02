@@ -77,6 +77,49 @@ export function sanitizeCosmetics(input) {
   return { prop: prop, finisher: finisher, flag: flag };
 }
 
+// ── Store (CONTEXT.md: Price tier, Entitlement, Claim) ──────────────────
+// Items are keyed 'prop:<id>' / 'finisher:<id>'. Anything not listed here is
+// free for every Member; flags (the country the flag Prop waves) are always
+// free. A special item is claimable by any Member at no cost between `from`
+// (inclusive) and `until` (exclusive), both UTC ISO dates; claiming grants a
+// lasting Entitlement. A premium item is only worn through an Entitlement.
+//   e.g. 'prop:pumpkin': { tier: 'special', from: '2026-10-20', until: '2026-11-03' }
+//        'finisher:ufo': { tier: 'premium' }
+export var ITEM_TIERS = {};
+
+export function itemKey(kind, id) {
+  return kind + ':' + id;
+}
+
+// { tier: 'free'|'premium'|'special', from?, until? }
+export function itemTier(kind, id) {
+  return ITEM_TIERS[itemKey(kind, id)] || { tier: 'free' };
+}
+
+export function specialOpen(entry, nowMs) {
+  if (!entry || entry.tier !== 'special') {
+    return false;
+  }
+  return nowMs >= Date.parse(entry.from + 'T00:00:00Z') && nowMs < Date.parse(entry.until + 'T00:00:00Z');
+}
+
+// A Member may wear an item if it is free or they hold an Entitlement for it.
+export function canWear(kind, id, ownedKeys) {
+  return itemTier(kind, id).tier === 'free' || (ownedKeys || []).indexOf(itemKey(kind, id)) !== -1;
+}
+
+// Whitelisted cosmetics with anything not wearable swapped for the default.
+export function wearableCosmetics(input, ownedKeys) {
+  var cosmetics = sanitizeCosmetics(input);
+  if (!canWear('prop', cosmetics.prop, ownedKeys)) {
+    cosmetics.prop = DEFAULT_PROP;
+  }
+  if (!canWear('finisher', cosmetics.finisher, ownedKeys)) {
+    cosmetics.finisher = DEFAULT_FINISHER;
+  }
+  return cosmetics;
+}
+
 // Report reasons (CONTEXT.md: Report); 'other' expects the free-text note.
 export var REPORT_REASONS = ['harassment', 'hate', 'offensive_name', 'spam', 'cheating', 'other'];
 

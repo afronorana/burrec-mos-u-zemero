@@ -21,7 +21,8 @@
               :class="{ 'wardrobe-chip--active': draft.prop === option.id }"
               @click="draft.prop = option.id"
             >
-              {{ t(option.labelKey) }}
+              <span class="wardrobe-chip-label">{{ t(option.labelKey) }}</span>
+              <span class="wardrobe-tier" :class="`wardrobe-tier--${badge('prop', option.id).kind}`">{{ badge('prop', option.id).text }}</span>
             </button>
           </div>
         </div>
@@ -62,15 +63,26 @@
               :class="{ 'wardrobe-chip--active': draft.finisher === option.id }"
               @click="pickFinisher(option.id)"
             >
-              {{ t(option.labelKey) }}
+              <span class="wardrobe-chip-label">{{ t(option.labelKey) }}</span>
+              <span class="wardrobe-tier" :class="`wardrobe-tier--${badge('finisher', option.id).kind}`">{{ badge('finisher', option.id).text }}</span>
             </button>
           </div>
         </div>
       </div>
 
+      <!-- A picked item this Member doesn't own: Claim it (open special) or
+           explain why it can't be worn. Guests get the banner above instead. -->
+      <div v-if="isMember && lockedPick" class="wardrobe-store-note">
+        <span>{{ lockedPick.message }}</span>
+        <app-button v-if="lockedPick.claimable" small :loading="claiming" :disabled="claiming" @click="claim(lockedPick)">
+          {{ t('store.claim') }}
+        </app-button>
+      </div>
+      <p v-if="claimError" class="wardrobe-store-error">{{ t(`errors.${claimError}`) }}</p>
+
       <div class="menu-row wardrobe-actions">
         <app-button red @click="close">{{ t('back') }}</app-button>
-        <app-button v-if="isMember" @click="save">{{ t('save') }}</app-button>
+        <app-button v-if="isMember" :disabled="!!lockedPick" @click="save">{{ t('save') }}</app-button>
         <app-button v-else @click="promptRegister('wardrobe')">{{ t('cosmetics.registerToSave') }}</app-button>
       </div>
     </app-panel>
@@ -103,9 +115,10 @@
 <script>
 import ApplicationStore from '../utils/ApplicationStore';
 import { PROP_OPTIONS, FINISHER_OPTIONS, flagOptions, flagName, flagUrl } from '../utils/cosmetics';
-import { sanitizeCosmetics } from '../../shared/protocol';
+import { canWear, itemTier, sanitizeCosmetics, specialOpen } from '../../shared/protocol';
 import { t } from '../utils/i18n';
 import { promptRegister } from '../utils/authPrompt';
+import NakamaClient from '../network/NakamaClient';
 
 // Menu-only Cosmetics editor. Edits a draft (store.wardrobe.draft) that the
 // preview pawn wears live; Save commits it to settings + localStorage, Back
@@ -121,6 +134,8 @@ export default {
       flagQuery: '',
       dragX: null,
       playNonce: 0,
+      claiming: false,
+      claimError: null,
     };
   },
   computed: {
@@ -139,6 +154,26 @@ export default {
     },
     isMember() {
       return this.store.online.account.member;
+    },
+    owned() {
+      return this.store.online.store.owned;
+    },
+    serverNow() {
+      return Date.now() + this.store.online.store.clockOffset;
+    },
+    // The first picked item the Member can't wear yet, with what to say.
+    lockedPick() {
+      const picks = [['prop', this.draft.prop, 'cosmetics.prop_'], ['finisher', this.draft.finisher, 'cosmetics.finisher_']];
+      for (const [kind, id, labelPrefix] of picks) {
+        if (canWear(kind, id, this.owned)) continue;
+        const entry = itemTier(kind, id);
+        const name = t(labelPrefix + id);
+        if (entry.tier === 'special' && specialOpen(entry, this.serverNow)) {
+          return { kind, id, claimable: true, message: t('store.claimHint', { item: name, date: lastDay(entry.until, this.store.settings.locale) }) };
+        }
+        return { kind, id, claimable: false, message: t(entry.tier === 'special' ? 'store.closedHint' : 'store.premiumHint', { item: name }) };
+      }
+      return null;
     },
     finisherLabelKey() {
       return `cosmetics.finisher_${this.draft.finisher}`;
@@ -202,6 +237,32 @@ export default {
         list.scrollTop = active.offsetTop - list.offsetTop - (list.clientHeight / 2) + (active.clientHeight / 2);
       }
     },
+    // Corner badge: Free / Special · until <last day> / Premium (+ owned ✓).
+    badge(kind, id) {
+      const entry = itemTier(kind, id);
+      if (entry.tier === 'free') {
+        return { kind: 'free', text: t('store.free') };
+      }
+      const owned = this.owned.includes(`${kind}:${id}`);
+      if (entry.tier === 'special') {
+        const text = owned || !specialOpen(entry, this.serverNow)
+          ? t('store.special')
+          : `${t('store.special')} · ${t('store.until', { date: lastDay(entry.until, this.store.settings.locale) })}`;
+        return { kind: owned ? 'owned' : 'special', text: owned ? `${text} ✓` : text };
+      }
+      return { kind: owned ? 'owned' : 'premium', text: owned ? `${t('store.premium')} ✓` : `🔒 ${t('store.premium')}` };
+    },
+    async claim(pick) {
+      this.claiming = true;
+      this.claimError = null;
+      try {
+        await NakamaClient.claimItem(pick.kind, pick.id);
+      } catch (error) {
+        this.claimError = error && error.message ? error.message : 'generic';
+      } finally {
+        this.claiming = false;
+      }
+    },
     pickFinisher(id) {
       this.draft.finisher = id;
       this.play();
@@ -239,6 +300,12 @@ export default {
     },
   },
 };
+
+// A special's `until` is exclusive; show the last day it can be claimed.
+function lastDay(until, locale) {
+  const day = new Date(Date.parse(`${until}T00:00:00Z`) - 1);
+  return day.toLocaleDateString(locale === 'sq' ? 'sq-AL' : 'en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+}
 
 // Case- and accent-insensitive search ("shqiperi" finds "Shqipëri").
 function normalize(text) {
@@ -312,6 +379,66 @@ function normalize(text) {
   color: var(--agu-color-base, #263f2a);
   cursor: pointer;
   text-align: left;
+}
+
+.wardrobe-chip {
+  flex-wrap: wrap;
+  justify-content: space-between;
+  row-gap: 2px;
+}
+
+.wardrobe-chip-label {
+  min-width: 0;
+}
+
+.wardrobe-tier {
+  flex-shrink: 0;
+  padding: 1px 5px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  white-space: nowrap;
+  border-radius: 999px;
+  background: rgba(38, 63, 42, 0.08);
+  opacity: 0.75;
+}
+
+.wardrobe-tier--special {
+  background: #f4a261;
+  color: #ffffff;
+  opacity: 1;
+}
+
+.wardrobe-tier--premium {
+  background: #6c5ce7;
+  color: #ffffff;
+  opacity: 1;
+}
+
+.wardrobe-tier--owned {
+  background: rgba(42, 157, 143, 0.25);
+  opacity: 1;
+}
+
+.wardrobe-store-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  border-radius: 6px;
+  background: rgba(244, 162, 97, 0.2);
+}
+
+.wardrobe-store-note span {
+  flex: 1;
+}
+
+.wardrobe-store-error {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--agu-color-red, #e9576f);
 }
 
 .wardrobe-chip--active {
