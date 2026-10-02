@@ -1,5 +1,4 @@
 import { MATCH_MODULE } from '../../shared/protocol.js';
-import { readStats } from './stats';
 
 // Letters only (same alphabet Shtet Qytet uses for room codes).
 const CODE_ALPHABET = 'ABDEFGHIJKLMNOPQRSTUVWZ';
@@ -122,33 +121,4 @@ export const rpcJoinByCode: nkruntime.RpcFunction = function (ctx, logger, nk, p
 
 export const rpcHealthcheck: nkruntime.RpcFunction = function (ctx, logger, nk, payload) {
   return JSON.stringify({ success: true });
-};
-
-// Admin dashboard data. Gated by the ADMIN_KEY runtime env var: unset means
-// the endpoint is off entirely; otherwise the caller must present the key.
-export const rpcAdminStats: nkruntime.RpcFunction = function (ctx, logger, nk, payload) {
-  const adminKey = ctx.env ? ctx.env['ADMIN_KEY'] : '';
-  if (!adminKey) {
-    return JSON.stringify({ error: 'admin_disabled' });
-  }
-
-  let request: { key?: string } = {};
-  try {
-    request = payload ? JSON.parse(payload) : {};
-  } catch (error) {
-    return JSON.stringify({ error: 'forbidden' });
-  }
-  if (String(request.key || '') !== adminKey) {
-    return JSON.stringify({ error: 'forbidden' });
-  }
-
-  const stats = readStats(nk);
-  const playerNames = Object.keys(stats.players);
-  return JSON.stringify({
-    totalStarted: stats.totalStarted,
-    totalFinished: stats.totalFinished,
-    uniquePlayers: playerNames.length,
-    players: stats.players,
-    recentGames: stats.recentGames,
-  });
 };

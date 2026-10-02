@@ -89,6 +89,7 @@
         class="hud-seat-chip"
         :class="[`hud-seat-chip--corner-${player.turn - 1}`, { 'hud-seat-chip--active': player.isPlaying }]"
         :style="{ '--chip-color': player.color }"
+        @click="openSeatActions(player)"
       >
         <!-- Speech bubble popup: below top-corner chips, above bottom ones -->
         <transition name="speech-fade">
@@ -123,6 +124,7 @@
 
 <script>
 import ChatDrawer from './ChatDrawer.vue';
+import { openPlayerActions } from '../utils/authPrompt';
 import ApplicationStore from '../utils/ApplicationStore';
 import MatchController from '../network/MatchController';
 import { t } from '../utils/i18n';
@@ -245,6 +247,13 @@ export default {
     document.removeEventListener('visibilitychange', this.visibilityHandler);
   },
   methods: {
+    // Tap another player's chip: Block / Report them (seat = turn - 1).
+    openSeatActions(player) {
+      const seat = (this.store.online.seats || [])[player.turn - 1];
+      if (seat) {
+        openPlayerActions({ userId: seat.userId, name: seat.displayName || player.name });
+      }
+    },
     t,
     // Ticks land as the remaining time crosses 10s, 9s, … 1s, and the bar
     // turns red from the first one. `mark` is the next crossing still owed,

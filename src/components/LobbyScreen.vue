@@ -89,6 +89,7 @@
 
 <script>
 import ChatDrawer from './ChatDrawer.vue';
+import { openPlayerActions } from '../utils/authPrompt';
 import ApplicationStore from '../utils/ApplicationStore';
 import MatchController from '../network/MatchController';
 import { PLAYER_COLORS } from '../utils/playerColors';
@@ -144,9 +145,13 @@ export default {
     seatAt(index) {
       return (this.store.online.seats || [])[index] || null;
     },
+    // Free seat: claim it. Someone else's: Block / Report them.
     claimSeat(index) {
-      if (!this.seatAt(index)) {
+      const seat = this.seatAt(index);
+      if (!seat) {
         MatchController.requestClaimSeat(index);
+      } else {
+        openPlayerActions({ userId: seat.userId, name: seat.displayName });
       }
     },
     startGame() {

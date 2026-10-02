@@ -1,5 +1,5 @@
 // Aggregate game stats kept in one system-owned storage object, surfaced by
-// the admin_stats RPC (gated by the ADMIN_KEY runtime env var). Everything
+// the admin_overview RPC (moderation.ts, Admins only). Everything
 // here is best-effort: a storage hiccup must never break a running match, so
 // the record* helpers swallow their own errors.
 

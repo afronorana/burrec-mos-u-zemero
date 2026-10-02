@@ -39,6 +39,12 @@
           </div>
 
           <p v-if="errorMessage" class="online-error">{{ errorMessage }}</p>
+
+          <p class="intro-legal">
+            <a href="./privacy-policy/" target="_blank" rel="noopener">{{ t('legal.privacy') }}</a>
+            ·
+            <a href="./terms-and-conditions/" target="_blank" rel="noopener">{{ t('legal.terms') }}</a>
+          </p>
         </app-panel>
       </div>
 
@@ -65,6 +71,9 @@
 
     <!-- Account / sign-in modal (menu account row, #verify= / #reset= links) -->
     <auth-modal v-if="store.online.authOpen" />
+
+    <!-- Block / Report another player (chat message or seat chip) -->
+    <player-actions v-if="store.online.playerActions" />
 
     <!-- Global settings modal (openable from any menu / the lobby gear) -->
     <div
@@ -141,6 +150,7 @@ import LobbyScreen from './LobbyScreen.vue';
 import AdminScreen from './AdminScreen.vue';
 import WardrobeScreen from './WardrobeScreen.vue';
 import AuthModal from './AuthModal.vue';
+import PlayerActions from './PlayerActions.vue';
 import ApplicationStore from '../utils/ApplicationStore';
 import MatchController from '../network/MatchController';
 import { clearMatchSession } from '../utils/matchSession';
@@ -157,6 +167,7 @@ export default {
     AdminScreen,
     WardrobeScreen,
     AuthModal,
+    PlayerActions,
     SettingsIcon: Settings,
   },
   data() {
@@ -319,6 +330,15 @@ export default {
   margin-top: 18px;
   font-size: 1.15rem;
   padding: 16px 24px;
+}
+.intro-legal {
+  margin: 14px 0 0;
+  font-size: 0.7rem;
+  text-align: center;
+  opacity: 0.7;
+}
+.intro-legal a {
+  color: inherit;
 }
 .intro-wardrobe-btn {
   margin-top: 10px;

@@ -11,6 +11,8 @@
           v-for="message in messages"
           :key="message.id"
           class="chat-message"
+          :class="{ 'chat-message--other': isOther(message) }"
+          @click="openActions(message)"
         >
           <span
             class="chat-sender-badge"
@@ -21,7 +23,17 @@
       </div>
     </app-scrollable>
 
-    <form class="chat-input-row" @submit.prevent="submit" @keyup.enter="submit">
+    <!-- Guests read only: the input shows disabled and any tap on it opens
+         the register prompt (the server rejects Guest messages anyway). -->
+    <div v-if="!isMember" class="chat-input-row chat-input-locked">
+      <div class="chat-locked-field">🔒 {{ t('online.chatGuestPlaceholder') }}</div>
+      <app-button blue class="chat-send-btn" disabled>
+        <send-icon :size="18" />
+      </app-button>
+      <button type="button" class="chat-locked-hit" :aria-label="t('online.chatGuestPlaceholder')" @click="promptRegister('chat')"></button>
+    </div>
+
+    <form v-else class="chat-input-row" @submit.prevent="submit" @keyup.enter="submit">
       <app-input
         v-model="draft"
         label=""
@@ -44,6 +56,7 @@
 import ApplicationStore from '../utils/ApplicationStore';
 import { PLAYER_COLORS } from '../utils/playerColors';
 import { t } from '../utils/i18n';
+import { openPlayerActions, promptRegister } from '../utils/authPrompt';
 import { Send } from '@lucide/vue';
 
 export default {
@@ -66,6 +79,11 @@ export default {
       maxLength: 200,
     };
   },
+  computed: {
+    isMember() {
+      return this.store.online.account.member;
+    },
+  },
   watch: {
     // Hard cap regardless of whether the input forwards its maxlength attr.
     draft(val) {
@@ -84,6 +102,20 @@ export default {
   },
   methods: {
     t,
+    promptRegister,
+    isOther(message) {
+      return !!this.store.online.matchId && message.senderId !== this.store.online.selfUserId;
+    },
+    // Tap another player's message: Block / Report it.
+    openActions(message) {
+      if (!this.isOther(message)) return;
+      openPlayerActions({
+        userId: message.senderId,
+        name: this.getSenderName(message),
+        messageId: message.id,
+        messageText: message.message,
+      });
+    },
     scrollToBottom() {
       this.$nextTick(() => {
         const scroller = this.$refs.scrollable;
@@ -214,5 +246,31 @@ export default {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+}
+.chat-message--other {
+  cursor: pointer;
+}
+.chat-message--other:hover {
+  background: rgba(38, 63, 42, 0.06);
+}
+.chat-input-locked {
+  position: relative;
+}
+.chat-locked-field {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 2px solid rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.5);
+  font-size: 0.85rem;
+  opacity: 0.75;
+}
+.chat-locked-hit {
+  position: absolute;
+  inset: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
 }
 </style>

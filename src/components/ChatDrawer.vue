@@ -7,7 +7,7 @@
     <transition name="chat-pop">
       <app-panel v-if="chatOpen" class="chat-drawer-panel">
         <chat-panel
-          :messages="store.online.chat"
+          :messages="visibleMessages"
           :self-id="selfId"
           @send="sendChat"
         />
@@ -36,6 +36,14 @@ export default {
     // only turns on once the game starts, which would miss the lobby.
     isOnlineMatch() {
       return Boolean(this.store.online.matchId);
+    },
+    // Blocked senders' messages are dropped on arrival; this also hides the
+    // ones that arrived before the Block.
+    visibleMessages() {
+      const blocked = this.store.online.blockedIds;
+      return blocked.length
+        ? this.store.online.chat.filter((message) => !blocked.includes(message.senderId))
+        : this.store.online.chat;
     },
     selfId() {
       return this.isOnlineMatch ? this.store.online.selfUserId : 'local-self';

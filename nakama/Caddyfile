@@ -10,7 +10,9 @@
 	# The built client (repo docs/, copied to the droplet as ./site)
 	handle {
 		root * /srv/site
-		try_files {path} /index.html
+		# {path}/index.html: static pages such as /privacy-policy live in
+		# folders (public/privacy-policy/index.html); everything else is the SPA.
+		try_files {path} {path}/index.html /index.html
 		file_server
 	}
 }

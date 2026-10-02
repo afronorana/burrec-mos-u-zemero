@@ -65,6 +65,7 @@ class TestPlayer {
   async login() {
     this.session = await this.client.authenticateDevice(`e2e-${this.name}-${Date.now()}`, true);
     await this.client.updateAccount(this.session, { display_name: this.name });
+    await this.becomeMember();
     this.socket = this.client.createSocket(false);
     this.socket.onchannelmessage = (message) => {
       this.chatMessages.push(message.content?.message || '');
@@ -77,6 +78,19 @@ class TestPlayer {
     };
     this.socket.onmatchdata = (matchData) => this.handleMatchData(matchData);
     await this.socket.connect(this.session, true);
+  }
+
+  // Chat is Members-only: link an email and verify it through the dev echo
+  // (EMAIL_DEV_ECHO=1 in local.yml).
+  async becomeMember() {
+    const email = `e2e-${this.name}-${Date.now()}@example.com`.toLowerCase();
+    await this.client.linkEmail(this.session, { email, password: 'password123' });
+    const resent = await this.rpc('resend_verification');
+    const token = resent.devLink ? resent.devLink.split('#verify=')[1] : null;
+    const verified = token ? await this.rpc('verify_email', { token }) : {};
+    if (!verified.ok) {
+      throw new Error(`${this.name} could not become a Member (is EMAIL_DEV_ECHO=1?)`);
+    }
   }
 
   async rpc(id, input) {

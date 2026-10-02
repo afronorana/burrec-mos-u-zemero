@@ -3,6 +3,12 @@
     <app-panel class="wardrobe-options">
       <h2 class="panel-title">{{ t('cosmetics.title') }}</h2>
 
+      <!-- Guests preview everything but wear nothing (CONTEXT.md: Guest). -->
+      <div v-if="!isMember" class="wardrobe-guest-banner">
+        <span>{{ t('cosmetics.guestBanner') }}</span>
+        <app-button small @click="promptRegister('wardrobe')">{{ t('cosmetics.registerNow') }}</app-button>
+      </div>
+
       <div class="wardrobe-scroll">
         <div class="form-row">
           <label class="select-label">{{ t('cosmetics.prop') }}</label>
@@ -64,7 +70,8 @@
 
       <div class="menu-row wardrobe-actions">
         <app-button red @click="close">{{ t('back') }}</app-button>
-        <app-button @click="save">{{ t('save') }}</app-button>
+        <app-button v-if="isMember" @click="save">{{ t('save') }}</app-button>
+        <app-button v-else @click="promptRegister('wardrobe')">{{ t('cosmetics.registerToSave') }}</app-button>
       </div>
     </app-panel>
 
@@ -98,6 +105,7 @@ import ApplicationStore from '../utils/ApplicationStore';
 import { PROP_OPTIONS, FINISHER_OPTIONS, flagOptions, flagName, flagUrl } from '../utils/cosmetics';
 import { sanitizeCosmetics } from '../../shared/protocol';
 import { t } from '../utils/i18n';
+import { promptRegister } from '../utils/authPrompt';
 
 // Menu-only Cosmetics editor. Edits a draft (store.wardrobe.draft) that the
 // preview pawn wears live; Save commits it to settings + localStorage, Back
@@ -128,6 +136,9 @@ export default {
     },
     selectedFlagName() {
       return flagName(this.draft.flag, this.store.settings.locale);
+    },
+    isMember() {
+      return this.store.online.account.member;
     },
     finisherLabelKey() {
       return `cosmetics.finisher_${this.draft.finisher}`;
@@ -168,6 +179,7 @@ export default {
   methods: {
     t,
     flagUrl,
+    promptRegister,
     syncRect() {
       const el = this.$refs.stage;
       if (!el) {
@@ -258,6 +270,21 @@ function normalize(text) {
   overflow-y: auto;
   margin: 0 -4px;
   padding: 0 4px;
+}
+
+.wardrobe-guest-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  border-radius: 6px;
+  background: rgba(231, 111, 81, 0.15);
+}
+.wardrobe-guest-banner span {
+  flex: 1;
 }
 
 .wardrobe-actions {

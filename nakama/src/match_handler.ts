@@ -1,7 +1,9 @@
 // Authoritative 'ludo' match handler. All timing lives in matchLoop ticks —
 // the goja runtime has no setTimeout.
 
-import { OpCode, decodePayload, encodePayload, sanitizeCosmetics } from '../../shared/protocol.js';
+import { OpCode, decodePayload, encodePayload, guestCosmetics, sanitizeCosmetics } from '../../shared/protocol.js';
+import { isMember } from './auth';
+import { recordGamesPlayed, touchLastSeen } from './moderation';
 import {
   allHome,
   applyMove,
@@ -281,7 +283,7 @@ function doMove(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkruntime.Ma
     extraTurn: result.extraTurn && !result.won,
     // Stamped here so every client plays the same Finisher even if the
     // mover changes cosmetics while this event is still queued client-side.
-    finisher: sanitizeCosmetics(moverCosmetics).finisher,
+    finisher: moverCosmetics ? moverCosmetics.finisher : sanitizeCosmetics(null).finisher,
   });
 
   if (result.won) {
@@ -442,6 +444,7 @@ function handleStart(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkrunti
   });
   dispatcher.matchLabelUpdate(makeLabel(state));
   recordGameStarted(nk);
+  recordGamesPlayed(nk, state.seats.filter((seat) => !!seat).map((seat) => (seat as Seat).userId));
 }
 
 const matchInit = function (
@@ -487,11 +490,14 @@ const matchInit = function (
 // Join metadata may carry { prop, finisher, flag }; a join without them keeps
 // whatever the user had (e.g. a reconnect from an older client). Once the
 // game is running, a rejoining player keeps the Cosmetics they started with.
-function rememberCosmetics(state: LudoState, userId: string, metadata: { [key: string]: any }) {
+// Guests wear nothing whatever their client sends (CONTEXT.md: Guest).
+function rememberCosmetics(nk: nkruntime.Nakama, state: LudoState, userId: string, metadata: { [key: string]: any }) {
   if (state.cosmetics[userId] && state.phase !== 'lobby') {
     return;
   }
-  if (metadata && (typeof metadata.prop === 'string' || typeof metadata.finisher === 'string' || typeof metadata.flag === 'string')) {
+  if (!isMember(nk, userId)) {
+    state.cosmetics[userId] = guestCosmetics();
+  } else if (metadata && (typeof metadata.prop === 'string' || typeof metadata.finisher === 'string' || typeof metadata.flag === 'string')) {
     state.cosmetics[userId] = sanitizeCosmetics(metadata);
   } else if (!state.cosmetics[userId]) {
     state.cosmetics[userId] = sanitizeCosmetics(null);
@@ -514,7 +520,7 @@ const matchJoinAttempt = function (
     if (existing.connected) {
       return { state, accept: false, rejectMessage: 'already_joined' };
     }
-    rememberCosmetics(state, presence.userId, metadata);
+    rememberCosmetics(nk, state, presence.userId, metadata);
     return { state, accept: true }; // reconnect
   }
 
@@ -534,7 +540,7 @@ const matchJoinAttempt = function (
   if (metadata && typeof metadata.displayName === 'string' && metadata.displayName) {
     state.pendingDisplayNames[presence.userId] = String(metadata.displayName).slice(0, 24);
   }
-  rememberCosmetics(state, presence.userId, metadata);
+  rememberCosmetics(nk, state, presence.userId, metadata);
 
   return { state, accept: true };
 };
@@ -551,6 +557,7 @@ const matchJoin = function (
   for (let p = 0; p < presences.length; p += 1) {
     const presence = presences[p];
     state.presences[presence.userId] = presence;
+    touchLastSeen(nk, presence.userId);
 
     // Track the name of everyone in the match (seated or not) so chat and
     // seat claims can use it without another account lookup.
@@ -686,7 +693,7 @@ const matchLoop = function (
         if (state.phase !== 'lobby') {
           break;
         }
-        state.cosmetics[sender.userId] = sanitizeCosmetics(payload);
+        state.cosmetics[sender.userId] = isMember(nk, sender.userId) ? sanitizeCosmetics(payload) : guestCosmetics();
         broadcast(dispatcher, OpCode.LOBBY_STATE, lobbyStatePayload(state));
         break;
       case OpCode.ROLL_REQUEST:

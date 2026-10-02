@@ -69,7 +69,7 @@ import {
   poseDustPuff,
 } from './utils/finishers';
 import { playFinisherImpact, playFinisherWindup } from './utils/sound';
-import { DEFAULT_FINISHER, DEFAULT_FLAG, DEFAULT_PROP } from '../shared/protocol';
+import { DEFAULT_FINISHER, DEFAULT_FLAG, DEFAULT_PROP, NO_FINISHER } from '../shared/protocol';
 
 const OUTLINE_COLOR = '#1b1411';
 const BOARD_CENTER = { x: 5, z: 5 };
@@ -1689,9 +1689,13 @@ export default {
     // A hop that's about to Capture lands beside the victim (STAGE_GAP back
     // from its square, on the side away from its home: where the Finisher's
     // attacker stands); the Finisher hops it onto the square once the victim
-    // is sent home. Null when there's no Capture or Finishers are off.
+    // is sent home. Null when there's no Capture, Finishers are off, or the
+    // mover is a Guest (no Finisher, CONTEXT.md).
     captureLandingOffset(pawn) {
       if (!pawn.landingOnCapture || !this.store.settings.finishersEnabled) {
+        return null;
+      }
+      if ((this.store.online.moveFinisher || this.finisherForSeat(pawn.playerIndex)) === NO_FINISHER) {
         return null;
       }
       for (const player of this.store.players) {
@@ -1779,14 +1783,15 @@ export default {
 
     // ── Cosmetics ──────────────────────────────────────────────────────
     // A seat's Cosmetics: our own seat reads the local pick (instant
-    // feedback), everyone else the match's cosmetics map.
+    // feedback) when we're a Member, everyone else — and a Guest's own seat,
+    // which wears nothing — the match's cosmetics map.
     cosmeticsForSeat(seat) {
       const online = this.store.online;
       const seatInfo = (online.seats || [])[seat];
       if (!seatInfo) {
         return null;
       }
-      if (seatInfo.userId === online.selfUserId) {
+      if (seatInfo.userId === online.selfUserId && online.account.member) {
         return this.store.settings.cosmetics;
       }
       return online.cosmetics[seatInfo.userId] || null;
@@ -2020,7 +2025,7 @@ export default {
         attackerId: attacker.id,
         attackerPos: attacker.getCoordinates(PAWN_CENTER_Y),
         victims,
-        lite: !this.store.settings.finishersEnabled,
+        lite: !this.store.settings.finishersEnabled || finisherId === NO_FINISHER,
       });
     },
 

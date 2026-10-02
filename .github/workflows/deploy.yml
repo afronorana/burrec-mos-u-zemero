@@ -88,6 +88,8 @@ jobs:
           rsync -av --delete -e "ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes" \
             docs/ "root@${{ secrets.DROPLET_HOST }}:/opt/burrec-nakama/site/"
 
+      # `up -d` never re-reads a changed Caddyfile (bind-mounted, same compose
+      # config), so reload Caddy explicitly — graceful, no dropped requests.
       - name: Deploy Nakama server + restart stack
         if: steps.server.outputs.changed == 'true'
         run: |
@@ -97,4 +99,4 @@ jobs:
             nakama/docker-compose.prod.yml nakama/Caddyfile nakama/local.yml \
             "root@${{ secrets.DROPLET_HOST }}:/opt/burrec-nakama/"
           ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes "root@${{ secrets.DROPLET_HOST }}" \
-            'cd /opt/burrec-nakama && docker compose -f docker-compose.prod.yml --env-file .env.prod up -d'
+            'cd /opt/burrec-nakama && docker compose -f docker-compose.prod.yml --env-file .env.prod up -d && docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T caddy caddy reload --config /etc/caddy/Caddyfile'

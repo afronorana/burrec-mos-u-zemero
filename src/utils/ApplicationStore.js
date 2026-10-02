@@ -198,19 +198,30 @@ const ApplicationStore = reactive({
     finisherInFlight: false, // same gate while a capture's Finisher plays
     moveFinisher: null, // Finisher stamped on the MOVE_APPLIED being replayed
     chat: [],
+    // userIds this player Blocked (server-stored, loaded on sign-in); their
+    // chat messages and speech bubbles never show (CONTEXT.md: Block).
+    blockedIds: [],
+    // Player actions sheet (PlayerActions.vue): { userId, name, messageId?,
+    // messageText? } for the player tapped in chat or on a seat chip.
+    playerActions: null,
     lastError: null,
     // Signed-in account (NakamaClient.refreshAccountStatus): method is
     // 'guest' | 'email' | 'google' | 'apple'; email/emailVerified only apply
-    // to email accounts.
+    // to email accounts. member: the server's Guest/Member tier (CONTEXT.md)
+    // — an unverified email login is still a Guest.
     account: {
       method: 'guest',
       email: null,
       emailVerified: false,
+      member: false,
     },
     // Auth modal state (AuthModal.vue): view is
-    // 'login' | 'register' | 'account' | 'forgot' | 'reset' | 'verify'.
+    // 'login' | 'register' | 'account' | 'forgot' | 'reset' | 'verify' | 'delete'.
     authOpen: false,
     authView: 'login',
+    // Why a Guest was sent to the modal ('chat' | 'wardrobe'), shown above
+    // the form; null when opened from the menu (utils/authPrompt.js).
+    authReason: null,
     resetToken: null, // token parsed from a #reset= link, consumed by the reset view
     verifyToken: null, // token parsed from a #verify= link, consumed on modal open
   },

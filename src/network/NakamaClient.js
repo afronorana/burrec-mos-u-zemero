@@ -107,11 +107,12 @@ class NakamaClientService {
     return session;
   }
 
-  async loginEmail(email, password, { create = false } = {}) {
+  // Sign in to an EXISTING email account — switches identity (adr/0001).
+  async loginEmail(email, password) {
     const cleanEmail = String(email || '').trim().toLowerCase();
     let session;
     try {
-      session = await this.getClient().authenticateEmail(cleanEmail, password, create);
+      session = await this.getClient().authenticateEmail(cleanEmail, password, false);
     } catch (error) {
       throw mapAuthError(error);
     }
@@ -119,26 +120,73 @@ class NakamaClientService {
     return session;
   }
 
-  async loginGoogle(idToken) {
-    let session;
+  // Register with email: a Guest links it onto their own user so name and
+  // history carry over (adr/0001). The server mails the verification link.
+  async registerEmail(email, password) {
+    const cleanEmail = String(email || '').trim().toLowerCase();
+    if (this.getAuthMethod() !== 'guest') {
+      let session;
+      try {
+        session = await this.getClient().authenticateEmail(cleanEmail, password, true);
+      } catch (error) {
+        throw mapAuthError(error);
+      }
+      await this.adoptSession(session, 'email', ApplicationStore.online.displayName);
+      return session;
+    }
+    const session = await this.ensureAnySession();
     try {
-      session = await this.getClient().authenticateGoogle(idToken, true);
+      await this.getClient().linkEmail(session, { email: cleanEmail, password });
     } catch (error) {
       throw mapAuthError(error);
     }
-    await this.adoptSession(session, 'google', ApplicationStore.online.displayName);
+    await this.adoptSession(session, 'email', ApplicationStore.online.displayName);
     return session;
   }
 
-  async loginApple(idToken) {
-    let session;
-    try {
-      session = await this.getClient().authenticateApple(idToken, true);
-    } catch (error) {
-      throw mapAuthError(error);
+  // Google/Apple: a Guest links the login onto their own user; when it
+  // already belongs to another user (409), sign in to that one instead and
+  // leave the Guest behind (adr/0001). Non-guests just sign in.
+  async loginSocial(provider, idToken) {
+    const client = this.getClient();
+    const authenticate = provider === 'google'
+      ? () => client.authenticateGoogle(idToken, true)
+      : () => client.authenticateApple(idToken, true);
+
+    let session = null;
+    if (this.getAuthMethod() === 'guest') {
+      const guest = await this.ensureAnySession();
+      try {
+        if (provider === 'google') {
+          await client.linkGoogle(guest, { token: idToken });
+        } else {
+          await client.linkApple(guest, { token: idToken });
+        }
+        session = guest;
+      } catch (error) {
+        if (!error || error.status !== 409) {
+          throw mapAuthError(error);
+        }
+      }
     }
-    await this.adoptSession(session, 'apple', ApplicationStore.online.displayName);
+    if (!session) {
+      try {
+        session = await authenticate();
+      } catch (error) {
+        throw mapAuthError(error);
+      }
+    }
+    await this.adoptSession(session, provider, ApplicationStore.online.displayName);
     return session;
+  }
+
+  // App Store 5.1.1(v). Afterwards the device starts over as a fresh Guest.
+  async deleteAccount() {
+    const result = await this.rpc('delete_account', { confirm: true });
+    if (result.error) {
+      throw new Error(result.error);
+    }
+    this.logout();
   }
 
   // Make a freshly authenticated/restored session the active identity:
@@ -173,35 +221,74 @@ class NakamaClientService {
       window.localStorage.setItem('burrec.online.displayName', name);
     }
 
-    await this.refreshAccountStatus(method);
+    await Promise.all([this.refreshAccountStatus(method), this.loadBlocks()]);
     return session;
   }
 
-  // Fill store.online.account so the menu can show who is signed in. Guests
-  // skip the RPC — they have no email to report.
-  async refreshAccountStatus(method) {
+  async loadBlocks() {
+    try {
+      const result = await this.rpc('block_list');
+      ApplicationStore.online.blockedIds = result.ids || [];
+    } catch (error) {
+      // Non-fatal: nothing hidden until the next sign-in.
+    }
+  }
+
+  async setBlocked(userId, blocked) {
+    const result = await this.rpc('set_block', { userId, blocked });
+    if (result.error) {
+      throw new Error(result.error);
+    }
+    ApplicationStore.online.blockedIds = result.ids || [];
+  }
+
+  // Filing a Report also Blocks the target (server-side), so refresh blocks.
+  async reportPlayer(report) {
+    const result = await this.rpc('report_player', report);
+    if (result.error) {
+      throw new Error(result.error);
+    }
+    await this.loadBlocks();
+    return result;
+  }
+
+  // Fill store.online.account so the menu can show who is signed in and
+  // gate Guest-only UI. Device Guests skip the RPC — they have no login.
+  async refreshAccountStatus(method = this.getAuthMethod()) {
     const account = ApplicationStore.online.account;
     account.method = method;
     if (method === 'guest') {
       account.email = null;
       account.emailVerified = false;
+      account.member = false;
       return;
     }
     try {
       const status = await this.rpc('auth_status');
       account.email = status.email || null;
       account.emailVerified = !!status.emailVerified;
+      account.member = !!status.member;
     } catch (error) {
-      // Non-fatal: the account chip just stays generic.
+      // Non-fatal: the account chip stays generic; Google/Apple are Members
+      // by definition, email waits for the next successful check.
       account.email = null;
       account.emailVerified = false;
+      account.member = method === 'google' || method === 'apple';
     }
   }
 
   // Drop the current identity (tokens + method), keeping the device id and
   // display name. Callers also clear the active-match record (matchSession)
   // so the next guest session can't try to resume another account's game.
+  //
+  // A Guest who registered linked their login onto this device's user
+  // (adr/0001), so the device id now authenticates as that Member: signing
+  // out must start a fresh device id or the next "guest" login lands right
+  // back in the account.
   logout() {
+    if (this.getAuthMethod() !== 'guest') {
+      identityStorage.removeItem(STORAGE_KEYS.deviceId);
+    }
     identityStorage.removeItem(STORAGE_KEYS.token);
     identityStorage.removeItem(STORAGE_KEYS.refreshToken);
     identityStorage.removeItem(STORAGE_KEYS.authMethod);
@@ -211,7 +298,8 @@ class NakamaClientService {
     const online = ApplicationStore.online;
     online.selfUserId = null;
     online.connectionState = 'idle';
-    online.account = { method: 'guest', email: null, emailVerified: false };
+    online.account = { method: 'guest', email: null, emailVerified: false, member: false };
+    online.blockedIds = [];
   }
 
   // Token RPCs (verify_email / reset_password / request_password_reset) need

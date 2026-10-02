@@ -6,9 +6,13 @@
 //
 // Callers of request_password_reset / reset_password / verify_email hold only
 // a guest device session; the token names the affected user, never the caller.
+//
+// Tiers (CONTEXT.md): a Member has a Google or Apple login or a verified email;
+// everyone else is a Guest. Registering from a Guest links the login onto the
+// same Nakama user (adr/0001), so the hooks below cover both link and create.
 
 // Owner id of system-owned storage objects (writes with userId undefined).
-const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000';
+export const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000';
 
 const COLLECTION_RESET = 'auth_reset'; // key = token -> { userId, email, expiresAt }
 const COLLECTION_VERIFY = 'auth_verify'; // key = token -> { userId, email, expiresAt }
@@ -20,14 +24,14 @@ const VERIFY_TTL_MS = 48 * 60 * 60 * 1000; // 48h
 const THROTTLE_MS = 60 * 1000; // one email per address per minute
 const MIN_PASSWORD_LENGTH = 8; // Nakama's own minimum for authenticateEmail
 
-interface EmailEnv {
+export interface EmailEnv {
   apiKey: string;
   from: string;
   publicUrl: string;
   devEcho: boolean;
 }
 
-function getEmailEnv(ctx: nkruntime.Context): EmailEnv {
+export function getEmailEnv(ctx: nkruntime.Context): EmailEnv {
   const env = ctx.env || {};
   return {
     apiKey: env['RESEND_API_KEY'] || '',
@@ -43,11 +47,11 @@ function makeToken(nk: nkruntime.Nakama): string {
   return (nk.uuidv4() + nk.uuidv4()).split('-').join('');
 }
 
-function writeSystemObject(nk: nkruntime.Nakama, collection: string, key: string, value: { [key: string]: any }) {
+export function writeSystemObject(nk: nkruntime.Nakama, collection: string, key: string, value: { [key: string]: any }) {
   nk.storageWrite([{ collection, key, userId: undefined, value }]);
 }
 
-function readSystemObject(nk: nkruntime.Nakama, collection: string, key: string): { [key: string]: any } | null {
+export function readSystemObject(nk: nkruntime.Nakama, collection: string, key: string): { [key: string]: any } | null {
   const objects = nk.storageRead([{ collection, key, userId: SYSTEM_USER_ID }]);
   if (!objects || objects.length === 0 || !objects[0].value) {
     return null;
@@ -55,7 +59,7 @@ function readSystemObject(nk: nkruntime.Nakama, collection: string, key: string)
   return objects[0].value;
 }
 
-function deleteSystemObject(nk: nkruntime.Nakama, collection: string, key: string) {
+export function deleteSystemObject(nk: nkruntime.Nakama, collection: string, key: string) {
   nk.storageDelete([{ collection, key, userId: SYSTEM_USER_ID }]);
 }
 
@@ -75,9 +79,26 @@ function markEmailVerified(nk: nkruntime.Nakama, userId: string) {
   writeSystemObject(nk, COLLECTION_PROFILE, userId, { emailVerified: true });
 }
 
-function isEmailVerified(nk: nkruntime.Nakama, userId: string): boolean {
+export function isEmailVerified(nk: nkruntime.Nakama, userId: string): boolean {
   const profile = readSystemObject(nk, COLLECTION_PROFILE, userId);
   return !!(profile && profile.emailVerified);
+}
+
+// Member = Google/Apple login, or an email login whose address is verified.
+export function isMember(nk: nkruntime.Nakama, userId: string): boolean {
+  if (!userId) {
+    return false;
+  }
+  let account: nkruntime.Account;
+  try {
+    account = nk.accountGetId(userId);
+  } catch (error) {
+    return false;
+  }
+  if (account.user.googleId || account.user.appleId) {
+    return true;
+  }
+  return !!account.email && isEmailVerified(nk, userId);
 }
 
 function findUserIdByEmail(nk: nkruntime.Nakama, email: string): string | null {
@@ -88,7 +109,7 @@ function findUserIdByEmail(nk: nkruntime.Nakama, email: string): string | null {
   return String(rows[0].id);
 }
 
-function sendEmail(logger: nkruntime.Logger, nk: nkruntime.Nakama, env: EmailEnv, to: string, subject: string, html: string): boolean {
+export function sendEmail(logger: nkruntime.Logger, nk: nkruntime.Nakama, env: EmailEnv, to: string, subject: string, html: string): boolean {
   if (!env.apiKey) {
     logger.warn('auth email skipped (RESEND_API_KEY not configured): %s -> %s', subject, to);
     return false;
@@ -174,8 +195,19 @@ export const afterAuthenticateEmail: nkruntime.AfterHookFunction<nkruntime.Sessi
   sendVerificationEmail(logger, nk, getEmailEnv(ctx), userId, email);
 };
 
-// Payload: {} — reports the calling user's email + verification state so the
-// client can render the account section without extra endpoints.
+// A Guest registering with email links it onto their device user; same
+// verification kick-off as a fresh email sign-up.
+export const afterLinkEmail: nkruntime.AfterHookFunction<void, nkruntime.AccountEmail> = function (ctx, logger, nk, data, request) {
+  const email = String((request && request.email) || '').trim().toLowerCase();
+  if (!ctx.userId || !email) {
+    return;
+  }
+  writeSystemObject(nk, COLLECTION_PROFILE, ctx.userId, { emailVerified: false });
+  sendVerificationEmail(logger, nk, getEmailEnv(ctx), ctx.userId, email);
+};
+
+// Payload: {} — reports the calling user's login + tier so the client can
+// render the account section and gate Guest-only UI without extra endpoints.
 export const rpcAuthStatus: nkruntime.RpcFunction = function (ctx, logger, nk, payload) {
   if (!ctx.userId) {
     return JSON.stringify({ error: 'auth_required' });
@@ -185,7 +217,40 @@ export const rpcAuthStatus: nkruntime.RpcFunction = function (ctx, logger, nk, p
   return JSON.stringify({
     email,
     emailVerified: email ? isEmailVerified(nk, ctx.userId) : false,
+    google: !!account.user.googleId,
+    apple: !!account.user.appleId,
+    member: isMember(nk, ctx.userId),
   });
+};
+
+// Payload: { confirm: true }. App Store 5.1.1(v): anyone who can create an
+// account must be able to delete it in-app. Only accounts with a login can
+// call it — a bare device Guest has nothing to delete.
+export const rpcDeleteAccount: nkruntime.RpcFunction = function (ctx, logger, nk, payload) {
+  if (!ctx.userId) {
+    return JSON.stringify({ error: 'auth_required' });
+  }
+  let request: { confirm?: boolean } = {};
+  try {
+    request = payload ? JSON.parse(payload) : {};
+  } catch (error) {
+    return JSON.stringify({ error: 'generic' });
+  }
+  if (request.confirm !== true) {
+    return JSON.stringify({ error: 'generic' });
+  }
+  const account = nk.accountGetId(ctx.userId);
+  if (!account.email && !account.user.googleId && !account.user.appleId) {
+    return JSON.stringify({ error: 'auth_required' });
+  }
+  try {
+    deleteSystemObject(nk, COLLECTION_PROFILE, ctx.userId);
+    nk.accountDeleteId(ctx.userId, false);
+  } catch (error) {
+    logger.error('delete_account failed for %s: %s', ctx.userId, String(error));
+    return JSON.stringify({ error: 'generic' });
+  }
+  return JSON.stringify({ ok: true });
 };
 
 // Payload: { email }. Always answers ok so the endpoint cannot be used to

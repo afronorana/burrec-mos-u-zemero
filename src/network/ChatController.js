@@ -18,29 +18,63 @@ class ChatControllerService {
     if (!this.socket) {
       return;
     }
-    const channel = await this.socket.joinChat(`ludo-${matchId}`, ROOM_TYPE, false, false);
+    // Persistent so a Report on a message can be checked by the server
+    // against its own copy (moderation.ts) instead of the reporter's text.
+    const channel = await this.socket.joinChat(`ludo-${matchId}`, ROOM_TYPE, true, false);
     this.channelId = channel.id;
   }
 
-  async send(text) {
+  // Own messages are echoed locally straight away and send errors are
+  // ignored: a Shadowbanned sender's message is refused by the server, and
+  // this is what keeps that invisible to them (CONTEXT.md: Shadowban).
+  send(text) {
     const message = String(text || '').trim().slice(0, 200);
     if (!message || !this.socket || !this.channelId) {
       return;
     }
-    await this.socket.writeChatMessage(this.channelId, { message });
+    const online = ApplicationStore.online;
+    this.localCounter = (this.localCounter || 0) + 1;
+    this.push({
+      id: `local-${this.localCounter}`,
+      senderId: online.selfUserId,
+      username: online.displayName,
+      message,
+      createTime: new Date().toISOString(),
+      pending: true,
+    });
+    this.socket.writeChatMessage(this.channelId, { message }).catch(() => {});
   }
 
   handleMessage(message) {
+    const online = ApplicationStore.online;
     const content = message.content || {};
-    ApplicationStore.online.chat.push({
+    const text = String(content.message || '');
+    if (message.sender_id === online.selfUserId) {
+      // The server's copy of our own optimistic echo: adopt its real id.
+      const echo = online.chat.find((entry) => entry.pending && entry.message === text);
+      if (echo) {
+        echo.id = message.message_id;
+        echo.pending = false;
+        return;
+      }
+    }
+    if (online.blockedIds.includes(message.sender_id)) {
+      return;
+    }
+    this.push({
       id: message.message_id,
       senderId: message.sender_id,
       username: message.username,
-      message: String(content.message || ''),
+      message: text,
       createTime: message.create_time,
     });
-    if (ApplicationStore.online.chat.length > MAX_MESSAGES) {
-      ApplicationStore.online.chat.splice(0, ApplicationStore.online.chat.length - MAX_MESSAGES);
+  }
+
+  push(entry) {
+    const chat = ApplicationStore.online.chat;
+    chat.push(entry);
+    if (chat.length > MAX_MESSAGES) {
+      chat.splice(0, chat.length - MAX_MESSAGES);
     }
   }
 

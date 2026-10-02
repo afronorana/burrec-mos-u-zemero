@@ -4,6 +4,7 @@
       <!-- Signed-in account view -->
       <template v-if="view === 'account'">
         <h3 class="panel-title">{{ t('auth.accountTitle') }}</h3>
+        <p v-if="reasonNote" class="auth-reason">{{ reasonNote }}</p>
         <p class="auth-account-line">
           <strong>{{ account.email || t(`auth.method_${account.method}`) }}</strong>
         </p>
@@ -18,6 +19,20 @@
           <app-button red @click="signOut">{{ t('auth.signOut') }}</app-button>
           <app-button @click="close">{{ t('back') }}</app-button>
         </div>
+        <button type="button" class="auth-link auth-switch" @click="switchView('delete')">{{ t('auth.deleteAccount') }}</button>
+      </template>
+
+      <!-- Delete account (App Store 5.1.1(v)): typed confirmation -->
+      <template v-else-if="view === 'delete'">
+        <h3 class="panel-title">{{ t('auth.deleteTitle') }}</h3>
+        <p class="auth-note">{{ t('auth.deleteDesc') }}</p>
+        <div class="form-row">
+          <app-input v-model="deleteConfirm" :label="t('auth.deleteTypeLabel', { word: deleteWord })" @keyup.enter="submitDelete" />
+        </div>
+        <app-button red class="auth-submit" :loading="busy" :disabled="busy || !deleteConfirmed" @click="submitDelete">
+          {{ t('auth.deleteConfirm') }}
+        </app-button>
+        <button type="button" class="auth-link auth-switch" @click="switchView('account')">{{ t('back') }}</button>
       </template>
 
       <!-- Login -->
@@ -50,6 +65,8 @@
       <!-- Register -->
       <template v-else-if="view === 'register'">
         <h3 class="panel-title">{{ t('auth.registerTitle') }}</h3>
+        <p v-if="reasonNote" class="auth-reason">{{ reasonNote }}</p>
+        <p class="auth-note">{{ t('auth.registerKeeps') }}</p>
         <div class="form-row">
           <app-input v-model="email" :label="t('auth.email')" type="email" @keyup.enter="submitRegister" />
         </div>
@@ -62,6 +79,19 @@
         <app-button class="auth-submit" :loading="busy" :disabled="busy || !email || !password" @click="submitRegister">
           {{ t('auth.createAccount') }}
         </app-button>
+        <p class="auth-note auth-legal">
+          {{ t('legal.agreePrefix') }}
+          <a href="./terms-and-conditions/" target="_blank" rel="noopener">{{ t('legal.terms') }}</a>
+          {{ t('legal.and') }}
+          <a href="./privacy-policy/" target="_blank" rel="noopener">{{ t('legal.privacy') }}</a>.
+        </p>
+
+        <div v-if="hasSocial" class="auth-divider"><span>{{ t('auth.or') }}</span></div>
+        <div v-if="googleEnabled" ref="googleBtn" class="auth-google-slot"></div>
+        <app-button v-if="appleEnabled" class="auth-apple-btn" :disabled="busy" @click="signInApple">
+           {{ t('auth.continueApple') }}
+        </app-button>
+
         <p class="auth-note auth-switch">
           {{ t('auth.haveAccount') }}
           <button type="button" class="auth-link" @click="switchView('login')">{{ t('auth.signIn') }}</button>
@@ -155,6 +185,7 @@ export default {
       // be cleared one tick later).
       pendingNotice: '',
       resent: false,
+      deleteConfirm: '',
     };
   },
   computed: {
@@ -173,6 +204,16 @@ export default {
     hasSocial() {
       return this.googleEnabled || this.appleEnabled;
     },
+    reasonNote() {
+      const reason = this.store.online.authReason;
+      return reason ? t(`auth.reason_${reason}`) : '';
+    },
+    deleteWord() {
+      return t('auth.deleteWord');
+    },
+    deleteConfirmed() {
+      return this.deleteConfirm.trim().toUpperCase() === this.deleteWord.toUpperCase();
+    },
   },
   watch: {
     view() {
@@ -181,12 +222,19 @@ export default {
       this.pendingNotice = '';
       this.password = '';
       this.passwordConfirm = '';
+      this.deleteConfirm = '';
       this.$nextTick(() => this.mountSocialButtons());
+      if (this.view === 'account') {
+        this.refreshAccount();
+      }
     },
   },
   mounted() {
     if (this.view === 'verify') {
       this.consumeVerifyToken();
+    }
+    if (this.view === 'account') {
+      this.refreshAccount();
     }
     this.mountSocialButtons();
   },
@@ -194,6 +242,7 @@ export default {
     t,
     close() {
       this.store.online.authOpen = false;
+      this.store.online.authReason = null;
       this.store.online.resetToken = null;
       this.store.online.verifyToken = null;
     },
@@ -214,7 +263,7 @@ export default {
     submitLogin() {
       if (!this.email || !this.password) return;
       this.run(async () => {
-        await NakamaClient.loginEmail(this.email, this.password, { create: false });
+        await NakamaClient.loginEmail(this.email, this.password);
         this.close();
       });
     },
@@ -229,7 +278,7 @@ export default {
         return;
       }
       this.run(async () => {
-        await NakamaClient.loginEmail(this.email, this.password, { create: true });
+        await NakamaClient.registerEmail(this.email, this.password);
         // Land on the account view so the "verify your email" hint is seen.
         this.switchView('account');
       });
@@ -284,6 +333,7 @@ export default {
         this.store.online.verifyToken = null;
         if (this.account.email && this.account.email === result.email) {
           this.account.emailVerified = true;
+          this.account.member = true;
         }
         this.notice = t('auth.verifyDone', { email: result.email || '' });
       });
@@ -300,13 +350,27 @@ export default {
         this.resent = true;
       });
     },
+    // Verification may have happened in another tab or on another device.
+    refreshAccount() {
+      if (this.account.method !== 'guest') {
+        NakamaClient.refreshAccountStatus();
+      }
+    },
+    submitDelete() {
+      if (!this.deleteConfirmed) return;
+      this.run(async () => {
+        await NakamaClient.deleteAccount();
+        clearMatchSession();
+        this.close();
+      });
+    },
     signOut() {
       NakamaClient.logout();
       clearMatchSession();
       this.close();
     },
     async mountSocialButtons() {
-      if (this.view !== 'login') return;
+      if (this.view !== 'login' && this.view !== 'register') return;
       if (this.googleEnabled) {
         try {
           await loadScript('https://accounts.google.com/gsi/client');
@@ -342,7 +406,7 @@ export default {
     },
     onGoogleCredential(idToken) {
       this.run(async () => {
-        await NakamaClient.loginGoogle(idToken);
+        await NakamaClient.loginSocial('google', idToken);
         this.close();
       });
     },
@@ -353,7 +417,7 @@ export default {
         if (!idToken) {
           throw new Error('connect_failed');
         }
-        await NakamaClient.loginApple(idToken);
+        await NakamaClient.loginSocial('apple', idToken);
         this.close();
       });
     },
@@ -437,6 +501,20 @@ export default {
   margin-top: 10px;
   background: #000;
   color: #fff;
+}
+.auth-legal {
+  font-size: 0.7rem;
+}
+.auth-legal a {
+  color: inherit;
+}
+.auth-reason {
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  border-radius: 6px;
+  background: rgba(231, 111, 81, 0.15);
 }
 .auth-account-line {
   margin: 4px 0 10px;

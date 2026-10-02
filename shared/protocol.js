@@ -38,6 +38,9 @@ export var FINISHER_IDS = ['shove', 'trapdoor', 'bat', 'pan', 'golf', 'racket', 
 export var DEFAULT_PROP = 'none';
 export var DEFAULT_FINISHER = 'shove';
 export var DEFAULT_FLAG = 'al';
+// A Guest's Capture plays no Finisher, only the lite presentation (burst +
+// flight home); 'none' is never offered in the Wardrobe.
+export var NO_FINISHER = 'none';
 
 // Lowercase ISO 3166 codes (+ Kosovo and the UK home nations), one SVG each
 // in public/flags/.
@@ -72,6 +75,14 @@ export function sanitizeCosmetics(input) {
   var finisher = FINISHER_IDS.indexOf(source.finisher) !== -1 ? source.finisher : DEFAULT_FINISHER;
   var flag = FLAG_CODES.indexOf(source.flag) !== -1 ? source.flag : DEFAULT_FLAG;
   return { prop: prop, finisher: finisher, flag: flag };
+}
+
+// Report reasons (CONTEXT.md: Report); 'other' expects the free-text note.
+export var REPORT_REASONS = ['harassment', 'hate', 'offensive_name', 'spam', 'cheating', 'other'];
+
+// What a Guest wears in a match, whatever its client sent.
+export function guestCosmetics() {
+  return { prop: DEFAULT_PROP, finisher: NO_FINISHER, flag: DEFAULT_FLAG };
 }
 
 export function encodePayload(payload) {
