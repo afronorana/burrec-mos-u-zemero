@@ -203,15 +203,31 @@ function addBlock(nk: nkruntime.Nakama, userId: string, targetId: string) {
   }
 }
 
-// Payload: {} -> { ids }
+// { ids, players: [{ id, name }] } — names for the Settings blocked list.
+function blockState(nk: nkruntime.Nakama, userId: string) {
+  const ids = readBlocks(nk, userId);
+  const names: { [id: string]: string } = {};
+  if (ids.length) {
+    try {
+      nk.usersGetId(ids).forEach((user) => {
+        names[user.userId] = user.displayName || user.username;
+      });
+    } catch (error) {
+      // Names are cosmetic here; ids still work.
+    }
+  }
+  return { ids, players: ids.map((id) => ({ id, name: names[id] || '' })) };
+}
+
+// Payload: {} -> { ids, players }
 export const rpcBlockList: nkruntime.RpcFunction = function (ctx, logger, nk, payload) {
   if (!ctx.userId) {
     return JSON.stringify({ error: 'auth_required' });
   }
-  return JSON.stringify({ ids: readBlocks(nk, ctx.userId) });
+  return JSON.stringify(blockState(nk, ctx.userId));
 };
 
-// Payload: { userId, blocked } -> { ids }
+// Payload: { userId, blocked } -> { ids, players }
 export const rpcSetBlock: nkruntime.RpcFunction = function (ctx, logger, nk, payload) {
   if (!ctx.userId) {
     return JSON.stringify({ error: 'auth_required' });
@@ -226,7 +242,7 @@ export const rpcSetBlock: nkruntime.RpcFunction = function (ctx, logger, nk, pay
   } else {
     addBlock(nk, ctx.userId, targetId);
   }
-  return JSON.stringify({ ids: readBlocks(nk, ctx.userId) });
+  return JSON.stringify(blockState(nk, ctx.userId));
 };
 
 // ── Reports ───────────────────────────────────────────────────────────

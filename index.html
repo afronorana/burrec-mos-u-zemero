@@ -5,6 +5,26 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Burrec mos u zemero</title>
 
+  <!-- Cookie consent defaults (Google Consent Mode v2): analytics stays off
+       until the visitor accepts in the banner (src/utils/consent.js), and a
+       stored choice applies before the tag loads. -->
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    (function () {
+      var consent = 'denied';
+      try {
+        if (window.localStorage.getItem('burrec.cookieConsent') === 'accepted') consent = 'granted';
+      } catch (e) {}
+      gtag('consent', 'default', {
+        ad_storage: 'denied',
+        ad_user_data: 'denied',
+        ad_personalization: 'denied',
+        analytics_storage: consent,
+      });
+    })();
+  </script>
+
   <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-57PQXLXMRV"></script>
   <script>

@@ -249,6 +249,7 @@ class NakamaClientService {
     try {
       const result = await this.rpc('block_list');
       ApplicationStore.online.blockedIds = result.ids || [];
+      ApplicationStore.online.blockedPlayers = result.players || [];
     } catch (error) {
       // Non-fatal: nothing hidden until the next sign-in.
     }
@@ -260,6 +261,7 @@ class NakamaClientService {
       throw new Error(result.error);
     }
     ApplicationStore.online.blockedIds = result.ids || [];
+    ApplicationStore.online.blockedPlayers = result.players || [];
   }
 
   // Filing a Report also Blocks the target (server-side), so refresh blocks.
@@ -320,6 +322,7 @@ class NakamaClientService {
     online.connectionState = 'idle';
     online.account = { method: 'guest', email: null, emailVerified: false, member: false };
     online.blockedIds = [];
+    online.blockedPlayers = [];
     online.store.owned = [];
   }
 

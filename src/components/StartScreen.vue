@@ -2,50 +2,56 @@
   <div class="screen-overlay">
     <transition name="screen-fade" mode="out-in">
       <!-- Intro: name + big Play Now only. Create/Join live on the quickplay/friends screen. -->
-      <div v-if="store.currentScreen === 'main-menu'" key="main-menu" class="menu-center">
-        <app-panel class="menu-card intro-card">
-          <h1 class="game-title">{{ t('title') }}</h1>
+      <!-- Start: "Play now" (as a Guest, or as yourself once a Member) and,
+           for non-Members, "Register". Choosing email swaps both panels for
+           the email form. -->
+      <div v-if="store.currentScreen === 'main-menu'" key="main-menu" class="menu-center intro-center">
+        <div class="intro-stack">
+          <h1 class="game-title intro-title">{{ t('title') }}</h1>
 
-          <app-input
-            v-model="username"
-            :label="t('online.yourName')"
-            :max-length="12"
-            @keyup.enter="onEnter"
-          />
+          <auth-modal v-if="emailStep" inline initial-view="login" @close="emailStep = false" />
 
-          <template v-if="pendingResume">
-            <p class="intro-resume-note">{{ t('online.resumeBody') }}</p>
-            <app-button class="menu-btn-full intro-play-btn" :disabled="!hasName || busy" @click="continuePending">
-              {{ t('online.resume') }}
-            </app-button>
-          </template>
           <template v-else>
-            <app-button class="menu-btn-full intro-play-btn" :disabled="!hasName || busy" @click="playNow">
-              {{ t('online.playNow') }}
-            </app-button>
+            <app-panel class="menu-card intro-card">
+              <h2 class="panel-title">{{ t('intro.playNowTitle') }}</h2>
+              <app-input
+                v-model="username"
+                :label="t('online.yourName')"
+                :max-length="12"
+                @keyup.enter="onEnter"
+              />
+              <template v-if="pendingResume">
+                <p class="intro-resume-note">{{ t('online.resumeBody') }}</p>
+                <app-button class="menu-btn-full intro-play-btn" :disabled="!hasName || busy" @click="continuePending">
+                  {{ t('online.resume') }}
+                </app-button>
+              </template>
+              <app-button v-else class="menu-btn-full intro-play-btn" :disabled="!hasName || busy" @click="playNow">
+                {{ isMember ? t('intro.play') : t('intro.playAsGuest') }}
+              </app-button>
+              <p v-if="errorMessage" class="online-error">{{ errorMessage }}</p>
+            </app-panel>
+
+            <app-panel v-if="!isMember" class="menu-card intro-card">
+              <h2 class="panel-title">{{ t('intro.registerTitle') }}</h2>
+              <!-- Email account waiting on its verification link -->
+              <template v-if="store.online.account.method === 'email'">
+                <p class="intro-perks">{{ t('intro.verifyPending', { email: store.online.account.email || '' }) }}</p>
+                <app-button blue class="menu-btn-full" @click="openProfile">{{ t('profile.title') }}</app-button>
+              </template>
+              <template v-else>
+                <p class="intro-perks">{{ t('profile.perks') }}</p>
+                <auth-providers show-email @email="emailStep = true" />
+              </template>
+            </app-panel>
           </template>
-
-          <app-button orange class="menu-btn-full intro-wardrobe-btn" :disabled="busy" @click="openWardrobe">
-            🎩 {{ t('cosmetics.title') }}
-          </app-button>
-
-          <div class="intro-account">
-            <button v-if="isSignedIn" type="button" class="intro-account-link" @click="openAccount">
-              👤 {{ accountLabel }}
-            </button>
-            <button v-else type="button" class="intro-account-link" @click="openSignIn">
-              {{ t('auth.signInCta') }}
-            </button>
-          </div>
-
-          <p v-if="errorMessage" class="online-error">{{ errorMessage }}</p>
 
           <p class="intro-legal">
             <a href="./privacy-policy/" target="_blank" rel="noopener">{{ t('legal.privacy') }}</a>
             ·
             <a href="./terms-and-conditions/" target="_blank" rel="noopener">{{ t('legal.terms') }}</a>
           </p>
-        </app-panel>
+        </div>
       </div>
 
       <home-screen v-else-if="store.currentScreen === 'home'" key="home" />
@@ -58,16 +64,22 @@
 
     <game-interface v-if="store.currentScreen === 'game-screen'" />
 
-    <!-- Settings gear: menu screens only (the lobby carries its own). -->
-    <app-button
-      v-if="isMenuScreen"
-      orange
-      class="hud-icon-btn global-settings-trigger"
-      :title="t('graphics')"
-      @click="openSettings"
-    >
-      <settings-icon :size="20" />
-    </app-button>
+    <!-- Top right on menu screens: Settings + Profile (the lobby carries its
+         own gear). The Profile button wears the sign-in provider's mark. -->
+    <div v-if="isMenuScreen" class="menu-corner">
+      <app-button orange class="hud-icon-btn" :title="t('settings.title')" @click="openSettings">
+        <settings-icon :size="20" />
+      </app-button>
+      <app-button orange class="hud-icon-btn menu-profile-btn" :title="t('profile.title')" @click="openProfile">
+        <user-icon :size="20" />
+        <span v-if="isSignedIn" class="menu-profile-badge" :class="{ 'menu-profile-badge--pending': !isMember }">
+          <provider-mark :provider="store.online.account.method" :size="10" />
+        </span>
+      </app-button>
+    </div>
+
+    <profile-sheet v-if="store.online.profileOpen" />
+    <cookie-consent />
 
     <!-- Account / sign-in modal (menu account row, #verify= / #reset= links) -->
     <auth-modal v-if="store.online.authOpen" />
@@ -83,10 +95,6 @@
     >
       <app-panel class="global-settings-card">
         <h3 class="panel-title" style="margin-bottom: 16px;">{{ t('settings.title') }}</h3>
-
-        <div class="form-row">
-          <app-input v-model="settingsName" :label="t('online.yourName')" :max-length="12" />
-        </div>
 
         <div class="form-row">
           <label class="select-label">{{ t('language') }}</label>
@@ -113,9 +121,25 @@
           />
         </div>
 
-        <div class="menu-row" style="margin-top: 20px;">
-          <app-button red @click="store.settingsOpen = false">{{ t('back') }}</app-button>
-          <app-button :disabled="!settingsName.trim()" @click="saveSettings">{{ t('save') }}</app-button>
+        <!-- Blocked players: findable here, not only where a Block is made
+             (App Store guideline 1.2). -->
+        <div class="form-row">
+          <label class="select-label">{{ t('moderation.blockedTitle') }} ({{ store.online.blockedPlayers.length }})</label>
+          <p v-if="!store.online.blockedPlayers.length" class="settings-note">{{ t('moderation.blockedEmpty') }}</p>
+          <div v-for="player in store.online.blockedPlayers" :key="player.id" class="settings-blocked-row">
+            <span class="settings-blocked-name">{{ player.name || t('moderation.unknownPlayer') }}</span>
+            <app-button small @click="unblock(player.id)">{{ t('moderation.unblock') }}</app-button>
+          </div>
+        </div>
+
+        <p class="settings-legal">
+          <a href="./privacy-policy/" target="_blank" rel="noopener">{{ t('legal.privacy') }}</a>
+          ·
+          <a href="./terms-and-conditions/" target="_blank" rel="noopener">{{ t('legal.terms') }}</a>
+        </p>
+
+        <div class="menu-row" style="margin-top: 16px;">
+          <app-button @click="store.settingsOpen = false">{{ t('close') }}</app-button>
         </div>
       </app-panel>
     </div>
@@ -150,12 +174,17 @@ import LobbyScreen from './LobbyScreen.vue';
 import AdminScreen from './AdminScreen.vue';
 import WardrobeScreen from './WardrobeScreen.vue';
 import AuthModal from './AuthModal.vue';
+import AuthProviders from './AuthProviders.vue';
+import CookieConsent from './CookieConsent.vue';
+import ProfileSheet from './ProfileSheet.vue';
+import ProviderMark from './ProviderMark.vue';
+import NakamaClient from '../network/NakamaClient';
 import PlayerActions from './PlayerActions.vue';
 import ApplicationStore from '../utils/ApplicationStore';
 import MatchController from '../network/MatchController';
 import { clearMatchSession } from '../utils/matchSession';
 import { t } from '../utils/i18n';
-import { Settings } from '@lucide/vue';
+import { Settings, User } from '@lucide/vue';
 
 export default {
   components: {
@@ -167,15 +196,20 @@ export default {
     AdminScreen,
     WardrobeScreen,
     AuthModal,
+    AuthProviders,
+    CookieConsent,
     PlayerActions,
+    ProfileSheet,
+    ProviderMark,
     SettingsIcon: Settings,
+    UserIcon: User,
   },
   data() {
     return {
       store: ApplicationStore,
       username: ApplicationStore.online.displayName || '',
-      settingsName: '',
       busy: false,
+      emailStep: false,
     };
   },
   computed: {
@@ -195,9 +229,8 @@ export default {
     isSignedIn() {
       return this.store.online.account.method !== 'guest';
     },
-    accountLabel() {
-      const account = this.store.online.account;
-      return account.email || t(`auth.method_${account.method}`);
+    isMember() {
+      return this.store.online.account.member;
     },
     // Viewer preference (show other players' Finishers in full or "lite"),
     // not a Cosmetic — those are only edited in the menu wardrobe.
@@ -221,12 +254,18 @@ export default {
     },
   },
   watch: {
-    // The lobby's gear just flips store.settingsOpen; seed the name field here
-    // so it's correct no matter which screen opened the modal.
-    'store.settingsOpen'(open) {
-      if (open) {
-        this.settingsName = this.store.online.displayName || this.username || '';
-      }
+    // Signing in from the email step lands back on the panels.
+    'store.online.account.method'(method) {
+      if (method !== 'guest') this.emailStep = false;
+    },
+    // The Profile sheet can rename you; keep the start panel's field in step.
+    'store.online.displayName'(name) {
+      if (name && name !== this.username.trim()) this.username = name;
+    },
+    // Typing your name is choosing it: Profile and a sign-in from the
+    // Register panel (which syncs the display name) see it straight away.
+    username(name) {
+      if (name.trim()) this.commitName();
     },
   },
   mounted() {
@@ -263,16 +302,11 @@ export default {
       window.localStorage.setItem('burrec.online.displayName', name);
       return name;
     },
-    openWardrobe() {
-      this.store.currentScreen = 'wardrobe';
+    openProfile() {
+      this.store.online.profileOpen = true;
     },
-    openSignIn() {
-      this.store.online.authView = 'login';
-      this.store.online.authOpen = true;
-    },
-    openAccount() {
-      this.store.online.authView = 'account';
-      this.store.online.authOpen = true;
+    unblock(userId) {
+      NakamaClient.setBlocked(userId, false).catch(() => {});
     },
     onEnter() {
       if (!this.hasName) return;
@@ -292,17 +326,7 @@ export default {
       MatchController.resumeSession({ matchId: pending.matchId, joinCode: pending.code });
     },
     openSettings() {
-      this.settingsName = this.store.online.displayName || this.username || '';
       this.store.settingsOpen = true;
-    },
-    saveSettings() {
-      const name = this.settingsName.trim().slice(0, 12);
-      if (name) {
-        this.username = name;
-        this.store.online.displayName = name;
-        window.localStorage.setItem('burrec.online.displayName', name);
-      }
-      this.store.settingsOpen = false;
     },
     continueResume() {
       const record = this.store.online.resumePrompt;
@@ -323,25 +347,51 @@ export default {
 </script>
 
 <style scoped>
+.intro-center {
+  align-items: flex-start;
+  overflow-y: auto;
+  /* Clear the top-right Settings/Profile buttons. */
+  padding-top: calc(76px + env(safe-area-inset-top, 0px));
+  padding-bottom: 96px;
+}
+.intro-stack {
+  width: min(460px, 92vw);
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  pointer-events: all;
+}
+/* Over the 3D scene, not a panel: white with a dark outline to stay legible. */
+.intro-title {
+  margin: 0;
+  color: #ffffff;
+  text-shadow:
+    -2px -2px 0 #263f2a, 2px -2px 0 #263f2a, -2px 2px 0 #263f2a, 2px 2px 0 #263f2a,
+    0 4px 0 #263f2a;
+}
 .intro-card {
   text-align: center;
 }
 .intro-play-btn {
-  margin-top: 18px;
+  margin-top: 14px;
   font-size: 1.15rem;
   padding: 16px 24px;
 }
+.intro-perks {
+  margin: -4px 0 14px;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  opacity: 0.8;
+}
 .intro-legal {
-  margin: 14px 0 0;
-  font-size: 0.7rem;
+  margin: 0;
+  font-size: 0.75rem;
   text-align: center;
-  opacity: 0.7;
 }
 .intro-legal a {
-  color: inherit;
-}
-.intro-wardrobe-btn {
-  margin-top: 10px;
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 }
 .intro-resume-note {
   margin: 16px 0 0;
@@ -349,27 +399,67 @@ export default {
   line-height: 1.5;
   opacity: 0.8;
 }
-.intro-account {
-  margin-top: 16px;
-}
-.intro-account-link {
-  background: none;
-  border: none;
-  padding: 0;
-  font: inherit;
-  font-size: 0.8rem;
-  color: inherit;
-  text-decoration: underline;
-  cursor: pointer;
-  opacity: 0.75;
-}
-.intro-account-link:hover {
-  opacity: 1;
-}
 .online-error {
   margin-top: 14px;
   font-size: 12px;
   color: var(--agu-color-red, #e9576f);
+}
+/* Settings + Profile, pinned top right on menu screens. */
+.menu-corner {
+  position: fixed;
+  top: calc(16px + env(safe-area-inset-top, 0px));
+  right: 16px;
+  z-index: 1000;
+  display: flex;
+  gap: 8px;
+  pointer-events: all;
+}
+.menu-profile-btn {
+  position: relative;
+  overflow: visible;
+}
+.menu-profile-badge {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  color: #000000;
+  background: #ffffff;
+  border: 1.5px solid #263f2a;
+  border-radius: 50%;
+}
+/* Email login still waiting on verification: not a Member yet. */
+.menu-profile-badge--pending {
+  background: #f4a261;
+}
+.settings-note {
+  margin: 0;
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+.settings-blocked-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+}
+.settings-blocked-name {
+  min-width: 0;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+.settings-legal {
+  margin: 12px 0 0;
+  font-size: 0.75rem;
+  text-align: center;
+}
+.settings-legal a {
+  color: inherit;
 }
 .resume-modal-backdrop {
   position: fixed;

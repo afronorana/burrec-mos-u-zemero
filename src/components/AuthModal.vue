@@ -1,5 +1,5 @@
 <template>
-  <div class="auth-modal-backdrop" @click.self="close">
+  <div :class="inline ? 'auth-inline' : 'auth-modal-backdrop'" @click.self="close">
     <app-panel class="auth-card">
       <!-- Signed-in account view -->
       <template v-if="view === 'account'">
@@ -50,11 +50,10 @@
         </app-button>
         <button type="button" class="auth-link" @click="switchView('forgot')">{{ t('auth.forgot') }}</button>
 
-        <div v-if="hasSocial" class="auth-divider"><span>{{ t('auth.or') }}</span></div>
-        <div v-if="googleEnabled" ref="googleBtn" class="auth-google-slot"></div>
-        <app-button v-if="appleEnabled" class="auth-apple-btn" :disabled="busy" @click="signInApple">
-           {{ t('auth.continueApple') }}
-        </app-button>
+        <template v-if="hasSocial && !inline">
+          <div class="auth-divider"><span>{{ t('auth.or') }}</span></div>
+          <auth-providers @done="close" />
+        </template>
 
         <p class="auth-note auth-switch">
           {{ t('auth.noAccount') }}
@@ -86,11 +85,10 @@
           <a href="./privacy-policy/" target="_blank" rel="noopener">{{ t('legal.privacy') }}</a>.
         </p>
 
-        <div v-if="hasSocial" class="auth-divider"><span>{{ t('auth.or') }}</span></div>
-        <div v-if="googleEnabled" ref="googleBtn" class="auth-google-slot"></div>
-        <app-button v-if="appleEnabled" class="auth-apple-btn" :disabled="busy" @click="signInApple">
-           {{ t('auth.continueApple') }}
-        </app-button>
+        <template v-if="hasSocial && !inline">
+          <div class="auth-divider"><span>{{ t('auth.or') }}</span></div>
+          <auth-providers @done="close" />
+        </template>
 
         <p class="auth-note auth-switch">
           {{ t('auth.haveAccount') }}
@@ -152,27 +150,23 @@ import NakamaClient from '../network/NakamaClient';
 import { clearMatchSession } from '../utils/matchSession';
 import { t } from '../utils/i18n';
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
-const APPLE_CLIENT_ID = import.meta.env.VITE_APPLE_CLIENT_ID || '';
+import AuthProviders from './AuthProviders.vue';
+import { appleEnabled, googleEnabled } from '../utils/socialAuth';
 
-const loadedScripts = {};
-function loadScript(src) {
-  if (!loadedScripts[src]) {
-    loadedScripts[src] = new Promise((resolve, reject) => {
-      const el = document.createElement('script');
-      el.src = src;
-      el.async = true;
-      el.onload = resolve;
-      el.onerror = () => reject(new Error('connect_failed'));
-      document.head.appendChild(el);
-    });
-  }
-  return loadedScripts[src];
-}
-
+// Email sign-in/registration, password reset, verification, account and
+// deletion views. Normally a modal driven by store.online.authOpen/authView;
+// `inline` renders it as a plain panel with its own view (the start screen's
+// email step), and closing emits `close` instead.
 export default {
+  components: { AuthProviders },
+  props: {
+    inline: { type: Boolean, default: false },
+    initialView: { type: String, default: 'login' },
+  },
+  emits: ['close'],
   data() {
     return {
+      localView: this.initialView,
       store: ApplicationStore,
       email: '',
       password: '',
@@ -190,19 +184,13 @@ export default {
   },
   computed: {
     view() {
-      return this.store.online.authView;
+      return this.inline ? this.localView : this.store.online.authView;
     },
     account() {
       return this.store.online.account;
     },
-    googleEnabled() {
-      return !!GOOGLE_CLIENT_ID;
-    },
-    appleEnabled() {
-      return !!APPLE_CLIENT_ID;
-    },
     hasSocial() {
-      return this.googleEnabled || this.appleEnabled;
+      return googleEnabled || appleEnabled;
     },
     reasonNote() {
       const reason = this.store.online.authReason;
@@ -223,7 +211,6 @@ export default {
       this.password = '';
       this.passwordConfirm = '';
       this.deleteConfirm = '';
-      this.$nextTick(() => this.mountSocialButtons());
       if (this.view === 'account') {
         this.refreshAccount();
       }
@@ -236,18 +223,25 @@ export default {
     if (this.view === 'account') {
       this.refreshAccount();
     }
-    this.mountSocialButtons();
   },
   methods: {
     t,
     close() {
+      if (this.inline) {
+        this.$emit('close');
+        return;
+      }
       this.store.online.authOpen = false;
       this.store.online.authReason = null;
       this.store.online.resetToken = null;
       this.store.online.verifyToken = null;
     },
     switchView(view) {
-      this.store.online.authView = view;
+      if (this.inline) {
+        this.localView = view;
+      } else {
+        this.store.online.authView = view;
+      }
     },
     async run(action) {
       this.busy = true;
@@ -369,58 +363,6 @@ export default {
       clearMatchSession();
       this.close();
     },
-    async mountSocialButtons() {
-      if (this.view !== 'login' && this.view !== 'register') return;
-      if (this.googleEnabled) {
-        try {
-          await loadScript('https://accounts.google.com/gsi/client');
-          window.google.accounts.id.initialize({
-            client_id: GOOGLE_CLIENT_ID,
-            callback: (response) => this.onGoogleCredential(response.credential),
-          });
-          if (this.$refs.googleBtn) {
-            window.google.accounts.id.renderButton(this.$refs.googleBtn, {
-              theme: 'outline',
-              size: 'large',
-              width: 260,
-              text: 'continue_with',
-            });
-          }
-        } catch (error) {
-          // Script blocked/offline: the email form still works.
-        }
-      }
-      if (this.appleEnabled) {
-        try {
-          await loadScript('https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js');
-          window.AppleID.auth.init({
-            clientId: APPLE_CLIENT_ID,
-            scope: 'email',
-            redirectURI: window.location.origin + window.location.pathname,
-            usePopup: true,
-          });
-        } catch (error) {
-          // Same: soft-fail.
-        }
-      }
-    },
-    onGoogleCredential(idToken) {
-      this.run(async () => {
-        await NakamaClient.loginSocial('google', idToken);
-        this.close();
-      });
-    },
-    signInApple() {
-      this.run(async () => {
-        const response = await window.AppleID.auth.signIn();
-        const idToken = response && response.authorization && response.authorization.id_token;
-        if (!idToken) {
-          throw new Error('connect_failed');
-        }
-        await NakamaClient.loginSocial('apple', idToken);
-        this.close();
-      });
-    },
   },
 };
 </script>
@@ -437,6 +379,11 @@ export default {
   padding: 16px;
   /* .screen-overlay is pointer-events: none — re-enable here (same as the
      global settings backdrop) or clicks fall through to the menu behind. */
+  pointer-events: all;
+}
+.auth-inline {
+  display: flex;
+  justify-content: center;
   pointer-events: all;
 }
 .auth-card {
@@ -490,17 +437,6 @@ export default {
   flex: 1;
   border-top: 1px solid currentColor;
   opacity: 0.4;
-}
-.auth-google-slot {
-  display: flex;
-  justify-content: center;
-  min-height: 44px;
-}
-.auth-apple-btn {
-  width: 100%;
-  margin-top: 10px;
-  background: #000;
-  color: #fff;
 }
 .auth-legal {
   font-size: 0.7rem;

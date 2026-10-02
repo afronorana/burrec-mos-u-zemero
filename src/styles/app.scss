@@ -378,19 +378,6 @@ html, body, #app {
 }
 
 /* ── Global Settings Trigger & Modal ─────────────────────── */
-/* Settings + chat share a vertical stack on the middle-right edge:
-   settings sits just above center, the chat toggle just below.
-   (.button qualifier: the kit's own .button sets position: relative,
-   and load order makes it win a bare equal-specificity override.) */
-.global-settings-trigger.button {
-  position: fixed;
-  top: calc(50% - 50px);
-  right: 16px;
-  left: auto;
-  z-index: 1000;
-  pointer-events: all;
-}
-
 .global-settings-modal-backdrop {
   position: absolute;
   inset: 0;

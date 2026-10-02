@@ -207,6 +207,7 @@ const ApplicationStore = reactive({
     // userIds this player Blocked (server-stored, loaded on sign-in); their
     // chat messages and speech bubbles never show (CONTEXT.md: Block).
     blockedIds: [],
+    blockedPlayers: [], // [{ id, name }] for the Settings blocked list
     // Player actions sheet (PlayerActions.vue): { userId, name, messageId?,
     // messageText? } for the player tapped in chat or on a seat chip.
     playerActions: null,
@@ -228,6 +229,8 @@ const ApplicationStore = reactive({
     // Why a Guest was sent to the modal ('chat' | 'wardrobe'), shown above
     // the form; null when opened from the menu (utils/authPrompt.js).
     authReason: null,
+    // Profile sheet (ProfileSheet.vue), opened from the top-right button.
+    profileOpen: false,
     resetToken: null, // token parsed from a #reset= link, consumed by the reset view
     verifyToken: null, // token parsed from a #verify= link, consumed on modal open
   },
