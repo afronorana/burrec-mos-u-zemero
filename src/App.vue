@@ -364,9 +364,15 @@ const CLICKABLE_COLOR = new THREE.Color(CLICKABLE_COLOR_HEX);
 const HOME_BASE_RING_COLORS = PLAYER_COLORS.map((hex) => new THREE.Color(hex));
 // Render cap for every source (camera, dice, pawn hops, menu orbit), picked
 // per device by updateRenderCap: phones/tablets and laptops on battery get
-// the low cap, everything else the high one.
+// the low cap, everything else the high one. These are targets: the real cap
+// is a whole divisor of the display refresh rate nearest to them (ties go to
+// the smoother one), because an uneven cadence (24fps on 60Hz = 33/50ms
+// alternating) judders worse than a slightly lower even one.
 const RENDER_FPS_LOW = 24;
 const RENDER_FPS_HIGH = 48;
+// Display refresh is estimated from the median of recent rAF deltas.
+const REFRESH_SAMPLE_COUNT = 31;
+const REFRESH_DEFAULT_HZ = 60;
 const MENU_ORBIT_RAD_PER_MS = 0.15 / 1000;
 
 const DICE_SETTLE_RULES = {
@@ -590,7 +596,14 @@ export default {
     this.lastRenderAt = 0;
     // Frame cap (updateRenderCap, once isMobile is known in initThreeScene).
     this.renderFps = RENDER_FPS_LOW;
+    this.renderFpsLow = RENDER_FPS_LOW;
     this.renderFrameIntervalMs = 1000 / RENDER_FPS_LOW;
+    this.refreshHz = REFRESH_DEFAULT_HZ;
+    this.refreshDeltas = new Float32Array(REFRESH_SAMPLE_COUNT);
+    this.refreshSorted = new Float32Array(REFRESH_SAMPLE_COUNT);
+    this.refreshDeltaCount = 0;
+    this.lastFrameStamp = 0;
+    this.lastFrameRendered = false;
     this.onBattery = false;
     this.renderCapDowngraded = false;
     this.battery = null;
@@ -1214,16 +1227,53 @@ export default {
       });
     },
 
-    // 24fps on phones/tablets and on laptops running on battery (Battery
-    // API: Chromium only — elsewhere a laptop counts as plugged in), and
-    // after auto quality found 48 unsustainable; 48fps otherwise.
+    // Low target (24) on phones/tablets and on laptops running on battery
+    // (Battery API: Chromium only — elsewhere a laptop counts as plugged
+    // in), and after auto quality found the high cap unsustainable; high
+    // target (48) otherwise. Both snap to a whole vsync divisor.
     updateRenderCap() {
       const low = this.isMobile || this.onBattery || this.renderCapDowngraded;
-      this.renderFps = low ? RENDER_FPS_LOW : RENDER_FPS_HIGH;
-      this.renderFrameIntervalMs = 1000 / this.renderFps;
+      this.renderFpsLow = this.refreshHz / this.refreshDivisor(RENDER_FPS_LOW);
+      this.renderFps = this.refreshHz / this.refreshDivisor(low ? RENDER_FPS_LOW : RENDER_FPS_HIGH);
+      // Gate half a vsync early: rAF timestamps jitter, and a strict >=
+      // would sometimes slip a whole extra vsync.
+      this.renderFrameIntervalMs = 1000 / this.renderFps - 500 / this.refreshHz;
       // Fresh fps samples for the new cadence.
       this.autoQuality.deltas.length = 0;
       this.autoQuality.lastSampleAt = 0;
+    },
+
+    // Render every Nth vsync; N rounds refresh/target half-down, so 24 on
+    // 60Hz becomes 30 (every 2nd) rather than 20, and on 120Hz stays 24.
+    refreshDivisor(targetFps) {
+      return Math.max(1, Math.ceil(this.refreshHz / targetFps - 0.5));
+    },
+
+    // Rolling refresh-rate estimate (monitors differ, windows move between
+    // them, iOS Low Power Mode drops rAF to 30). Only intervals that follow
+    // a frame without a render pass count, so a slow GPU frame can't pass
+    // for a slow display. Re-derives the cap only when the rate changes.
+    sampleRefreshRate(stamp) {
+      const delta = stamp - this.lastFrameStamp;
+      const idle = !this.lastFrameRendered;
+      this.lastFrameStamp = stamp;
+      if (!idle || !(delta > 2 && delta < 100)) {
+        return;
+      }
+      const i = this.refreshDeltaCount % REFRESH_SAMPLE_COUNT;
+      this.refreshDeltas[i] = delta;
+      this.refreshDeltaCount += 1;
+      if (this.refreshDeltaCount < REFRESH_SAMPLE_COUNT || i !== REFRESH_SAMPLE_COUNT - 1) {
+        return;
+      }
+      this.refreshSorted.set(this.refreshDeltas);
+      this.refreshSorted.sort();
+      const hz = Math.round(1000 / this.refreshSorted[REFRESH_SAMPLE_COUNT >> 1]);
+      // Ignore a few Hz of measurement noise around the current estimate.
+      if (Math.abs(hz - this.refreshHz) > 3) {
+        this.refreshHz = hz;
+        this.updateRenderCap();
+      }
     },
 
     watchBatteryForRenderCap() {
@@ -1242,9 +1292,12 @@ export default {
     },
 
     renderScene() {
-      const animate = () => {
+      const animate = (stamp) => {
         this.animationFrameId = requestAnimationFrame(animate);
         const frameNow = performance.now();
+        if (stamp !== undefined) {
+          this.sampleRefreshRate(stamp);
+        }
 
         this.updateCameraPath(frameNow);
         this.updateFinisher(frameNow);
@@ -1275,7 +1328,7 @@ export default {
           this.requestRender();
         }
 
-        // Every render is capped (24 or 48fps, see updateRenderCap). The
+        // Every render is capped to every Nth vsync (see updateRenderCap). The
         // dirty flag survives skipped
         // frames, so the final state of an animation (camera damping, the
         // last pawn hop) still gets drawn on the next allowed frame.
@@ -1290,18 +1343,16 @@ export default {
           }
           this.updateHitEffects();
           this.sampleRenderPerformance(frameNow);
-          // Keep the cadence phase-locked (avg 24fps on a 60Hz display
-          // instead of every third frame = 20fps), but never bank more than
-          // one interval after an idle stretch.
-          this.lastRenderAt = sinceLastRender < interval * 2
-            ? frameNow - (sinceLastRender % interval)
-            : frameNow;
+          // The interval is a whole number of vsyncs (minus half a vsync of
+          // slack), so stamping the actual render time keeps an even cadence.
+          this.lastRenderAt = frameNow;
           rendered = true;
         } else if (!this.renderNeeded) {
           // Only consecutive rendered frames are meaningful fps samples.
           this.autoQuality.lastSampleAt = 0;
         }
         this.renderHighlights2D(rendered);
+        this.lastFrameRendered = rendered;
       };
 
       animate();
@@ -1310,7 +1361,7 @@ export default {
     // Auto quality: while frames render back-to-back (dice rolling, pawn
     // hops, menu orbit), collect frame deltas; when a full window's median
     // says the device can't hold the current cap (< 2/3 of it), first drop a
-    // 48fps cap to 24, then step the quality preset down. Never steps up (no
+    // high cap to the low one, then step the quality preset down. Never steps up (no
     // oscillation) and stops after two quality drops.
     sampleRenderPerformance(now) {
       const aq = this.autoQuality;
@@ -1329,12 +1380,12 @@ export default {
         const sorted = aq.deltas.slice().sort((a, b) => a - b);
         const median = sorted[Math.floor(sorted.length / 2)];
         aq.deltas.length = 0;
-        if (median <= this.renderFrameIntervalMs * 1.5) {
+        if (median <= (1000 / this.renderFps) * 1.5) {
           return;
         }
         // Can't hold the cap: give up the high frame rate first, and only
         // then start lowering quality.
-        if (this.renderFps > RENDER_FPS_LOW) {
+        if (this.renderFps > this.renderFpsLow) {
           this.renderCapDowngraded = true;
           this.updateRenderCap();
         } else if (this.store.settings.quality > RENDER_QUALITY_MIN) {
