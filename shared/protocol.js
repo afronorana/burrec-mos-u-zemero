@@ -32,7 +32,8 @@ export var OpCode = {
 // unknown ids fall back to the defaults.
 export var PROP_IDS = [
   'none', 'crown', 'partyHat', 'topHat', 'qeleshe', 'santaHat', 'wizardHat', 'rabbitEars', 'catEars', 'vampireEars',
-  'alienAntennae', 'sunglasses', 'clownNose', 'mustache', 'chicken', 'scarf', 'dinoSpikes', 'pumpkin', 'ghost', 'flag',
+  'alienAntennae', 'sunglasses', 'clownNose', 'mustache', 'chicken', 'scarf', 'dinoSpikes', 'pumpkin', 'ghost',
+  'bandana', 'armyHelmet', 'devilHorns', 'halo', 'flag',
 ];
 export var FINISHER_IDS = ['shove', 'trapdoor', 'bat', 'pan', 'golf', 'racket', 'bowling', 'hammer', 'anvil', 'glove', 'cannon', 'magician', 'vampire', 'ufo'];
 export var DEFAULT_PROP = 'none';
@@ -69,12 +70,50 @@ export var FLAG_CODES = [
   'yt', 'za', 'zm', 'zw'
 ];
 
+// Cosmetics: one Finisher per player, one Prop (+ flag) per pawn —
+// { finisher, pawns: [{ prop, flag } x PAWNS_PER_PLAYER], prop, flag } where
+// the top-level prop/flag mirror pawn 0 for clients that predate per-pawn
+// styling. `pawns` may arrive as a JSON string (Nakama join metadata is
+// string-valued); a payload without it styles all pawns from prop/flag.
+export var PAWNS_PER_PLAYER = 4;
+
+function sanitizeLook(look, fallback) {
+  var source = look || {};
+  return {
+    prop: PROP_IDS.indexOf(source.prop) !== -1 ? source.prop : fallback.prop,
+    flag: FLAG_CODES.indexOf(source.flag) !== -1 ? source.flag : fallback.flag,
+  };
+}
+
 export function sanitizeCosmetics(input) {
   var source = input || {};
-  var prop = PROP_IDS.indexOf(source.prop) !== -1 ? source.prop : DEFAULT_PROP;
-  var finisher = FINISHER_IDS.indexOf(source.finisher) !== -1 ? source.finisher : DEFAULT_FINISHER;
-  var flag = FLAG_CODES.indexOf(source.flag) !== -1 ? source.flag : DEFAULT_FLAG;
-  return { prop: prop, finisher: finisher, flag: flag };
+  var base = sanitizeLook(source, { prop: DEFAULT_PROP, flag: DEFAULT_FLAG });
+  var pawnsIn = source.pawns;
+  if (typeof pawnsIn === 'string') {
+    try {
+      pawnsIn = JSON.parse(pawnsIn);
+    } catch (error) {
+      pawnsIn = null;
+    }
+  }
+  var pawns = [];
+  for (var i = 0; i < PAWNS_PER_PLAYER; i += 1) {
+    pawns.push(sanitizeLook(pawnsIn && pawnsIn[i], base));
+  }
+  return {
+    finisher: FINISHER_IDS.indexOf(source.finisher) !== -1 ? source.finisher : DEFAULT_FINISHER,
+    pawns: pawns,
+    prop: pawns[0].prop,
+    flag: pawns[0].flag,
+  };
+}
+
+// The { prop, flag } one pawn (0-3) wears; tolerates legacy shapes.
+export function pawnLook(cosmetics, index) {
+  if (cosmetics && cosmetics.pawns && cosmetics.pawns[index]) {
+    return cosmetics.pawns[index];
+  }
+  return { prop: (cosmetics && cosmetics.prop) || DEFAULT_PROP, flag: (cosmetics && cosmetics.flag) || DEFAULT_FLAG };
 }
 
 // ── Store (CONTEXT.md: Price tier, Entitlement, Claim) ──────────────────
@@ -111,9 +150,12 @@ export function canWear(kind, id, ownedKeys) {
 // Whitelisted cosmetics with anything not wearable swapped for the default.
 export function wearableCosmetics(input, ownedKeys) {
   var cosmetics = sanitizeCosmetics(input);
-  if (!canWear('prop', cosmetics.prop, ownedKeys)) {
-    cosmetics.prop = DEFAULT_PROP;
+  for (var i = 0; i < cosmetics.pawns.length; i += 1) {
+    if (!canWear('prop', cosmetics.pawns[i].prop, ownedKeys)) {
+      cosmetics.pawns[i].prop = DEFAULT_PROP;
+    }
   }
+  cosmetics.prop = cosmetics.pawns[0].prop;
   if (!canWear('finisher', cosmetics.finisher, ownedKeys)) {
     cosmetics.finisher = DEFAULT_FINISHER;
   }
@@ -125,7 +167,9 @@ export var REPORT_REASONS = ['harassment', 'hate', 'offensive_name', 'spam', 'ch
 
 // What a Guest wears in a match, whatever its client sent.
 export function guestCosmetics() {
-  return { prop: DEFAULT_PROP, finisher: NO_FINISHER, flag: DEFAULT_FLAG };
+  var cosmetics = sanitizeCosmetics(null);
+  cosmetics.finisher = NO_FINISHER;
+  return cosmetics;
 }
 
 export function encodePayload(payload) {

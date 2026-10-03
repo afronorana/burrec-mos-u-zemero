@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="robots" content="noindex">
+  <title>Signing in…</title>
+</head>
+<body>
+  <script>
+    // Google's OpenID popup lands here with #id_token=…&state=…. Hand the
+    // fragment to the game through localStorage (same origin; works even
+    // when Google's opener policy has severed window.opener), then close.
+    try {
+      window.localStorage.setItem('burrec.googleAuth', JSON.stringify({ hash: window.location.hash, at: Date.now() }));
+    } catch (e) {}
+    window.close();
+  </script>
+  <p style="font-family: sans-serif; text-align: center; margin-top: 40px;">You can close this window.</p>
+</body>
+</html>

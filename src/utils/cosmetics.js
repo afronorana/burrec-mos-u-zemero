@@ -402,6 +402,62 @@ function buildAntennaeGeometry(pad = 0) {
   }).map((geometry) => geometry.toNonIndexed()));
 }
 
+// Bandana: a band tied round the head just above the eyes, its knot and
+// two tails on the side so they read in silhouette; origin at head center.
+function buildBandanaGeometry(pad = 0) {
+  const r = HEAD_RADIUS + 0.012 + pad;
+  return mergeGeometries([
+    new THREE.CylinderGeometry(r, r + 0.004, 0.085 + (pad * 2), 22, 1, true).rotateX(-0.12).translate(0, 0.075, 0),
+    new THREE.SphereGeometry(0.045 + pad, 10, 8).scale(1, 0.8, 0.9).translate(r + 0.012, 0.07, -0.02),
+    new THREE.ConeGeometry(0.038 + pad, 0.16 + (pad * 2), 6).scale(1, 1, 0.35).rotateZ(2.2).translate(r + 0.08, 0.01, -0.03),
+    new THREE.ConeGeometry(0.032 + pad, 0.13 + (pad * 2), 6).scale(1, 1, 0.35).rotateZ(2.7).translate(r + 0.045, -0.02, -0.05),
+  ].map((geometry) => geometry.toNonIndexed()));
+}
+
+// White polka dots across the front of the band.
+function buildBandanaDotsGeometry() {
+  const r = HEAD_RADIUS + 0.02;
+  return mergeGeometries([-0.9, -0.45, 0, 0.45, 0.9].map((angle, i) => new THREE.SphereGeometry(0.012, 6, 5)
+      .scale(1, 1, 0.4).translate(0, 0, r).rotateY(angle).translate(0, 0.075 + ((i % 2) * 0.016) - 0.008 + (Math.abs(angle) * 0.01), 0)));
+}
+
+// Army helmet: a squat steel dome over the head with a flared rim, worn a
+// touch forward.
+function buildHelmetGeometry(pad = 0) {
+  const r = 0.212 + pad;
+  return mergeGeometries([
+    new THREE.SphereGeometry(r, 22, 10, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.82, 1.04),
+    new THREE.TorusGeometry(r + 0.012, 0.022 + pad, 6, 26).rotateX(Math.PI / 2).scale(1, 1, 1.06),
+  ].map((geometry) => geometry.toNonIndexed()));
+}
+
+// Webbing: two crossing straps over the dome.
+function buildHelmetStrapsGeometry() {
+  const r = 0.214;
+  return mergeGeometries([0, Math.PI / 2].map((turn) => new THREE.TorusGeometry(r, 0.008, 4, 20, Math.PI)
+      .scale(1, 0.82, 1).rotateY(turn)));
+}
+
+// Devil horns: two short curved cones on top of the head, bending outwards
+// (bent vertices, like the Santa tip); origin at head center.
+// Bent per side (not mirrored: a negative scale would flip the normals).
+function buildHornGeometry(pad, side) {
+  const height = 0.16;
+  const geometry = new THREE.ConeGeometry(0.042 + pad, height + (pad * 2), 10, 6).translate(0, height / 2, 0);
+  const position = geometry.attributes.position;
+  for (let i = 0; i < position.count; i += 1) {
+    const t = Math.max(0, position.getY(i) / height);
+    position.setX(i, position.getX(i) + (side * 0.05 * t * t));
+  }
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function buildDevilHornsGeometry(pad = 0) {
+  return mergeGeometries([-1, 1].map((side) => buildHornGeometry(pad, side).toNonIndexed()
+      .rotateZ(-side * 0.35).translate(side * 0.095, HEAD_RADIUS - 0.035, 0.02)));
+}
+
 // Dinosaur spikes: a row of flat triangular plates over the head and down
 // the body (built along local -Z), each standing out along the surface
 // normal.
@@ -436,6 +492,7 @@ export const PROP_MATERIAL_PREFIXES = [
   'prop-gold', 'prop-party', 'prop-white', 'prop-pole', 'prop-gem', 'prop-black', 'prop-red', 'prop-pink', 'prop-shades',
   'prop-glint', 'prop-nose', 'prop-mustache', 'prop-scarf', 'prop-pumpkin', 'prop-stem', 'prop-carve', 'prop-ghost',
   'prop-cat', 'prop-whisker', 'prop-beak', 'prop-wizard', 'prop-star', 'prop-vampire', 'prop-alien', 'prop-dino',
+  'prop-bandana', 'prop-helmet', 'prop-strap', 'prop-devil', 'prop-halo',
 ];
 
 export const flagMaterialKey = (code, seat) => `prop-flag-${code}-${seat}`;
@@ -466,6 +523,11 @@ const PROP_COLORS = {
   'prop-vampire': '#d9cbe6',
   'prop-alien': '#7ee04a',
   'prop-dino': '#45b26b',
+  'prop-bandana': '#1f3a93',
+  'prop-helmet': '#5b6b3c',
+  'prop-strap': '#3a4526',
+  'prop-devil': '#d11f2f',
+  'prop-halo': '#ffe066',
 };
 
 const propMaterial = (kit, prefix, seat) => kit.createToonMaterial(
@@ -781,6 +843,60 @@ const PROP_BUILDERS = {
     // turned to run down the side, it shows in silhouette.
     spikes.rotation.y = Math.PI / 2;
     return spikes;
+  },
+
+  bandana(kit, seat) {
+    const band = kit.createOutlinedMesh(
+        kit.getSharedGeometry('prop-bandana', () => buildBandanaGeometry()),
+        propMaterial(kit, 'prop-bandana', seat),
+        { castShadow: true },
+    );
+    band.add(kit.createBakedOutline(kit.getSharedGeometry('prop-bandana-outline', () => buildBandanaGeometry(0.008))));
+    band.add(markRaw(new THREE.Mesh(
+        kit.getSharedGeometry('prop-bandana-dots', () => buildBandanaDotsGeometry()),
+        propMaterial(kit, 'prop-white', seat),
+    )));
+    band.position.y = HEAD_Y;
+    return band;
+  },
+
+  armyHelmet(kit, seat) {
+    const helmet = kit.createOutlinedMesh(
+        kit.getSharedGeometry('prop-helmet', () => buildHelmetGeometry()),
+        propMaterial(kit, 'prop-helmet', seat),
+        { castShadow: true },
+    );
+    helmet.add(kit.createBakedOutline(kit.getSharedGeometry('prop-helmet-outline', () => buildHelmetGeometry(0.009))));
+    helmet.add(markRaw(new THREE.Mesh(
+        kit.getSharedGeometry('prop-helmet-straps', () => buildHelmetStrapsGeometry()),
+        propMaterial(kit, 'prop-strap', seat),
+    )));
+    helmet.position.y = HEAD_Y + 0.035;
+    helmet.rotation.x = 0.14;
+    return helmet;
+  },
+
+  devilHorns(kit, seat) {
+    const horns = kit.createOutlinedMesh(
+        kit.getSharedGeometry('prop-devil-horns', () => buildDevilHornsGeometry()),
+        propMaterial(kit, 'prop-devil', seat),
+        { castShadow: true },
+    );
+    horns.add(kit.createBakedOutline(kit.getSharedGeometry('prop-devil-horns-outline', () => buildDevilHornsGeometry(0.008))));
+    horns.position.y = HEAD_Y;
+    return horns;
+  },
+
+  // A gold ring floating above the head, tipped back so its face reads.
+  halo(kit, seat) {
+    const halo = kit.createOutlinedMesh(
+        kit.getSharedGeometry('prop-halo', () => new THREE.TorusGeometry(0.13, 0.027, 8, 28).rotateX(Math.PI / 2)),
+        propMaterial(kit, 'prop-halo', seat),
+        { outlineScale: 1.08 },
+    );
+    halo.position.y = 1.1;
+    halo.rotation.x = -0.25;
+    return halo;
   },
 
   flag(kit, seat, flagCode) {

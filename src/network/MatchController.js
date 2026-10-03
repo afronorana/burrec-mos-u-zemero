@@ -123,8 +123,9 @@ class MatchControllerService {
   // Join metadata: the name plus this player's Cosmetics (the server
   // whitelists them).
   joinMetadata() {
-    const { prop, finisher, flag } = ApplicationStore.settings.cosmetics;
-    return { displayName: this.online().displayName, prop, finisher, flag };
+    // Nakama join metadata is string-valued: the per-pawn looks ride as JSON.
+    const { prop, finisher, flag, pawns } = ApplicationStore.settings.cosmetics;
+    return { displayName: this.online().displayName, prop, finisher, flag, pawns: JSON.stringify(pawns) };
   }
 
   async joinById(matchId, info) {

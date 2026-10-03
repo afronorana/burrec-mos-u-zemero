@@ -10,6 +10,31 @@
       </div>
 
       <div class="wardrobe-scroll">
+        <!-- Props are per pawn: style all four at once or pick one. -->
+        <div class="form-row">
+          <label class="select-label">{{ t('cosmetics.pawns') }}</label>
+          <div class="wardrobe-pawns">
+            <button
+              type="button"
+              class="wardrobe-pawn-tab"
+              :class="{ 'wardrobe-pawn-tab--active': selectedPawn === 'all' }"
+              @click="selectPawn('all')"
+            >
+              {{ t('cosmetics.allPawns') }}
+            </button>
+            <button
+              v-for="index in 4"
+              :key="index"
+              type="button"
+              class="wardrobe-pawn-tab"
+              :class="{ 'wardrobe-pawn-tab--active': selectedPawn === index - 1 }"
+              @click="selectPawn(index - 1)"
+            >
+              <span class="wardrobe-pawn-dot"></span>{{ index }}
+            </button>
+          </div>
+        </div>
+
         <div class="form-row">
           <label class="select-label">{{ t('cosmetics.prop') }}</label>
           <div class="wardrobe-chips">
@@ -18,8 +43,8 @@
               :key="option.id"
               type="button"
               class="wardrobe-chip"
-              :class="{ 'wardrobe-chip--active': draft.prop === option.id }"
-              @click="draft.prop = option.id"
+              :class="{ 'wardrobe-chip--active': currentLook.prop === option.id }"
+              @click="setLook('prop', option.id)"
             >
               <span class="wardrobe-chip-label">{{ t(option.labelKey) }}</span>
               <span class="wardrobe-tier" :class="`wardrobe-tier--${badge('prop', option.id).kind}`">{{ badge('prop', option.id).text }}</span>
@@ -27,7 +52,7 @@
           </div>
         </div>
 
-        <div v-if="draft.prop === 'flag'" class="form-row">
+        <div v-if="currentLook.prop === 'flag'" class="form-row">
           <label class="select-label">{{ t('cosmetics.flag') }} — {{ selectedFlagName }}</label>
           <input
             v-model="flagQuery"
@@ -41,9 +66,9 @@
               :key="flag.code"
               type="button"
               class="wardrobe-flag"
-              :class="{ 'wardrobe-flag--active': draft.flag === flag.code }"
+              :class="{ 'wardrobe-flag--active': currentLook.flag === flag.code }"
               :data-code="flag.code"
-              @click="draft.flag = flag.code"
+              @click="setLook('flag', flag.code)"
             >
               <img :src="flagUrl(flag.code)" alt="" loading="lazy" width="28" height="21" />
               <span>{{ flag.name }}</span>
@@ -128,7 +153,9 @@ export default {
   data() {
     return {
       store: ApplicationStore,
-      draft: { ...ApplicationStore.settings.cosmetics },
+      // Deep copy: the per-pawn looks must not alias the saved ones.
+      draft: JSON.parse(JSON.stringify(ApplicationStore.settings.cosmetics)),
+      selectedPawn: 'all', // 'all' | 0-3
       propOptions: PROP_OPTIONS,
       finisherOptions: FINISHER_OPTIONS,
       flagQuery: '',
@@ -149,8 +176,12 @@ export default {
       }
       return this.allFlags.filter((flag) => normalize(flag.name).includes(query) || flag.code === query);
     },
+    // The look the chips show: the chosen pawn's, or pawn 1's for "All".
+    currentLook() {
+      return this.draft.pawns[this.selectedPawn === 'all' ? 0 : this.selectedPawn];
+    },
     selectedFlagName() {
-      return flagName(this.draft.flag, this.store.settings.locale);
+      return flagName(this.currentLook.flag, this.store.settings.locale);
     },
     isMember() {
       return this.store.online.account.member;
@@ -163,7 +194,8 @@ export default {
     },
     // The first picked item the Member can't wear yet, with what to say.
     lockedPick() {
-      const picks = [['prop', this.draft.prop, 'cosmetics.prop_'], ['finisher', this.draft.finisher, 'cosmetics.finisher_']];
+      const picks = this.draft.pawns.map((look) => ['prop', look.prop, 'cosmetics.prop_'])
+          .concat([['finisher', this.draft.finisher, 'cosmetics.finisher_']]);
       for (const [kind, id, labelPrefix] of picks) {
         if (canWear(kind, id, this.owned)) continue;
         const entry = itemTier(kind, id);
@@ -180,7 +212,7 @@ export default {
     },
   },
   watch: {
-    'draft.prop'(prop) {
+    'currentLook.prop'(prop) {
       if (prop === 'flag') {
         this.$nextTick(() => this.scrollActiveFlagIntoView());
       }
@@ -199,7 +231,7 @@ export default {
       this.syncRect();
     };
     track();
-    if (this.draft.prop === 'flag') {
+    if (this.currentLook.prop === 'flag') {
       this.scrollActiveFlagIntoView();
     }
   },
@@ -207,6 +239,7 @@ export default {
     cancelAnimationFrame(this.rectFrame);
     const wardrobe = this.store.wardrobe;
     wardrobe.draft = null;
+    wardrobe.previewPawn = 0;
     wardrobe.rect = null;
     wardrobe.play = null;
     wardrobe.dragging = false;
@@ -232,7 +265,7 @@ export default {
     },
     scrollActiveFlagIntoView() {
       const list = this.$refs.flagList;
-      const active = list?.querySelector(`[data-code="${this.draft.flag}"]`);
+      const active = list?.querySelector(`[data-code="${this.currentLook.flag}"]`);
       if (list && active) {
         list.scrollTop = active.offsetTop - list.offsetTop - (list.clientHeight / 2) + (active.clientHeight / 2);
       }
@@ -263,6 +296,17 @@ export default {
         this.claiming = false;
       }
     },
+    selectPawn(pawn) {
+      this.selectedPawn = pawn;
+      this.store.wardrobe.previewPawn = pawn === 'all' ? 0 : pawn;
+    },
+    // A Prop/flag pick dresses the selected pawn, or all four.
+    setLook(key, value) {
+      const targets = this.selectedPawn === 'all' ? this.draft.pawns : [this.draft.pawns[this.selectedPawn]];
+      targets.forEach((look) => {
+        look[key] = value;
+      });
+    },
     pickFinisher(id) {
       this.draft.finisher = id;
       this.play();
@@ -290,6 +334,7 @@ export default {
     save() {
       const picked = sanitizeCosmetics(this.draft);
       Object.assign(this.store.settings.cosmetics, picked);
+      window.localStorage.setItem('burrec.settings.pawns', JSON.stringify(picked.pawns));
       window.localStorage.setItem('burrec.settings.prop', picked.prop);
       window.localStorage.setItem('burrec.settings.finisher', picked.finisher);
       window.localStorage.setItem('burrec.settings.flag', picked.flag);
@@ -356,6 +401,42 @@ function normalize(text) {
 
 .wardrobe-actions {
   margin-top: 12px;
+}
+
+.wardrobe-pawns {
+  display: grid;
+  grid-template-columns: 1.6fr repeat(4, 1fr);
+  gap: 6px;
+}
+
+.wardrobe-pawn-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 36px;
+  padding: 4px 6px;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--agu-color-base, #263f2a);
+  background: #ffffff;
+  border: 2px solid var(--agu-color-base, #263f2a);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.wardrobe-pawn-tab--active {
+  background: #fdc25b;
+  box-shadow: 0 0 0 2px #ff7700 inset;
+}
+
+.wardrobe-pawn-dot {
+  width: 8px;
+  height: 12px;
+  background: currentColor;
+  border-radius: 50% 50% 2px 2px;
+  opacity: 0.7;
 }
 
 .wardrobe-chips {

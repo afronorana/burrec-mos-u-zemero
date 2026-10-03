@@ -79,12 +79,14 @@ const ApplicationStore = reactive({
     locale: window.localStorage.getItem('burrec.settings.locale') || 'en',
     environment: window.localStorage.getItem('burrec.settings.environment') || 'day',
     soundEnabled: window.localStorage.getItem('burrec.settings.sound') !== '0',
-    // This player's Cosmetics (Prop + Finisher + flag), edited only in the
-    // menu wardrobe and sent with every match join.
+    // This player's Cosmetics (a Prop + flag per pawn, one Finisher), edited
+    // only in the menu wardrobe and sent with every match join. Saves from
+    // before per-pawn styling (prop/flag keys only) dress all four pawns.
     cosmetics: sanitizeCosmetics({
       prop: window.localStorage.getItem('burrec.settings.prop'),
       finisher: window.localStorage.getItem('burrec.settings.finisher'),
       flag: window.localStorage.getItem('burrec.settings.flag'),
+      pawns: window.localStorage.getItem('burrec.settings.pawns'),
     }),
     // Off: captures skip the zoom + tool and just burst and fly home.
     finishersEnabled: window.localStorage.getItem('burrec.settings.finishers') !== '0',
@@ -246,6 +248,7 @@ const ApplicationStore = reactive({
   // ({ id, nonce } — a new nonce restarts it).
   wardrobe: {
     draft: null,
+    previewPawn: 0, // which pawn's Prop the preview pawn wears (0-3)
     rect: null,
     yaw: 0,
     dragging: false,

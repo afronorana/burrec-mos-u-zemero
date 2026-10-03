@@ -68,9 +68,12 @@ export interface LudoState {
   demoDice: boolean;
 }
 
+// shared/protocol.js sanitizeCosmetics: Finisher per player, Prop per pawn
+// (top-level prop/flag mirror pawn 0 for older clients).
 export interface Cosmetics {
-  prop: string;
   finisher: string;
+  pawns: { prop: string; flag: string }[];
+  prop: string;
   flag: string;
 }
 
@@ -499,7 +502,7 @@ function rememberCosmetics(nk: nkruntime.Nakama, state: LudoState, userId: strin
   }
   if (!isMember(nk, userId)) {
     state.cosmetics[userId] = guestCosmetics();
-  } else if (metadata && (typeof metadata.prop === 'string' || typeof metadata.finisher === 'string' || typeof metadata.flag === 'string')) {
+  } else if (metadata && (typeof metadata.prop === 'string' || typeof metadata.finisher === 'string' || typeof metadata.flag === 'string' || typeof metadata.pawns === 'string')) {
     state.cosmetics[userId] = wearableCosmetics(metadata, ownedItems(nk, userId));
   } else if (!state.cosmetics[userId]) {
     state.cosmetics[userId] = sanitizeCosmetics(null);

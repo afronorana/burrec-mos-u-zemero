@@ -1,9 +1,9 @@
 <template>
   <!-- Sign-in choices shared by the start screen, the Profile sheet and the
        auth modal. Apple first (App Store guideline 4.8: at least as prominent
-       as any other third-party sign-in); Google can only be its own rendered
-       button. Each provider keeps its own colours — App Review reads a
-       recoloured Sign in with Apple button as a violation. -->
+       as any other third-party sign-in). Each provider keeps its own colours —
+       App Review reads a recoloured Sign in with Apple button as a violation;
+       Google's branding asks for its logo on white. -->
   <div class="auth-providers">
     <app-button v-if="appleEnabled" class="auth-providers__button auth-providers__button--apple" :disabled="busy" @click="signInApple">
       <span class="auth-providers__inner">
@@ -11,7 +11,12 @@
         <span>{{ t('auth.continueApple') }}</span>
       </span>
     </app-button>
-    <div v-if="googleEnabled" ref="googleBtn" class="auth-providers__google"></div>
+    <app-button v-if="googleEnabled" class="auth-providers__button auth-providers__button--google" :disabled="busy" @click="signInGoogle">
+      <span class="auth-providers__inner">
+        <provider-mark provider="google" :size="16" />
+        <span>{{ t('auth.continueGoogle') }}</span>
+      </span>
+    </app-button>
     <app-button v-if="showEmail" blue class="auth-providers__button" :disabled="busy" @click="$emit('email')">
       <span class="auth-providers__inner">
         <provider-mark provider="email" :size="16" />
@@ -26,7 +31,7 @@
 import ApplicationStore from '../utils/ApplicationStore';
 import NakamaClient from '../network/NakamaClient';
 import ProviderMark from './ProviderMark.vue';
-import { appleEnabled, appleIdToken, googleEnabled, mountGoogleButton } from '../utils/socialAuth';
+import { appleEnabled, appleIdToken, googleEnabled, googleIdToken } from '../utils/socialAuth';
 import { t } from '../utils/i18n';
 
 export default {
@@ -37,15 +42,6 @@ export default {
   emits: ['email', 'done'],
   data() {
     return { appleEnabled, googleEnabled, busy: false, error: null };
-  },
-  mounted() {
-    if (this.googleEnabled) {
-      const width = Math.min(320, Math.max(200, this.$el.clientWidth || 280));
-      mountGoogleButton(this.$refs.googleBtn, (idToken) => this.finish(() => NakamaClient.loginSocial('google', idToken)), width, ApplicationStore.settings.locale)
-        .catch(() => {
-          // Script blocked/offline: the other choices still work.
-        });
-    }
   },
   methods: {
     t,
@@ -60,6 +56,11 @@ export default {
       } finally {
         this.busy = false;
       }
+    },
+    signInGoogle() {
+      // Opened synchronously inside the click, before any await.
+      const token = googleIdToken(ApplicationStore.settings.locale);
+      this.finish(async () => NakamaClient.loginSocial('google', await token));
     },
     signInApple() {
       this.finish(async () => NakamaClient.loginSocial('apple', await appleIdToken()));
@@ -91,10 +92,9 @@ export default {
   gap: 8px;
   width: 100%;
 }
-.auth-providers__google {
-  display: flex;
-  justify-content: center;
-  min-height: 44px;
+.auth-providers__button.button.auth-providers__button--google {
+  --agu-btn-bg: #ffffff;
+  --agu-btn-fg: var(--agu-color-base, #263f2a);
 }
 .auth-providers__error {
   margin: 0;

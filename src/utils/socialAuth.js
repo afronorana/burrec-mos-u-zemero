@@ -24,22 +24,83 @@ function loadScript(src) {
   return loadedScripts[src];
 }
 
-// Google only allows its own rendered button (no custom styling). The
-// credential callback is global to the page, so the latest mounted button's
-// handler wins — every caller does the same thing with it.
-export async function mountGoogleButton(el, onCredential, width = 280, locale = 'en') {
-  if (!googleEnabled || !el) return;
-  await loadScript('https://accounts.google.com/gsi/client');
-  window.google.accounts.id.initialize({
+// Our own (white, translated) Continue with Google button: Google's OpenID
+// implicit flow in a popup returns an ID token — the only Google token
+// Nakama 3.21 accepts — to public/google-callback.html, which hands it back
+// through localStorage. Needs that page as an Authorized redirect URI on the
+// OAuth client. popup.closed is not watched: Google's opener policy can make
+// it read true while the popup is still open, so a stuck attempt just times
+// out and the next click starts over.
+const GOOGLE_RESULT_KEY = 'burrec.googleAuth';
+const GOOGLE_TIMEOUT_MS = 5 * 60 * 1000;
+let pendingGoogle = null;
+
+function randomToken() {
+  const bytes = new Uint8Array(16);
+  window.crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+function parseJwtPayload(token) {
+  try {
+    return JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+  } catch (error) {
+    return {};
+  }
+}
+
+// Must be called straight from the click handler (popup blockers).
+export function googleIdToken(locale = 'en') {
+  if (pendingGoogle) {
+    pendingGoogle.cancel();
+  }
+  const state = randomToken();
+  const nonce = randomToken();
+  const params = new URLSearchParams({
     client_id: GOOGLE_CLIENT_ID,
-    callback: (response) => onCredential(response.credential),
+    redirect_uri: `${window.location.origin}/google-callback.html`,
+    response_type: 'id_token',
+    scope: 'openid email profile',
+    nonce,
+    state,
+    prompt: 'select_account',
+    hl: locale,
   });
-  window.google.accounts.id.renderButton(el, {
-    theme: 'outline',
-    size: 'large',
-    width,
-    text: 'continue_with',
-    locale,
+  try {
+    window.localStorage.removeItem(GOOGLE_RESULT_KEY);
+  } catch (error) {
+    // Storage blocked: the result can't come back; the timeout reports it.
+  }
+  window.open(`https://accounts.google.com/o/oauth2/v2/auth?${params}`, 'burrec-google', 'width=480,height=640');
+
+  return new Promise((resolve, reject) => {
+    const finish = (error, token) => {
+      window.removeEventListener('storage', onStorage);
+      clearTimeout(timer);
+      pendingGoogle = null;
+      if (error) reject(error);
+      else resolve(token);
+    };
+    const onStorage = (event) => {
+      if (event.key !== GOOGLE_RESULT_KEY || !event.newValue) return;
+      let hash = '';
+      try {
+        hash = JSON.parse(event.newValue).hash || '';
+      } catch (error) {
+        return;
+      }
+      window.localStorage.removeItem(GOOGLE_RESULT_KEY);
+      const result = new URLSearchParams(hash.replace(/^#/, ''));
+      const idToken = result.get('id_token');
+      if (result.get('state') !== state || !idToken || parseJwtPayload(idToken).nonce !== nonce) {
+        finish(new Error(result.get('error') === 'access_denied' ? 'auth_cancelled' : 'connect_failed'));
+        return;
+      }
+      finish(null, idToken);
+    };
+    const timer = setTimeout(() => finish(new Error('auth_cancelled')), GOOGLE_TIMEOUT_MS);
+    window.addEventListener('storage', onStorage);
+    pendingGoogle = { cancel: () => finish(new Error('auth_cancelled')) };
   });
 }
 

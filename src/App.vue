@@ -69,7 +69,7 @@ import {
   poseDustPuff,
 } from './utils/finishers';
 import { playFinisherImpact, playFinisherWindup } from './utils/sound';
-import { DEFAULT_FINISHER, DEFAULT_FLAG, DEFAULT_PROP, NO_FINISHER, wearableCosmetics } from '../shared/protocol';
+import { DEFAULT_FINISHER, DEFAULT_FLAG, NO_FINISHER, pawnLook, wearableCosmetics } from '../shared/protocol';
 
 const OUTLINE_COLOR = '#1b1411';
 const BOARD_CENTER = { x: 5, z: 5 };
@@ -195,6 +195,9 @@ const _hitEffectScratch = new THREE.Vector3();
 const _finisherCamPos = new THREE.Vector3();
 const _finisherCamLook = new THREE.Vector3();
 const _finisherBasePos = new THREE.Vector3();
+const _finisherFocus = new THREE.Vector3();
+const _finisherSpherical = new THREE.Spherical();
+const _finisherSphericalFrom = new THREE.Spherical();
 const _finisherSpin = new THREE.Quaternion();
 const _finisherYaw = new THREE.Quaternion();
 const _worldUp = new THREE.Vector3(0, 1, 0);
@@ -1724,7 +1727,8 @@ export default {
 
       const group = this.buildPawnGroup(pawn.playerIndex, pawn.color);
       group.name = `cube-${pawn.id}`;
-      this.applyPropToPawnGroup(group, pawn.playerIndex, this.propForSeat(pawn.playerIndex), this.flagForSeat(pawn.playerIndex));
+      const look = this.lookForPawn(pawn.playerIndex, pawn.startingPlace - 1);
+      this.applyPropToPawnGroup(group, pawn.playerIndex, look.prop, look.flag);
 
       this.pawnMeshes[pawn.id] = group;
       this.scene.add(group);
@@ -1797,17 +1801,16 @@ export default {
       return online.cosmetics[seatInfo.userId] || null;
     },
 
-    propForSeat(seat) {
-      return this.cosmeticsForSeat(seat)?.prop || DEFAULT_PROP;
+    // One pawn's { prop, flag } (index 0-3 = startingPlace - 1).
+    lookForPawn(seat, index) {
+      return pawnLook(this.cosmeticsForSeat(seat), index);
     },
 
     finisherForSeat(seat) {
       return this.cosmeticsForSeat(seat)?.finisher || DEFAULT_FINISHER;
     },
 
-    flagForSeat(seat) {
-      return this.cosmeticsForSeat(seat)?.flag || DEFAULT_FLAG;
-    },
+
 
     cosmeticsKit() {
       return {
@@ -1859,12 +1862,12 @@ export default {
     applyPawnProps() {
       this.store.players.forEach((player) => {
         const seat = player.turn - 1;
-        const propId = this.propForSeat(seat);
-        const flagCode = this.flagForSeat(seat);
+        const cosmetics = this.cosmeticsForSeat(seat);
         player.pawns.forEach((pawn) => {
           const group = this.pawnMeshes[pawn.id];
           if (group) {
-            this.applyPropToPawnGroup(group, seat, propId, flagCode);
+            const look = pawnLook(cosmetics, pawn.startingPlace - 1);
+            this.applyPropToPawnGroup(group, seat, look.prop, look.flag);
           }
         });
       });
@@ -2253,19 +2256,68 @@ export default {
       const perpZ = f.dir.x;
       const side = (perpX * viewX) + (perpZ * viewZ) >= 0 ? 1 : -1;
       const camDir = new THREE.Vector3((perpX * side) + (viewX * 0.6), 0, (perpZ * side) + (viewZ * 0.6)).normalize();
+      // Side-on, attacker and victim spread across the screen: back off far
+      // enough that both (plus room for the tool and the victim's launch)
+      // fit the frame's width — a portrait phone needs a much longer lens
+      // than the landscape close-up.
+      const separation = Math.hypot(attackerX - stand.x, attackerZ - stand.z);
+      const halfWidth = (separation / 2) + 1.05;
+      const halfHorizontalFov = Math.atan(Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2) * this.camera.aspect);
+      const distance = Math.min(7.5, Math.max(3.3, halfWidth / Math.tan(halfHorizontalFov)));
       const controlsEnabled = this.controls ? this.controls.enabled : false;
       if (this.controls) {
         this.controls.enabled = false;
       }
       return {
         focus,
-        zoomPos: markRaw(focus.clone().addScaledVector(camDir, 3.3).setY(focus.y + 2.1)),
+        zoomPos: markRaw(focus.clone().addScaledVector(camDir, distance).setY(focus.y + (distance * (2.1 / 3.3)))),
         fromPos: markRaw(this.camera.position.clone()),
         fromTarget: markRaw(target.clone()),
         controlsEnabled,
         // Which side of the hit line (±perpendicular) the close-up is on.
         side,
       };
+    },
+
+    // The close-up: swings in on an arc around the action (not a straight
+    // dolly through the scene), turning to look a beat before it moves; drifts
+    // slowly round during the hold; partly follows the victim's flight home;
+    // then eases back. Allocation-free (scratch vectors) — runs every frame.
+    poseFinisherCamera(f, t, T) {
+      // In menus the orbit keeps running underneath (updateCameraPath ran
+      // this frame), so zoom from / return to the live orbit position.
+      const menu = this.isMenuMode();
+      const basePos = menu ? _finisherBasePos.copy(this.camera.position) : f.camera.fromPos;
+      const baseTarget = menu ? CAMERA_GAME_TARGET : f.camera.fromTarget;
+      const ease = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+      const back = ease(Math.min(1, Math.max(0, (t - T.cameraBack[0]) / (T.cameraBack[1] - T.cameraBack[0]))));
+      const amount = ease(Math.min(1, t / T.zoomIn)) * (1 - back);
+      const look = ease(Math.min(1, t / (T.zoomIn * 0.7))) * (1 - back);
+
+      // Follow the (first) victim's flight with a third of the frame.
+      _finisherFocus.copy(f.camera.focus);
+      const victimMesh = this.finisherVictimMesh(f.victims[0]);
+      if (victimMesh && victimMesh.visible) {
+        const launch = T.impact + T.hitStop + (FINISHER_LAUNCH_DELAY[f.id] || 0);
+        const follow = ease(Math.min(1, Math.max(0, (t - launch) / (T.flight * 0.7)))) * 0.33;
+        _finisherFocus.x += (victimMesh.position.x - _finisherFocus.x) * follow;
+        _finisherFocus.z += (victimMesh.position.z - _finisherFocus.z) * follow;
+      }
+
+      // Position on an arc: interpolate radius, elevation and azimuth around
+      // the focus (shortest way round), plus a slow drift while held.
+      _finisherSphericalFrom.setFromVector3(_finisherCamPos.subVectors(basePos, _finisherFocus));
+      _finisherSpherical.setFromVector3(_finisherCamPos.subVectors(f.camera.zoomPos, _finisherFocus));
+      let dTheta = _finisherSpherical.theta - _finisherSphericalFrom.theta;
+      dTheta = Math.atan2(Math.sin(dTheta), Math.cos(dTheta));
+      const drift = f.camera.side * 0.14 * Math.min(1, t / T.total);
+      _finisherSpherical.radius = _finisherSphericalFrom.radius + ((_finisherSpherical.radius - _finisherSphericalFrom.radius) * amount);
+      _finisherSpherical.phi = _finisherSphericalFrom.phi + ((_finisherSpherical.phi - _finisherSphericalFrom.phi) * amount);
+      _finisherSpherical.theta = _finisherSphericalFrom.theta + ((dTheta + drift) * amount);
+      _finisherCamPos.setFromSpherical(_finisherSpherical).add(_finisherFocus).add(f.shake);
+      _finisherCamLook.lerpVectors(baseTarget, _finisherFocus, look);
+      this.camera.position.copy(_finisherCamPos);
+      this.camera.lookAt(_finisherCamLook);
     },
 
     updateFinisher(now) {
@@ -2284,20 +2336,7 @@ export default {
       f.shake.z = shake * Math.sin(t * 0.057 + 2.1);
 
       if (f.camera) {
-        // In menus the orbit keeps running underneath (updateCameraPath ran
-        // this frame), so zoom from / return to the live orbit position.
-        const menu = this.isMenuMode();
-        const basePos = menu ? _finisherBasePos.copy(this.camera.position) : f.camera.fromPos;
-        const baseTarget = menu ? CAMERA_GAME_TARGET : f.camera.fromTarget;
-        const zoomIn = Math.min(1, t / T.zoomIn);
-        const zoomOut = Math.min(1, Math.max(0, (t - T.cameraBack[0]) / (T.cameraBack[1] - T.cameraBack[0])));
-        const ease = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
-        const amount = ease(zoomIn) * (1 - ease(zoomOut));
-        _finisherCamPos.lerpVectors(basePos, f.camera.zoomPos, amount);
-        _finisherCamLook.lerpVectors(baseTarget, f.camera.focus, amount);
-        _finisherCamPos.add(f.shake);
-        this.camera.position.copy(_finisherCamPos);
-        this.camera.lookAt(_finisherCamLook);
+        this.poseFinisherCamera(f, t, T);
       }
 
       if (!f.lite) {
@@ -2554,7 +2593,7 @@ export default {
       const dt = stage.lastAt ? Math.min(now - stage.lastAt, 100) : 0;
       stage.lastAt = now;
 
-      const look = this.store.wardrobe.draft || this.store.settings.cosmetics;
+      const look = pawnLook(this.store.wardrobe.draft || this.store.settings.cosmetics, this.store.wardrobe.previewPawn);
       this.applyPropToPawnGroup(stage.pawn, 'wardrobe-0', look.prop, look.flag);
 
       const acting = Boolean(this.finisher?.wardrobe);
@@ -3583,7 +3622,9 @@ export default {
           return;
         }
         const dim = seat.connected === false;
-        const keys = [`pawn-body-material-${seat.seat}`, flagMaterialKey(this.flagForSeat(seat.seat), seat.seat)]
+        const cosmetics = this.cosmeticsForSeat(seat.seat);
+        const flagKeys = [0, 1, 2, 3].map((index) => flagMaterialKey(pawnLook(cosmetics, index).flag, seat.seat));
+        const keys = [`pawn-body-material-${seat.seat}`, ...flagKeys]
           .concat(PROP_MATERIAL_PREFIXES.map((prefix) => `${prefix}-${seat.seat}`));
         keys.forEach((key) => {
           const material = this.sharedMaterials[key];

@@ -165,7 +165,8 @@ class NakamaClientService {
         session = guest;
       } catch (error) {
         if (!error || error.status !== 409) {
-          throw mapAuthError(error);
+          const mapped = mapAuthError(error);
+          throw mapped.message === 'auth_invalid_credentials' ? new Error('auth_social_failed') : mapped;
         }
       }
     }
@@ -173,7 +174,9 @@ class NakamaClientService {
       try {
         session = await authenticate();
       } catch (error) {
-        throw mapAuthError(error);
+        const mapped = mapAuthError(error);
+        // A rejected Google/Apple token is not a wrong password.
+        throw mapped.message === 'auth_invalid_credentials' ? new Error('auth_social_failed') : mapped;
       }
     }
     await this.adoptSession(session, provider, ApplicationStore.online.displayName);

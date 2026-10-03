@@ -9,6 +9,7 @@ import {
   canWear,
   itemTier,
   specialOpen,
+  sanitizeCosmetics,
   wearableCosmetics,
 } from '../../shared/protocol.js';
 
@@ -39,11 +40,27 @@ test('special and premium items need an Entitlement, even inside the window', ()
   assert.equal(canWear('finisher', 'ufo', ['finisher:ufo']), true);
 });
 
-test('wearableCosmetics swaps what is not owned for the defaults, keeps the rest', () => {
+test('wearableCosmetics swaps what is not owned for the defaults, per pawn', () => {
   ITEM_TIERS['prop:pumpkin'] = { tier: 'special', from: '2000-01-01', until: '2001-01-01' };
   ITEM_TIERS['finisher:ufo'] = { tier: 'premium' };
-  assert.deepEqual(wearableCosmetics({ prop: 'pumpkin', finisher: 'ufo', flag: 'xk' }, []),
-    { prop: DEFAULT_PROP, finisher: DEFAULT_FINISHER, flag: 'xk' });
-  assert.deepEqual(wearableCosmetics({ prop: 'pumpkin', finisher: 'anvil', flag: 'al' }, ['prop:pumpkin']),
-    { prop: 'pumpkin', finisher: 'anvil', flag: 'al' });
+  const worn = wearableCosmetics({
+    finisher: 'ufo',
+    pawns: [{ prop: 'pumpkin', flag: 'xk' }, { prop: 'crown', flag: 'al' }, { prop: 'pumpkin', flag: 'al' }, { prop: 'halo', flag: 'al' }],
+  }, []);
+  assert.equal(worn.finisher, DEFAULT_FINISHER);
+  assert.deepEqual(worn.pawns.map((p) => p.prop), [DEFAULT_PROP, 'crown', DEFAULT_PROP, 'halo']);
+  assert.equal(worn.pawns[0].flag, 'xk');
+  assert.equal(worn.prop, DEFAULT_PROP, 'legacy prop mirrors pawn 0');
+  const owned = wearableCosmetics({ prop: 'pumpkin', finisher: 'anvil', flag: 'al' }, ['prop:pumpkin']);
+  assert.deepEqual(owned.pawns.map((p) => p.prop), ['pumpkin', 'pumpkin', 'pumpkin', 'pumpkin']);
+});
+
+test('sanitizeCosmetics: per-pawn looks from an array or a JSON string, legacy shape fills all four', () => {
+  const legacy = sanitizeCosmetics({ prop: 'crown', flag: 'xk', finisher: 'anvil' });
+  assert.equal(legacy.pawns.length, 4);
+  assert.ok(legacy.pawns.every((p) => p.prop === 'crown' && p.flag === 'xk'));
+  const fromString = sanitizeCosmetics({ prop: 'crown', pawns: JSON.stringify([{ prop: 'halo' }, { prop: 'bogus' }]) });
+  assert.deepEqual(fromString.pawns.map((p) => p.prop), ['halo', 'crown', 'crown', 'crown'], 'invalid/missing pawns fall back to prop');
+  assert.equal(fromString.prop, 'halo');
+  assert.equal(sanitizeCosmetics({ pawns: 'not json' }).pawns[3].prop, DEFAULT_PROP);
 });

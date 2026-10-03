@@ -13,11 +13,11 @@ _Avoid_: kill, hit, knock out
 ### Cosmetics
 
 **Cosmetics**:
-A player's chosen **Prop** and **Finisher** together; purely presentational, never affects rules.
+A player's chosen **Props** (one per pawn) and **Finisher** together; purely presentational, never affects rules.
 _Avoid_: skin, loadout
 
 **Prop**:
-A cosmetic item (crown, party hat, a country flag, …) worn by all four of a player's pawns; one per player.
+A cosmetic item (crown, party hat, bandana, halo, a country flag, …) worn by one pawn. Each of a player's four pawns wears its own Prop (possibly the same one, possibly none).
 _Avoid_: hat, accessory, item
 
 **Finisher**:
@@ -72,7 +72,7 @@ _Avoid_: redeem, collect, unlock
 
 ## Relationships
 
-- A player has exactly one **Prop** (possibly none) and one **Finisher** — together, their **Cosmetics**
+- Each pawn has exactly one **Prop** (possibly none); a player has one **Finisher** shared by all four pawns — together, their **Cosmetics**
 - Every **Capture** plays the capturing player's **Finisher**, never the captured player's
 - A single move may **Capture** several pawns; they share one **Finisher**
 - A seat's **Cosmetics** stay with the seat when its owner disconnects, even while the AI plays it
