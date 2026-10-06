@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   allHome,
   applyMove,
+  chooseBotMove,
   globalPosition,
   initialPawns,
   legalPawns,
@@ -91,4 +92,40 @@ test('allHome', () => {
   assert.equal(allHome(pawns, 0), true);
   pawns[0][2] = 12;
   assert.equal(allHome(pawns, 0), false);
+});
+
+test('bot: a Capture beats everything', () => {
+  const pawns = initialPawns();
+  pawns[0][0] = 30;
+  pawns[0][1] = 5;
+  pawns[1][0] = 1; // seat 1 start = global 10; seat 0 position 11 = global 10
+  assert.equal(chooseBotMove(pawns, 0, 6, legalPawns(pawns, 0, 6)), 1);
+});
+
+test('bot: leaves home on a 6 when nothing to capture', () => {
+  const pawns = initialPawns();
+  pawns[0][0] = 20;
+  assert.equal(chooseBotMove(pawns, 0, 6, legalPawns(pawns, 0, 6)), 1);
+});
+
+test('bot: enters the target lane', () => {
+  const pawns = initialPawns();
+  pawns[0][0] = 38;
+  pawns[0][1] = 12;
+  assert.equal(chooseBotMove(pawns, 0, 4, legalPawns(pawns, 0, 4)), 0);
+});
+
+test('bot: avoids landing right in front of an opponent', () => {
+  const pawns = initialPawns();
+  pawns[0][0] = 15; // +3 -> 18 (global 17), seat 1 pawn at global 15 threatens it
+  pawns[0][1] = 5; // +3 -> 8 (global 7), safe
+  pawns[1][0] = 6; // global 15
+  assert.equal(chooseBotMove(pawns, 0, 3, legalPawns(pawns, 0, 3)), 1);
+});
+
+test('bot: otherwise advances the leading pawn', () => {
+  const pawns = initialPawns();
+  pawns[0][0] = 5;
+  pawns[0][1] = 20;
+  assert.equal(chooseBotMove(pawns, 0, 2, legalPawns(pawns, 0, 2)), 1);
 });

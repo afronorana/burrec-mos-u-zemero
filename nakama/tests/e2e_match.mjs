@@ -1,7 +1,10 @@
 // End-to-end match test against the local dev stack (pnpm nakama:up).
 // Drives two real nakama-js clients through: device auth -> create private
-// match -> join by code -> chat -> ready/start -> authoritative game loop
-// (roll/move until GAME_OVER) -> mid-game reconnect + STATE_SYNC parity.
+// match -> join by code -> chat -> claim seats (Bots fill the other two) ->
+// start -> authoritative game loop (roll/move until GAME_OVER, Bots playing
+// their seats) -> mid-game reconnect + STATE_SYNC parity -> mid-game joiners
+// taking over both Bots (Bots are paced for humans to watch, so the test
+// replaces them once they've proven they play, to finish in minutes).
 //
 // Run: node nakama/tests/e2e_match.mjs   (from the repo root)
 
@@ -22,6 +25,8 @@ let capturesSeen = 0;
 let repeatsSeen = 0;
 let rejectionsSeen = 0;
 let movesSeen = 0;
+let botMovesSeen = 0;
+let botSeats = [];
 let deliberateRejectionDone = false;
 let reconnectTested = false;
 let stateSyncChecked = false;
@@ -129,6 +134,9 @@ class TestPlayer {
       case OpCode.GAME_START: {
         this.pawns = [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]];
         this.turnSeat = payload.turnSeat;
+        if (this.name === 'Alice') {
+          botSeats = (payload.seats || []).filter((seat) => seat && seat.bot).map((seat) => seat.seat);
+        }
         this.scheduleAct();
         break;
       }
@@ -149,7 +157,10 @@ class TestPlayer {
         break;
       }
       case OpCode.MOVE_APPLIED: {
-        if (this.name === 'Alice') movesSeen += 1; // count once, not per client
+        if (this.name === 'Alice') {
+          movesSeen += 1; // count once, not per client
+          if (botSeats.indexOf(payload.seat) !== -1) botMovesSeen += 1;
+        }
         if (this.pawns) {
           this.pawns[payload.seat][payload.pawnIndex] = payload.toPos;
           (payload.captures || []).forEach((capture) => {
@@ -169,6 +180,10 @@ class TestPlayer {
       case OpCode.STATE_SYNC: {
         if (this.onStateSync) this.onStateSync(payload);
         this.turnSeat = payload.turnSeat;
+        if (payload.pawns) this.pawns = JSON.parse(JSON.stringify(payload.pawns));
+        if (this.name === 'Alice') {
+          botSeats = (payload.seats || []).filter((seat) => seat && seat.bot).map((seat) => seat.seat);
+        }
         this.resetTurnIntents();
         if (payload.awaitingMove && payload.turnSeat === this.seat) {
           // Rejoined mid-own-move: the dice is already rolled.
@@ -296,9 +311,13 @@ class TestPlayer {
 async function main() {
   const alice = new TestPlayer('Alice');
   const bob = new TestPlayer('Bob');
+  const carol = new TestPlayer('Carol');
+  const dave = new TestPlayer('Dave');
   await alice.login();
   await bob.login();
-  log('both authenticated');
+  await carol.login();
+  await dave.login();
+  log('all authenticated');
 
   // --- create + join by code ---
   const created = await alice.rpc('create_private_match');
@@ -312,6 +331,9 @@ async function main() {
 
   await delay(1500);
   assert(alice.lobbyState?.hostUserId === alice.session.user_id, 'alice is host');
+  const openingSeats = alice.lobbyState?.seats || [];
+  assert(openingSeats.length === 4 && openingSeats.every((seat) => seat && seat.bot && seat.userId === ''),
+    `a new room opens with four Bots (${JSON.stringify(openingSeats)})`);
   log(`lobby formed, code ${created.code}`);
 
   // --- chat ---
@@ -326,7 +348,7 @@ async function main() {
   deliberateRejectionDone = false;
   alice.send(OpCode.START);
   await delay(1200);
-  assert(deliberateRejectionDone, 'START before seats claimed was rejected');
+  assert(deliberateRejectionDone, 'START by an unseated host was rejected');
 
   // --- claim seats (players join unassigned; claiming a base auto-readies) ---
   alice.send(OpCode.CLAIM_SEAT, { seat: 0 });
@@ -334,6 +356,9 @@ async function main() {
   await delay(1200);
   assert(alice.seat === 0, `alice claimed seat 0 (got ${alice.seat})`);
   assert(bob.seat === 1, `bob claimed seat 1 (got ${bob.seat})`);
+  const claimedSeats = alice.lobbyState?.seats || [];
+  assert(claimedSeats[0] && !claimedSeats[0].bot && claimedSeats[2]?.bot && claimedSeats[3]?.bot,
+    'claiming replaced two Bots, the other two stay Bots');
   const gameOverPromise = new Promise((resolve) => {
     alice.onGameOver = resolve;
   });
@@ -374,6 +399,37 @@ async function main() {
     log(`bob reconnected, STATE_SYNC ok (pawns before leave: ${JSON.stringify(pawnsBefore)})`);
   })();
 
+  // --- mid-game joiners take over the Bots, pawns as they stand ---
+  const takeOver = async (player, seatIndex) => {
+    const takenOver = new Promise((resolve) => {
+      player.onStateSync = (snapshot) => {
+        if (snapshot.seats?.[seatIndex]?.userId === player.session.user_id) resolve(snapshot);
+      };
+    });
+    await player.joinMatch(created.matchId);
+    await delay(500);
+    const pawnsBefore = JSON.parse(JSON.stringify(alice.pawns[seatIndex]));
+    player.send(OpCode.CLAIM_SEAT, { seat: seatIndex });
+    const snapshot = await Promise.race([takenOver, delay(5000).then(() => null)]);
+    assert(snapshot && !snapshot.seats[seatIndex].bot, `${player.name} took over the Bot on seat ${seatIndex} mid-game`);
+    if (!snapshot) return;
+    player.seat = seatIndex;
+    // Not reset to home (the Bot may still have moved while the claim was in flight).
+    if (pawnsBefore.some((p) => p > 0)) {
+      assert(snapshot.pawns[seatIndex].some((p) => p > 0),
+        `takeover keeps the Bot's pawns (${JSON.stringify(pawnsBefore)} -> ${JSON.stringify(snapshot.pawns[seatIndex])})`);
+    }
+    player.startWatchdog();
+    log(`${player.name} took over seat ${seatIndex} (pawns ${JSON.stringify(snapshot.pawns[seatIndex])})`);
+  };
+  const takeoverCheck = (async () => {
+    while (botMovesSeen < 4) {
+      await delay(500);
+    }
+    await takeOver(carol, 2);
+    await takeOver(dave, 3);
+  })();
+
   // --- wrong-turn roll must be rejected (deliberately; retried because the
   // turn can legitimately flip while the probe is in flight) ---
   const wrongTurnCheck = (async () => {
@@ -395,10 +451,11 @@ async function main() {
   ]);
   await wrongTurnCheck;
   await Promise.race([reconnectCheck, delay(5000)]);
+  await Promise.race([takeoverCheck, delay(12000)]);
 
   if (winner) {
     log(`GAME_OVER: seat ${winner.winnerSeat} won after ${movesSeen} moves`);
-    assert(winner.winnerSeat === 0 || winner.winnerSeat === 1, 'winner seat valid');
+    assert(winner.winnerSeat >= 0 && winner.winnerSeat <= 3, 'winner seat valid');
     await delay(500);
     assert(bobSawGameOver, 'both clients saw GAME_OVER');
     const winnerPawns = alice.pawns[winner.winnerSeat];
@@ -407,6 +464,7 @@ async function main() {
     failures.push(`game did not finish within ${GAME_TIMEOUT_MS / 60000} minutes (moves: ${movesSeen})`);
   }
 
+  assert(botMovesSeen > 0, `Bots moved on their own (${botMovesSeen})`);
   assert(capturesSeen > 0, `captures happened during the game (${capturesSeen})`);
   assert(repeatsSeen > 0, `six granted extra turns (${repeatsSeen})`);
   assert(reconnectTested && stateSyncChecked, 'reconnect + STATE_SYNC exercised');
@@ -419,7 +477,7 @@ async function main() {
 
   console.log(failures.length
     ? `\nE2E FAILED — ${failures.length} failure(s):\n- ${failures.join('\n- ')}`
-    : `\nE2E PASSED — moves=${movesSeen} captures=${capturesSeen} repeats=${repeatsSeen} rejections=${rejectionsSeen}`);
+    : `\nE2E PASSED — moves=${movesSeen} botMoves=${botMovesSeen} captures=${capturesSeen} repeats=${repeatsSeen} rejections=${rejectionsSeen}`);
   process.exit(failures.length ? 1 : 0);
 }
 

@@ -26,7 +26,7 @@ import { getOutlineAppearancePreset } from './utils/outlineAppearance';
 import { getRenderQualityPreset, RENDER_QUALITY_MIN } from './utils/renderQuality';
 import { PLAYER_COLORS } from './utils/playerColors';
 import Player from './utils/Player';
-import MatchController from './network/MatchController';
+import MatchController, { seatPlayerName } from './network/MatchController';
 import { readMatchUrl, loadActiveMatch } from './utils/matchSession';
 import { getRandomHitEffectSvg, HIT_EFFECT_DURATION_MS } from './utils/hitEffects';
 import {
@@ -69,7 +69,7 @@ import {
   poseDustPuff,
 } from './utils/finishers';
 import { playFinisherImpact, playFinisherWindup } from './utils/sound';
-import { DEFAULT_FINISHER, DEFAULT_FLAG, NO_FINISHER, pawnLook, wearableCosmetics } from '../shared/protocol';
+import { DEFAULT_FINISHER, DEFAULT_FLAG, NO_FINISHER, guestCosmetics, pawnLook, wearableCosmetics } from '../shared/protocol';
 
 const OUTLINE_COLOR = '#1b1411';
 const BOARD_CENTER = { x: 5, z: 5 };
@@ -1794,6 +1794,9 @@ export default {
       const seatInfo = (online.seats || [])[seat];
       if (!seatInfo) {
         return null;
+      }
+      if (seatInfo.bot) {
+        return guestCosmetics(); // a Bot wears nothing (CONTEXT.md: Bot)
       }
       if (seatInfo.userId === online.selfUserId && online.account.member) {
         return wearableCosmetics(this.store.settings.cosmetics, online.store.owned);
@@ -3650,9 +3653,9 @@ export default {
       const seats = this.store.online.seats || [];
       seats.forEach((seat) => {
         if (seat) {
-          const isMe = seat.userId === this.store.online.selfUserId;
+          const isMe = !seat.bot && seat.userId === this.store.online.selfUserId;
           const controller = isMe ? 'local' : 'remote';
-          const name = seat.displayName || seat.username || `Player ${seat.seat + 1}`;
+          const name = seatPlayerName(seat);
           const player = markRaw(new Player(name, PLAYER_COLORS[seat.seat], seat.seat + 1, controller));
           this.store.players.push(player);
         }
@@ -3672,14 +3675,14 @@ export default {
         !this.store.winner;
     },
 
-    // Lobby: any empty seat. Mid-game: an empty seat (fresh pawns from home)
-    // or a disconnected player's seat (take their pawns over as they stand).
+    // A Bot's seat, any time; mid-game also a disconnected player's seat
+    // (both taken over with their pawns as they stand).
     isSeatClaimable(baseIdx) {
       const seat = this.store.online.seats[baseIdx];
-      if (this.store.currentScreen === 'game-screen') {
-        return !seat || seat.connected === false;
+      if (!seat || seat.bot) {
+        return true;
       }
-      return !seat;
+      return this.store.currentScreen === 'game-screen' && seat.connected === false;
     },
 
     handleBaseClick(idx) {
@@ -3987,7 +3990,7 @@ export default {
         seatToPlayerIndex[seat.seat] = this.store.players.length;
         this.store.players.push(
             markRaw(new Player(
-                seat.displayName || seat.username || `Player ${seat.seat + 1}`,
+                seatPlayerName(seat),
                 PLAYER_COLORS[seat.seat],
                 seat.seat + 1,
                 seat.seat === this.store.online.mySeat ? 'local' : 'remote',

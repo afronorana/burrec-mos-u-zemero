@@ -76,7 +76,7 @@
         </template>
         <template v-else>
           <span class="lobby-seat-chip-text">
-            <span class="lobby-seat-chip-name lobby-seat-chip-name--free">{{ t('online.freeSlot') }}</span>
+            <span class="lobby-seat-chip-name lobby-seat-chip-name--free">{{ t('online.computer') }}</span>
             <span class="lobby-seat-chip-meta">{{ t('online.clickToJoin') }}</span>
           </span>
         </template>
@@ -118,9 +118,9 @@ export default {
     isHost() {
       return this.store.online.hostUserId === this.store.online.selfUserId;
     },
+    // Bots hold every other seat, so the host can start once seated.
     canStart() {
-      const seated = (this.store.online.seats || []).filter(Boolean);
-      return seated.length >= 2 && seated.every((seat) => seat.ready);
+      return Boolean(this.mySeatObject);
     },
     // Display name of the admin (host), resolved from their seat.
     adminName() {
@@ -142,10 +142,13 @@ export default {
   },
   methods: {
     t,
+    // A human's seat, or null for a Bot's (CONTEXT.md: Bot), which any
+    // player may take.
     seatAt(index) {
-      return (this.store.online.seats || [])[index] || null;
+      const seat = (this.store.online.seats || [])[index];
+      return seat && !seat.bot ? seat : null;
     },
-    // Free seat: claim it. Someone else's: Block / Report them.
+    // A Bot's seat: claim it. Someone else's: Block / Report them.
     claimSeat(index) {
       const seat = this.seatAt(index);
       if (!seat) {

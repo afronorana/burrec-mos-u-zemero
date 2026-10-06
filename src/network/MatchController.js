@@ -2,7 +2,8 @@
 // opcodes into ApplicationStore mutations and EventBus events, and client
 // intents into match messages.
 //
-// Ordering: MOVE_APPLIED / TURN_CHANGE / GAME_OVER go through a FIFO queue
+// Ordering: DICE_RESULT (when something is still animating) / MOVE_APPLIED /
+// TURN_CHANGE / GAME_OVER go through a FIFO queue
 // that pauses while dice physics (store.online.diceInFlight), a pawn move
 // animation (this.moveInFlight) or a capture Finisher
 // (store.online.finisherInFlight) is playing, so server events never interrupt
@@ -14,6 +15,7 @@ import ChatController from './ChatController';
 import ApplicationStore from '../utils/ApplicationStore';
 import EventBus from '../utils/eventhandler';
 import EventKeys from '../utils/EventKeys';
+import { t } from '../utils/i18n';
 import {
   saveActiveMatch,
   writeMatchUrl,
@@ -24,6 +26,14 @@ const JOIN_CODE_RETRY_MS = 1500; // match label indexing lags ~1s behind matchCr
 const REJOIN_ATTEMPTS = 5;
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// A seat's shown name; every Bot is "Computer" (CONTEXT.md: Bot).
+export function seatPlayerName(seat) {
+  if (seat.bot) {
+    return t('online.computer');
+  }
+  return seat.displayName || seat.username || `Player ${seat.seat + 1}`;
+}
 
 class MatchControllerService {
   constructor() {
@@ -312,9 +322,13 @@ class MatchControllerService {
         this.handleGameStart(payload);
         break;
       case OpCode.DICE_RESULT:
-        this.online().pendingDice = payload;
-        this.online().diceInFlight = true;
-        EventBus.fire(EventKeys.net.diceResult, payload);
+        // Bots roll on the server's clock: a roll may arrive while earlier
+        // events are still animating, so it waits its turn in the FIFO.
+        if (this.opQueue.length || this.queueBlocked()) {
+          this.opQueue.push({ opCode: matchData.op_code, payload });
+        } else {
+          this.applyDiceResult(payload);
+        }
         break;
       case OpCode.MOVE_APPLIED:
       case OpCode.TURN_CHANGE:
@@ -374,15 +388,27 @@ class MatchControllerService {
     EventBus.fire(EventKeys.game.startOnline, payload);
   }
 
+  queueBlocked() {
+    const online = this.online();
+    return online.diceInFlight || this.moveInFlight || online.finisherInFlight;
+  }
+
+  applyDiceResult(payload) {
+    this.online().pendingDice = payload;
+    this.online().diceInFlight = true;
+    EventBus.fire(EventKeys.net.diceResult, payload);
+  }
+
   pumpQueue() {
     while (this.opQueue.length) {
-      const online = this.online();
-      if (online.diceInFlight || this.moveInFlight || online.finisherInFlight) {
+      if (this.queueBlocked()) {
         return;
       }
 
       const item = this.opQueue.shift();
-      if (item.opCode === OpCode.MOVE_APPLIED) {
+      if (item.opCode === OpCode.DICE_RESULT) {
+        this.applyDiceResult(item.payload);
+      } else if (item.opCode === OpCode.MOVE_APPLIED) {
         this.applyMove(item.payload);
       } else if (item.opCode === OpCode.TURN_CHANGE) {
         EventBus.fire(EventKeys.net.turnChange, item.payload);

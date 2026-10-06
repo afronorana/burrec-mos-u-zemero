@@ -138,7 +138,7 @@ export default {
         return message.username;
       }
       const seats = this.store?.online?.seats || [];
-      const seat = seats.find((s) => s && s.userId === message.senderId);
+      const seat = seats.find((s) => s && !s.bot && s.userId === message.senderId);
       if (seat) {
         return seat.displayName || seat.username || message.username;
       }
@@ -149,7 +149,7 @@ export default {
     },
     getSenderColor(message) {
       const seats = this.store?.online?.seats || [];
-      const seat = seats.find((s) => s && s.userId === message.senderId);
+      const seat = seats.find((s) => s && !s.bot && s.userId === message.senderId);
       if (seat) {
         return PLAYER_COLORS[seat.seat];
       }

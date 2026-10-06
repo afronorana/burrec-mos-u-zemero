@@ -1,13 +1,14 @@
 // Authoritative 'ludo' match handler. All timing lives in matchLoop ticks —
 // the goja runtime has no setTimeout.
 
-import { OpCode, decodePayload, encodePayload, guestCosmetics, sanitizeCosmetics, wearableCosmetics } from '../../shared/protocol.js';
+import { BOT_DISPLAY_NAME, NO_FINISHER, OpCode, decodePayload, encodePayload, guestCosmetics, sanitizeCosmetics, wearableCosmetics } from '../../shared/protocol.js';
 import { isMember } from './auth';
 import { recordGamesPlayed, touchLastSeen } from './moderation';
 import { ownedItems } from './store';
 import {
   allHome,
   applyMove,
+  chooseBotMove,
   initialPawns,
   legalPawns,
   rollDie,
@@ -21,6 +22,13 @@ const DISCONNECTED_TURN_TIMEOUT_TICKS = 6 * TICK_RATE;
 const EMPTY_TERMINATE_TICKS = 60 * TICK_RATE;
 const MAX_ROLLS_WHEN_ALL_HOME = 3;
 const MAX_SEATS = 4;
+// Bot pacing (CONTEXT.md: Bot) — roughly how long clients take to show what
+// just happened, so a Bot never acts while the board is still animating.
+const BOT_THINK_TICKS = 2; // before a Bot rolls
+const BOT_DICE_TICKS = 5; // dice physics settling before the Bot moves
+const BOT_STEP_MS = 220; // client PAWN_STEP_DURATION_MS
+const BOT_MOVE_EXTRA_MS = 600;
+const BOT_CAPTURE_MS = 3200; // a Finisher (or the lite burst + flight home)
 
 export interface Seat {
   userId: string;
@@ -29,6 +37,8 @@ export interface Seat {
   seat: number;
   ready: boolean;
   connected: boolean;
+  // CONTEXT.md: Bot — no human owner (userId ''), played by the server.
+  bot: boolean;
 }
 
 export interface LudoState {
@@ -54,6 +64,8 @@ export interface LudoState {
   rollsThisTurn: number;
   pawns: number[][];
   turnDeadlineTick: number;
+  // Earliest tick a Bot may roll or move (see the BOT_* pacing constants).
+  botActTick: number;
   // The turn-holder's own deadline while they're disconnected (the live one
   // is cut to DISCONNECTED_TURN_TIMEOUT_TICKS); restored if they come back
   // in time, e.g. a page refresh mid-turn.
@@ -92,21 +104,44 @@ function makeLabel(state: LudoState): string {
 function seatOfUser(state: LudoState, userId: string): Seat | null {
   for (let i = 0; i < MAX_SEATS; i += 1) {
     const seat = state.seats[i];
-    if (seat && seat.userId === userId) {
+    if (seat && !seat.bot && seat.userId === userId) {
       return seat;
     }
   }
   return null;
 }
 
-function seatedCount(state: LudoState): number {
-  let count = 0;
+// Every seat no human holds is a Bot (CONTEXT.md: Bot), from matchInit on.
+function botSeat(index: number): Seat {
+  return {
+    userId: '',
+    username: '',
+    displayName: BOT_DISPLAY_NAME,
+    seat: index,
+    ready: true,
+    connected: true,
+    bot: true,
+  };
+}
+
+function humanSeat(index: number, userId: string, username: string, displayName: string): Seat {
+  return { userId, username, displayName, seat: index, ready: true, connected: true, bot: false };
+}
+
+// A seat a human may take: a Bot's (or, defensively, an empty slot).
+function isTakeable(seat: Seat | null): boolean {
+  return !seat || seat.bot;
+}
+
+function humanUserIds(state: LudoState): string[] {
+  const ids: string[] = [];
   for (let i = 0; i < MAX_SEATS; i += 1) {
-    if (state.seats[i]) {
-      count += 1;
+    const seat = state.seats[i];
+    if (seat && !seat.bot) {
+      ids.push(seat.userId);
     }
   }
-  return count;
+  return ids;
 }
 
 function allPresences(state: LudoState): nkruntime.Presence[] {
@@ -159,22 +194,27 @@ function snapshotPayload(state: LudoState, tick: number): object {
 }
 
 function hasFreeSeat(state: LudoState): boolean {
-  return seatedCount(state) < MAX_SEATS;
-}
-
-// A seat whose player left mid-game: a newcomer may take it over, pawns and all.
-function hasAbandonedSeat(state: LudoState): boolean {
   for (let i = 0; i < MAX_SEATS; i += 1) {
-    const seat = state.seats[i];
-    if (seat && !seat.connected) {
+    if (isTakeable(state.seats[i])) {
       return true;
     }
   }
   return false;
 }
 
-// Drives label.open: lobbies with room, and running games with a free slot or
-// an abandoned seat, are joinable.
+// A seat whose player left mid-game: a newcomer may take it over, pawns and all.
+function hasAbandonedSeat(state: LudoState): boolean {
+  for (let i = 0; i < MAX_SEATS; i += 1) {
+    const seat = state.seats[i];
+    if (seat && !seat.bot && !seat.connected) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Drives label.open: lobbies with a Bot seat, and running games with a Bot
+// or an Abandoned seat, are joinable.
 function isJoinable(state: LudoState): boolean {
   if (state.phase === 'lobby') {
     return hasFreeSeat(state);
@@ -232,8 +272,14 @@ function turnDeadline(state: LudoState, tick: number): number {
   return tick + ticks;
 }
 
+// Keeps a Bot from acting before `ticks` from now (never shortens a hold).
+function holdBots(state: LudoState, tick: number, ticks: number) {
+  state.botActTick = Math.max(state.botActTick, tick + ticks);
+}
+
 function advanceTurn(state: LudoState, dispatcher: nkruntime.MatchDispatcher, tick: number, reason: string) {
   resetTurnState(state);
+  holdBots(state, tick, BOT_THINK_TICKS);
 
   let next = state.turnSeat;
   for (let step = 1; step <= MAX_SEATS; step += 1) {
@@ -260,6 +306,7 @@ function advanceTurn(state: LudoState, dispatcher: nkruntime.MatchDispatcher, ti
 
 function repeatTurn(state: LudoState, dispatcher: nkruntime.MatchDispatcher, tick: number) {
   resetTurnState(state);
+  holdBots(state, tick, BOT_THINK_TICKS);
   state.turnDeadlineTick = turnDeadline(state, tick);
 
   broadcast(dispatcher, OpCode.TURN_CHANGE, {
@@ -275,7 +322,10 @@ function doMove(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkruntime.Ma
   const steps = state.dice as number;
   const result = applyMove(state.pawns, seat, pawnIndex, steps);
   const mover = state.seats[seat];
-  const moverCosmetics = mover ? state.cosmetics[mover.userId] : null;
+  const moverCosmetics = mover && !mover.bot ? state.cosmetics[mover.userId] : null;
+  const moveMs = (result.fromPos === 0 ? 1 : steps) * BOT_STEP_MS + BOT_MOVE_EXTRA_MS +
+    (result.captures.length > 0 ? BOT_CAPTURE_MS : 0);
+  holdBots(state, tick, Math.ceil(moveMs / (1000 / TICK_RATE)));
 
   broadcast(dispatcher, OpCode.MOVE_APPLIED, {
     seat,
@@ -287,7 +337,8 @@ function doMove(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkruntime.Ma
     extraTurn: result.extraTurn && !result.won,
     // Stamped here so every client plays the same Finisher even if the
     // mover changes cosmetics while this event is still queued client-side.
-    finisher: moverCosmetics ? moverCosmetics.finisher : sanitizeCosmetics(null).finisher,
+    // A Bot wears nothing, so its Capture is the lite one.
+    finisher: moverCosmetics ? moverCosmetics.finisher : NO_FINISHER,
   });
 
   if (result.won) {
@@ -299,11 +350,12 @@ function doMove(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkruntime.Ma
     // A finished match takes no more joiners — close the label.
     refreshOpenLabel(state, dispatcher);
 
+    // Bots are left out of the player list; a Bot win is recorded as one.
     const playerNames: string[] = [];
-    let winnerName = 'Player';
+    let winnerName = BOT_DISPLAY_NAME;
     for (let i = 0; i < MAX_SEATS; i += 1) {
       const s = state.seats[i];
-      if (s) {
+      if (s && !s.bot) {
         playerNames.push(s.displayName || s.username || 'Player');
         if (i === seat) {
           winnerName = s.displayName || s.username || 'Player';
@@ -336,7 +388,13 @@ function handleRollRequest(state: LudoState, dispatcher: nkruntime.MatchDispatch
   }
 
   const demand = state.demoDice && typeof payload.demand === 'number' ? Math.floor(payload.demand) : 0;
-  const value = demand >= 1 && demand <= 6 ? demand : rollDie();
+  rollForTurn(state, dispatcher, tick, demand >= 1 && demand <= 6 ? demand : rollDie());
+}
+
+// The turn-holder rolls `value` (validated by the caller; Bots call it
+// directly).
+function rollForTurn(state: LudoState, dispatcher: nkruntime.MatchDispatcher, tick: number, value: number) {
+  holdBots(state, tick, BOT_DICE_TICKS);
   state.dice = value;
   state.rollsThisTurn += 1;
 
@@ -386,6 +444,15 @@ function handleRollRequest(state: LudoState, dispatcher: nkruntime.MatchDispatch
   advanceTurn(state, dispatcher, tick, 'noMoves');
 }
 
+// One Bot action per call: roll, or move the chosen pawn.
+function playBot(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkruntime.MatchDispatcher, tick: number) {
+  if (state.awaitingMove && state.legalPawns.length > 0) {
+    doMove(nk, state, dispatcher, tick, chooseBotMove(state.pawns, state.turnSeat, state.dice as number, state.legalPawns));
+  } else if (state.dice === null) {
+    rollForTurn(state, dispatcher, tick, rollDie());
+  }
+}
+
 function handleMoveRequest(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkruntime.MatchDispatcher, tick: number, sender: nkruntime.Presence, payload: { pawnIndex?: number }) {
   const senderSeat = seatOfUser(state, sender.userId);
   const pawnIndex = typeof payload.pawnIndex === 'number' ? payload.pawnIndex : -1;
@@ -410,17 +477,10 @@ function handleStart(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkrunti
     return;
   }
 
-  if (seatedCount(state) < 2) {
-    reject(dispatcher, sender, 'not_enough_players', OpCode.START);
+  // Bots hold every other seat, so the host may start whenever they hold one.
+  if (!seatOfUser(state, sender.userId)) {
+    reject(dispatcher, sender, 'not_seated', OpCode.START);
     return;
-  }
-
-  for (let i = 0; i < MAX_SEATS; i += 1) {
-    const seat = state.seats[i];
-    if (seat && !seat.ready) {
-      reject(dispatcher, sender, 'not_all_ready', OpCode.START);
-      return;
-    }
   }
 
   state.phase = 'playing';
@@ -436,8 +496,9 @@ function handleStart(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkrunti
     }
   }
   state.turnDeadlineTick = turnDeadline(state, tick);
-  // A started game stays open (label-wise) while it still has free seats —
-  // drop-in joiners are welcome.
+  state.botActTick = tick + BOT_THINK_TICKS;
+  // A started game stays open (label-wise) while it still has a Bot seat —
+  // drop-in joiners take Bots over.
   state.labelOpen = isJoinable(state) ? 1 : 0;
 
   broadcast(dispatcher, OpCode.GAME_START, {
@@ -448,7 +509,7 @@ function handleStart(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkrunti
   });
   dispatcher.matchLabelUpdate(makeLabel(state));
   recordGameStarted(nk);
-  recordGamesPlayed(nk, state.seats.filter((seat) => !!seat).map((seat) => (seat as Seat).userId));
+  recordGamesPlayed(nk, humanUserIds(state));
 }
 
 const matchInit = function (
@@ -467,7 +528,7 @@ const matchInit = function (
     mode,
     joinCode,
     environment,
-    seats: [null, null, null, null],
+    seats: [botSeat(0), botSeat(1), botSeat(2), botSeat(3)],
     displayNames: {},
     cosmetics: {},
     hostUserId: null,
@@ -479,6 +540,7 @@ const matchInit = function (
     rollsThisTurn: 0,
     pawns: initialPawns(),
     turnDeadlineTick: 0,
+    botActTick: 0,
     savedTurnDeadline: null,
     emptyTicks: 0,
     winnerSeat: null,
@@ -622,13 +684,13 @@ const matchLeave = function (
     }
 
     if (state.phase === 'lobby') {
-      state.seats[seat.seat] = null;
+      state.seats[seat.seat] = botSeat(seat.seat);
 
       if (state.hostUserId === presence.userId) {
         state.hostUserId = null;
         for (let i = 0; i < MAX_SEATS; i += 1) {
           const candidate = state.seats[i];
-          if (candidate) {
+          if (candidate && !candidate.bot) {
             state.hostUserId = candidate.userId;
             break;
           }
@@ -724,49 +786,34 @@ const matchLoop = function (
         if (state.phase === 'lobby') {
           if (senderSeat) {
             if (senderSeat.seat === targetSeatIndex) {
-              // Clicked own seat: toggle back to UNASSIGNED (unclaim)
-              state.seats[targetSeatIndex] = null;
+              // Clicked own seat: unclaim — the Bot takes it back
+              state.seats[targetSeatIndex] = botSeat(targetSeatIndex);
               broadcast(dispatcher, OpCode.LOBBY_STATE, lobbyStatePayload(state));
-            } else if (state.seats[targetSeatIndex] === null) {
-              // Move to new empty seat
+            } else if (isTakeable(state.seats[targetSeatIndex])) {
+              // Move to another Bot's seat; the old one goes back to a Bot
               const oldIndex = senderSeat.seat;
-              state.seats[oldIndex] = null;
+              state.seats[oldIndex] = botSeat(oldIndex);
 
               senderSeat.seat = targetSeatIndex;
               senderSeat.ready = true; // Claiming color makes player ready
               state.seats[targetSeatIndex] = senderSeat;
               broadcast(dispatcher, OpCode.LOBBY_STATE, lobbyStatePayload(state));
             }
-          } else if (state.seats[targetSeatIndex] === null) {
-            // Unassigned player claiming an empty seat
-            state.seats[targetSeatIndex] = {
-              userId: sender.userId,
-              username: sender.username,
-              displayName: claimName,
-              seat: targetSeatIndex,
-              ready: true, // Claiming color makes player ready
-              connected: true,
-            };
+          } else if (isTakeable(state.seats[targetSeatIndex])) {
+            // Unassigned player replacing a Bot (claiming makes them ready)
+            state.seats[targetSeatIndex] = humanSeat(targetSeatIndex, sender.userId, sender.username, claimName);
             broadcast(dispatcher, OpCode.LOBBY_STATE, lobbyStatePayload(state));
           }
           break;
         }
 
-        // Mid-game claims: only for players without a seat. An empty seat is
-        // a fresh drop-in (pawns start from home — state.pawns already holds
-        // them there); a disconnected seat is a takeover, pawns as they stand.
+        // Mid-game claims: only for players without a seat. A Bot's seat or
+        // a disconnected (Abandoned) seat is taken over, pawns as they stand.
         if (state.phase === 'playing' && !senderSeat) {
           const target = state.seats[targetSeatIndex];
-          if (target === null) {
-            state.seats[targetSeatIndex] = {
-              userId: sender.userId,
-              username: sender.username,
-              displayName: claimName,
-              seat: targetSeatIndex,
-              ready: true,
-              connected: true,
-            };
-          } else if (!target.connected) {
+          if (isTakeable(target)) {
+            state.seats[targetSeatIndex] = humanSeat(targetSeatIndex, sender.userId, sender.username, claimName);
+          } else if (target && !target.connected) {
             target.userId = sender.userId;
             target.username = sender.username;
             target.displayName = claimName;
@@ -795,13 +842,19 @@ const matchLoop = function (
     }
   }
 
-  if (
+  const turnHolder = state.phase === 'playing' ? state.seats[state.turnSeat] : null;
+  if (turnHolder && turnHolder.bot) {
+    if (tick >= state.botActTick) {
+      playBot(nk, state, dispatcher, tick);
+    }
+  } else if (
     state.phase === 'playing' &&
     state.turnDeadlineTick > 0 &&
     tick >= state.turnDeadlineTick
   ) {
+    // Abandoned seat autopilot (or an idle human): same pick as a Bot.
     if (state.awaitingMove && state.legalPawns.length > 0) {
-      doMove(nk, state, dispatcher, tick, state.legalPawns[0]);
+      doMove(nk, state, dispatcher, tick, chooseBotMove(state.pawns, state.turnSeat, state.dice as number, state.legalPawns));
     } else {
       advanceTurn(state, dispatcher, tick, 'timeout');
     }

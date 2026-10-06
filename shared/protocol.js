@@ -6,7 +6,7 @@ export var MATCH_MODULE = 'ludo';
 
 export var OpCode = {
   // server → client
-  LOBBY_STATE: 1, // { phase, seats:[{userId,username,displayName,seat,ready,connected}|null], hostUserId, joinCode }
+  LOBBY_STATE: 1, // { phase, seats:[{userId,username,displayName,seat,ready,connected,bot}], hostUserId, joinCode } — bot seats have userId ''
   GAME_START: 2, // { seats, turnSeat, round, turnMsLeft }
   DICE_RESULT: 3, // { seat, value, legalPawns:[0..3], rollsLeft, autoEndTurn, turnMsLeft? } (turnMsLeft unless autoEndTurn)
   MOVE_APPLIED: 4, // { seat, pawnIndex, fromPos, toPos, steps, captures:[{seat,pawnIndex}], extraTurn, finisher }
@@ -17,13 +17,17 @@ export var OpCode = {
 
   // client → server
   READY: 10, // { ready: boolean }
-  START: 11, // {} (host only)
+  START: 11, // {} (host only, and only while seated; Bots fill the rest)
   ROLL_REQUEST: 12, // {} — or { demand: 1..6 }, honored only when the server runs with DEMO_DICE=1
   MOVE_REQUEST: 13, // { pawnIndex }
   SYNC_REQUEST: 14, // {}
   CLAIM_SEAT: 15, // { seat: number }
   SET_COSMETICS: 16, // { prop, finisher, flag } — lobby phase only; answered with a LOBBY_STATE broadcast
 };
+
+// CONTEXT.md: Bot — every seat no human holds. Bots have no userId, wear no
+// Cosmetics and are shown under this name (clients may translate it).
+export var BOT_DISPLAY_NAME = 'Computer';
 
 // Cosmetics catalog: a player's Prop (worn by all four pawns) and Finisher
 // (the presentation of their captures), plus the country flag the `flag`

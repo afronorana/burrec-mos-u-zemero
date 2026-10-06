@@ -207,7 +207,7 @@ export default {
       let player = null;
       if (this.store.online.enabled) {
         const seatObj = (this.store.online.seats || []).find(
-          (s) => s && s.userId === lastMsg.senderId
+          (s) => s && !s.bot && s.userId === lastMsg.senderId
         );
         if (!seatObj) return;
         const playerIndex = this.store.online.seatToPlayerIndex[seatObj.seat];
@@ -250,7 +250,7 @@ export default {
     // Tap another player's chip: Block / Report them (seat = turn - 1).
     openSeatActions(player) {
       const seat = (this.store.online.seats || [])[player.turn - 1];
-      if (seat) {
+      if (seat && !seat.bot) {
         openPlayerActions({ userId: seat.userId, name: seat.displayName || player.name });
       }
     },

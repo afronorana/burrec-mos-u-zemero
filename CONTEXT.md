@@ -10,6 +10,16 @@ A 3D online take on "Mensch ärgere dich nicht" (Ludo): up to four players race 
 The rule event in which a pawn lands on an opponent's pawn on the main track and sends it back home.
 _Avoid_: kill, hit, knock out
 
+### Seats
+
+**Bot**:
+A seat with no human owner, played by the server. Every seat no human holds is a Bot, from the moment a room opens, so a game can start at any time, even with a single human. Shown to players as "Computer".
+_Avoid_: AI, computer player, opaque player
+
+**Abandoned seat**:
+A human's seat whose owner disconnected mid-game. The server plays it on autopilot until the owner returns or a newcomer takes it over; it is never a **Bot**.
+_Avoid_: AI seat, bot (for this sense)
+
 ### Cosmetics
 
 **Cosmetics**:
@@ -75,11 +85,14 @@ _Avoid_: redeem, collect, unlock
 - Each pawn has exactly one **Prop** (possibly none); a player has one **Finisher** shared by all four pawns — together, their **Cosmetics**
 - Every **Capture** plays the capturing player's **Finisher**, never the captured player's
 - A single move may **Capture** several pawns; they share one **Finisher**
-- A seat's **Cosmetics** stay with the seat when its owner disconnects, even while the AI plays it
+- A seat's **Cosmetics** stay with the seat when its owner disconnects, even while it is an **Abandoned seat**
 - **Cosmetics** are chosen in the Wardrobe (main menu) only and are locked once a match has started
 - A **Guest** may preview every item in the Wardrobe but wears none; in a match a Guest's **Capture** plays the lite presentation, never a **Finisher**
 - A **Member** may wear an item if its **Price tier** is free or they hold an **Entitlement** for it — a special item needs a **Claim** even while its window is open
 - Every item in the Wardrobe is previewable by everyone; tier only decides what can be worn
+- Every game is played with four seats: each is a human's, an **Abandoned seat**, or a **Bot**
+- A human taking a seat replaces its **Bot**, before or during the game (mid-game, with its pawns as they stand); a human leaving a seat before the game starts hands it back to a **Bot**
+- A **Bot** wears no **Cosmetics**, so its **Capture** plays the lite presentation; it never chats and cannot be **Reported** or **Blocked**
 - Every **Report** implies a **Block**; a **Block** never implies a **Report**
 - A **Block** and a **Shadowban** both touch chat only; neither removes anyone from a match or from matchmaking
 - Deleting a **Member** removes their **Entitlements** and **Blocks**, but **Reports** against them remain

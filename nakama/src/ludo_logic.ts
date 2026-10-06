@@ -126,3 +126,87 @@ export function applyMove(pawns: number[][], seat: number, pawnIndex: number, di
 export function rollDie(): number {
   return Math.floor(Math.random() * 6) + 1;
 }
+
+// True when an opponent pawn could land on main-track `tile` with one roll:
+// a track pawn 1-6 tiles behind it (that would not turn into its own lane
+// first), or a pawn at home when `tile` is that opponent's start tile.
+function threatened(pawns: number[][], seat: number, tile: number): boolean {
+  for (let s = 0; s < 4; s += 1) {
+    if (s === seat) {
+      continue;
+    }
+    for (let j = 0; j < 4; j += 1) {
+      const p = pawns[s][j];
+      if (p === 0) {
+        if (globalPosition(s, 1) === tile) {
+          return true;
+        }
+        continue;
+      }
+      if (p > 40) {
+        continue;
+      }
+      const distance = (tile - globalPosition(s, p) + 40) % 40;
+      if (distance >= 1 && distance <= 6 && p + distance <= 40) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function capturesAt(pawns: number[][], seat: number, tile: number): boolean {
+  for (let s = 0; s < 4; s += 1) {
+    if (s === seat) {
+      continue;
+    }
+    for (let j = 0; j < 4; j += 1) {
+      const p = pawns[s][j];
+      if (p >= 1 && p <= 40 && globalPosition(s, p) === tile) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// The pawn a Bot moves (CONTEXT.md: Bot), also the autopilot for an
+// Abandoned seat. Preference: Capture > leave home > enter the target lane >
+// escape a threat > don't land in reach of an opponent > advance the leader.
+// `legal` must be non-empty (legalPawns for this seat and dice).
+export function chooseBotMove(pawns: number[][], seat: number, dice: number, legal: number[]): number {
+  let best = legal[0];
+  let bestScore = -Infinity;
+
+  for (let k = 0; k < legal.length; k += 1) {
+    const i = legal[k];
+    const from = pawns[seat][i];
+    const to = from === 0 ? 1 : from + dice;
+    let score = from; // tie-break: advance the leading pawn
+
+    if (to <= 40) {
+      const tile = globalPosition(seat, to);
+      if (capturesAt(pawns, seat, tile)) {
+        score += 1000;
+      }
+      if (threatened(pawns, seat, tile)) {
+        score -= 150;
+      }
+    }
+    if (from === 0) {
+      score += 500;
+    } else if (from <= 40 && to > 40) {
+      score += 300;
+    }
+    if (from >= 1 && from <= 40 && threatened(pawns, seat, globalPosition(seat, from))) {
+      score += 200;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      best = i;
+    }
+  }
+
+  return best;
+}
