@@ -251,20 +251,6 @@ html, body, #app {
 }
 
 
-/* Settings: middle-right (same slot as the global trigger on menu screens).
-   Sits above the chat toggle (z 30) so the open panel isn't poked through. */
-.hud-settings-area {
-  position: absolute;
-  top: calc(50% - 50px);
-  right: 16px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-  pointer-events: all;
-  z-index: 40;
-}
-
 .hud-icon-btn {
   width: 44px;
   height: 44px;

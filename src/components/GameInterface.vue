@@ -1,53 +1,150 @@
 <template>
-  <div class="hud">
-    <!-- Connection trouble is the only global status worth a banner -->
-    <div v-if="connectionMessage" class="hud-connection-banner">{{ connectionMessage }}</div>
+  <!-- In-game HUD, three zones (desktop / phone upright / phone sideways
+       differ only in CSS):
+       - top bar: menu, room code (or connection state), sound, Style, chat
+       - players: everyone in turn order — a rail on the left, a strip of
+         four under the top bar on upright phones
+       - turn bar: bottom, in the active player's color — Roll / pick a
+         pawn on our turn, "<name>'s turn" otherwise -->
+  <!-- Hidden under the in-game Wardrobe: its preview is drawn into the
+       canvas beneath the DOM, so HUD pieces would float over the stage. -->
+  <div
+    class="hud"
+    :class="{ 'hud--behind': store.wardrobe.inGame }"
+    :style="{ '--turn-color': activePlayer ? activePlayer.color : '#ffffff' }"
+  >
+    <div class="hud-topbar">
+      <app-button orange class="hud-icon-btn" :title="t('hud.menu')" @click="toggleSettings">
+        <menu-icon :size="20" />
+      </app-button>
 
-    <div v-if="store.demoMode" class="hud-demo-badge">DEMO — 1-6 rolls</div>
+      <div class="hud-topbar-center">
+        <span v-if="connectionMessage" class="hud-status-pill hud-status-pill--alert">{{ connectionMessage }}</span>
+        <button
+          v-else-if="store.online.joinCode"
+          type="button"
+          class="hud-status-pill"
+          :title="t('hud.copyCode')"
+          @click="copyCode"
+        >
+          <span class="hud-status-label">{{ t('online.roomCodeLabel') }}</span>
+          <span class="hud-status-code">{{ codeCopied ? t('hud.copied') : store.online.joinCode }}</span>
+        </button>
+        <span v-if="store.demoMode" class="hud-status-pill hud-status-pill--demo">DEMO 1-6</span>
+      </div>
 
-    <!-- Private-room code, visible for the whole game (small, top-center).
-         Yields the slot to the connection banner when that shows. -->
-    <div v-if="store.online.joinCode && !connectionMessage" class="hud-room-code">
-      {{ t('online.roomCodeLabel') }}: {{ store.online.joinCode }}
+      <div class="hud-topbar-actions">
+        <app-button orange class="hud-icon-btn" :title="t('hud.sound')" @click="toggleSound">
+          <component :is="store.settings.soundEnabled ? 'VolumeIcon' : 'VolumeOffIcon'" :size="20" />
+        </app-button>
+        <!-- One restyle per game (in-game Wardrobe); for a Guest it's the
+             register pitch — the Wardrobe offers sign-up right there. -->
+        <app-button
+          v-if="canRestyle"
+          blue
+          class="hud-icon-btn"
+          :title="t('cosmetics.styleButton')"
+          @click="openWardrobe"
+        >
+          <shirt-icon :size="20" />
+        </app-button>
+        <chat-drawer embedded />
+      </div>
     </div>
 
-    <!-- Joined an ongoing match without a seat yet: prompt the color pick. -->
-    <div v-if="needsSeat" class="hud-choose-banner">{{ t('online.chooseColorPrompt') }}</div>
+    <!-- Players in turn order. Tapping another human opens Block/Report. -->
+    <div class="hud-players">
+      <div
+        v-for="(player, index) in orderedPlayers"
+        :key="player.turn"
+        class="hud-player"
+        :class="[
+          `hud-player--slot-${index}`,
+          {
+            'hud-player--active': player.isPlaying,
+            'hud-player--self': isSelf(player),
+            'hud-player--offline': seatOf(player)?.connected === false,
+            'hud-player--bot': seatOf(player)?.bot,
+          },
+        ]"
+        :style="{ '--chip-color': player.color }"
+        @click="openSeatActions(player)"
+      >
+        <span class="hud-player-avatar">
+          <bot-icon v-if="seatOf(player)?.bot" :size="16" />
+          <template v-else>{{ initialOf(player) }}</template>
+        </span>
+        <span class="hud-player-body">
+          <span class="hud-player-name">
+            {{ player.name }}<span v-if="isSelf(player)" class="hud-player-you">{{ t('hud.you') }}</span>
+          </span>
+          <span v-if="seatOf(player)?.connected === false" class="hud-player-sub">{{ t('hud.reconnecting') }}</span>
+          <span v-else class="hud-player-pips" :aria-label="progressLabel(player)">
+            <span
+              v-for="(state, pip) in progressOf(player)"
+              :key="pip"
+              class="hud-pip"
+              :class="`hud-pip--${state}`"
+            ></span>
+          </span>
+        </span>
 
-    <!-- Settings: middle-right trigger, centered modal -->
-    <div class="hud-settings-area">
-      <app-button
-        orange
-        class="hud-icon-btn"
-        :title="settingsOpen ? 'Close' : 'Settings'"
-        @click="toggleSettings"
-      >
-        <component :is="settingsOpen ? 'XIcon' : 'SettingsIcon'" :size="20" />
-      </app-button>
-      <!-- One restyle per game (in-game Wardrobe); for a Guest it's the
-           register pitch — the Wardrobe offers sign-up right there. -->
-      <app-button
-        v-if="canRestyle"
-        blue
-        class="hud-icon-btn"
-        :title="t('cosmetics.styleButton')"
-        @click="openWardrobe"
-      >
-        <shirt-icon :size="20" />
-      </app-button>
+        <!-- Turn timer: a CSS scaleX drain (compositor-only, no JS clock),
+             re-keyed per turn. v-timer-drain offsets it by the time already
+             elapsed, so a refresh/remount resumes mid-way. -->
+        <div
+          v-if="player.isPlaying && store.turnTimer.running"
+          :key="store.turnTimer.startedAt"
+          class="hud-player-timer"
+          :class="{ 'hud-player-timer--low': timerLow }"
+        >
+          <div v-timer-drain="store.turnTimer" class="hud-player-timer-fill"></div>
+        </div>
+
+        <transition name="speech-fade">
+          <div v-if="speechBubbles[player.turn]" class="hud-speech-bubble">
+            {{ speechBubbles[player.turn] }}
+          </div>
+        </transition>
+      </div>
     </div>
 
+    <!-- Whose turn, unmissable: the bar wears the active player's color. -->
+    <div v-if="!store.winner" class="hud-turnbar" :class="{ 'hud-turnbar--mine': isMyTurn }">
+      <template v-if="needsSeat">
+        <span class="hud-turnbar-text">{{ t('online.chooseColorPrompt') }}</span>
+      </template>
+      <template v-else-if="isMyTurn">
+        <span class="hud-turnbar-dot"></span>
+        <span class="hud-turnbar-text">
+          {{ canRoll ? t('hud.yourTurn') : (store.gamePlayStatus.isMoving ? t('hud.pickPawn') : t('hud.rolling')) }}
+        </span>
+        <app-button v-if="canRoll" orange class="hud-roll-btn" @click="roll">
+          <dices-icon :size="20" class="hud-roll-icon" />{{ t('hud.roll') }}
+        </app-button>
+      </template>
+      <template v-else-if="activePlayer">
+        <span class="hud-turnbar-dot"></span>
+        <span class="hud-turnbar-text">{{ t('hud.playerTurn', { name: activePlayer.name }) }}</span>
+      </template>
+      <div
+        v-if="activePlayer && store.turnTimer.running && !needsSeat"
+        :key="store.turnTimer.startedAt"
+        class="hud-turnbar-timer"
+        :class="{ 'hud-player-timer--low': timerLow }"
+      >
+        <div v-timer-drain="store.turnTimer" class="hud-player-timer-fill"></div>
+      </div>
+    </div>
+
+    <!-- Menu: preferences apply at once; Leave sits apart at the bottom. -->
     <div
       v-if="settingsOpen"
       class="global-settings-modal-backdrop"
       @click.self="settingsOpen = false"
     >
       <app-panel class="global-settings-card">
-        <h3 class="panel-title" style="margin-bottom: 16px;">{{ t('settings.title') }}</h3>
-
-        <div class="form-row">
-          <app-input v-model="settingsName" :label="t('online.yourName')" :max-length="12" />
-        </div>
+        <h3 class="panel-title" style="margin-bottom: 16px;">{{ t('hud.menu') }}</h3>
 
         <div class="form-row">
           <label class="select-label">{{ t('language') }}</label>
@@ -67,11 +164,9 @@
           />
         </div>
 
-        <app-button red class="hud-full-width" @click="askLeave">{{ t('online.leaveGame') }}</app-button>
-
-        <div class="menu-row" style="margin-top: 16px;">
-          <app-button red @click="settingsOpen = false">{{ t('back') }}</app-button>
-          <app-button :disabled="!settingsName.trim()" @click="saveSettings">{{ t('save') }}</app-button>
+        <div class="menu-row" style="margin-top: 8px;">
+          <app-button red @click="askLeave">{{ t('online.leaveGame') }}</app-button>
+          <app-button @click="settingsOpen = false">{{ t('online.close') }}</app-button>
         </div>
       </app-panel>
     </div>
@@ -87,49 +182,6 @@
         </div>
       </app-panel>
     </div>
-
-    <!-- Chat: bottom-right drawer (always enabled) -->
-    <chat-drawer />
-
-    <!-- Player seats pinned to the 4 screen corners, mirroring the lobby
-         chips (seat = player.turn - 1). -->
-    <div class="hud-seats-layer">
-      <div
-        v-for="player in store.players"
-        :key="player.turn"
-        class="hud-seat-chip"
-        :class="[`hud-seat-chip--corner-${player.turn - 1}`, { 'hud-seat-chip--active': player.isPlaying }]"
-        :style="{ '--chip-color': player.color }"
-        @click="openSeatActions(player)"
-      >
-        <!-- Speech bubble popup: below top-corner chips, above bottom ones -->
-        <transition name="speech-fade">
-          <div
-            v-if="speechBubbles[player.turn]"
-            class="hud-speech-bubble"
-            :class="{ 'hud-speech-bubble--below': player.turn - 1 <= 1 }"
-          >
-            {{ speechBubbles[player.turn] }}
-          </div>
-        </transition>
-
-        <span class="hud-dot hud-dot--sm" :style="{ background: player.color }"></span>
-        <span class="hud-seat-chip-name">{{ player.name }}</span>
-
-        <!-- Turn timer: a CSS scaleX drain (compositor-only, no JS clock),
-             re-keyed per turn. v-timer-drain offsets it by the time already
-             elapsed, so a refresh/remount resumes mid-way. -->
-        <div
-          v-if="player.isPlaying && store.turnTimer.running"
-          :key="store.turnTimer.startedAt"
-          class="hud-seat-chip-timer"
-          :class="{ 'hud-seat-chip-timer--low': timerLow }"
-        >
-          <div v-timer-drain="store.turnTimer" class="hud-seat-chip-timer-fill"></div>
-        </div>
-      </div>
-    </div>
-
   </div>
 </template>
 
@@ -140,26 +192,49 @@ import ApplicationStore from '../utils/ApplicationStore';
 import MatchController from '../network/MatchController';
 import { t } from '../utils/i18n';
 import { playTick } from '../utils/sound';
-import { Settings, Shirt, X } from '@lucide/vue';
+import EventBus from '../utils/eventhandler';
+import EventKeys from '../utils/EventKeys';
+import { Bot, Dices, Menu, Shirt, Volume2, VolumeX } from '@lucide/vue';
+
+// Pawn position model (Pawn.js): 0 home, 1-40 main track, 41+ target lane.
+const TRACK_END = 40;
+const PIP_ORDER = { done: 0, track: 1, home: 2 };
 
 export default {
   components: {
     ChatDrawer,
-    SettingsIcon: Settings,
+    BotIcon: Bot,
+    DicesIcon: Dices,
+    MenuIcon: Menu,
     ShirtIcon: Shirt,
-    XIcon: X,
+    VolumeIcon: Volume2,
+    VolumeOffIcon: VolumeX,
   },
   data() {
     return {
       store: ApplicationStore,
       settingsOpen: false,
       confirmLeave: false,
-      settingsName: '',
+      codeCopied: false,
       speechBubbles: {}, // { [player.turn]: 'message' }
       timerLow: false, // last 10s of the turn: red pulsing bar
     };
   },
   computed: {
+    // Turn order is seat order (seats can be non-contiguous online).
+    orderedPlayers() {
+      return this.store.players.slice().sort((a, b) => a.turn - b.turn);
+    },
+    activePlayer() {
+      return this.store.players.find((player) => player.isPlaying) || null;
+    },
+    isMyTurn() {
+      return Boolean(this.activePlayer && this.activePlayer.controller === 'local');
+    },
+    canRoll() {
+      const status = this.store.gamePlayStatus;
+      return this.isMyTurn && status.isRolling && !status.isDiceRolling;
+    },
     needsSeat() {
       return this.store.online.enabled && this.store.online.mySeat < 0 && !this.store.winner;
     },
@@ -261,12 +336,54 @@ export default {
   },
   beforeUnmount() {
     clearTimeout(this.tickTimeout);
+    clearTimeout(this.copiedTimeout);
     document.removeEventListener('visibilitychange', this.visibilityHandler);
   },
   methods: {
     openWardrobe() {
       this.settingsOpen = false;
       this.store.wardrobe.inGame = true;
+    },
+    seatOf(player) {
+      return (this.store.online.seats || [])[player.turn - 1] || null;
+    },
+    isSelf(player) {
+      return player.controller === 'local';
+    },
+    initialOf(player) {
+      return (player.name || '?').trim().charAt(0).toUpperCase() || '?';
+    },
+    // One entry per pawn: 'home' | 'track' | 'done' (in the target lane).
+    progressOf(player) {
+      return player.pawns
+        .map((pawn) => (pawn.position === 0 ? 'home' : pawn.position > TRACK_END ? 'done' : 'track'))
+        .sort((a, b) => PIP_ORDER[a] - PIP_ORDER[b]);
+    },
+    progressLabel(player) {
+      const counts = { home: 0, track: 0, done: 0 };
+      this.progressOf(player).forEach((state) => { counts[state] += 1; });
+      return `${counts.done} ${t('hud.finished')}, ${counts.track} ${t('hud.onTrack')}, ${counts.home} ${t('hud.atHome')}`;
+    },
+    roll() {
+      if (this.canRoll) {
+        EventBus.fire(EventKeys.rollDice);
+      }
+    },
+    toggleSound() {
+      this.soundSetting = this.store.settings.soundEnabled ? 'off' : 'on';
+    },
+    async copyCode() {
+      const code = this.store.online.joinCode;
+      if (!code) return;
+      try {
+        await navigator.clipboard.writeText(code);
+        this.codeCopied = true;
+        clearTimeout(this.copiedTimeout);
+        this.copiedTimeout = setTimeout(() => { this.codeCopied = false; }, 1500);
+      } catch (error) {
+        // Clipboard blocked (insecure origin / permissions): the code is
+        // still on screen to read out.
+      }
     },
     // Tap another player's chip: Block / Report them (seat = turn - 1).
     openSeatActions(player) {
@@ -296,20 +413,7 @@ export default {
       window.localStorage.setItem('burrec.settings.locale', val);
     },
     toggleSettings() {
-      if (!this.settingsOpen) {
-        this.settingsName = this.store.online.displayName || '';
-      }
       this.settingsOpen = !this.settingsOpen;
-    },
-    saveSettings() {
-      const name = this.settingsName.trim().slice(0, 12);
-      if (name) {
-        // Online names are seat data owned by the server; this just updates the
-        // remembered display name for the next match.
-        this.store.online.displayName = name;
-        window.localStorage.setItem('burrec.online.displayName', name);
-      }
-      this.settingsOpen = false;
     },
     askLeave() {
       this.settingsOpen = false;
@@ -324,119 +428,200 @@ export default {
 </script>
 
 <style scoped>
-.hud-connection-banner {
+/* Layout tokens: every edge-pinned piece clears the notch / home bar. */
+.hud {
+  --hud-pad: 12px;
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+  --hud-base: var(--agu-color-base, #263f2a);
+}
+
+.hud--behind {
+  visibility: hidden;
+}
+
+/* ── Top bar ─────────────────────────────────────────────── */
+.hud-topbar {
   position: absolute;
-  top: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 6px 14px;
-  background: var(--agu-color-red, #e9576f);
-  color: #ffffff;
+  top: calc(var(--hud-pad) + var(--safe-t));
+  left: calc(var(--hud-pad) + var(--safe-l));
+  right: calc(var(--hud-pad) + var(--safe-r));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 40;
+  pointer-events: none;
+}
+
+.hud-topbar > :not(.hud-topbar-center),
+.hud-topbar-center > * {
+  pointer-events: all;
+}
+
+.hud-topbar-center {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+}
+
+.hud-topbar-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.hud-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 7px 14px;
+  font: inherit;
   font-size: 0.8rem;
   font-weight: 700;
-  border: 2px solid var(--agu-color-base, #263f2a);
-  border-radius: 8px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
-  pointer-events: none;
-}
-
-/* Small always-on room code, sharing the connection banner's top-center
-   slot (the banner wins while it is shown). */
-.hud-room-code {
-  position: absolute;
-  top: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 3px 10px;
-  background: rgba(255, 255, 255, 0.88);
-  border: 1.5px solid var(--agu-color-base, #263f2a);
-  border-radius: 6px;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  color: var(--agu-color-base, #263f2a);
-  pointer-events: none;
-}
-
-/* "Choose a color on the board" for seatless drop-in joiners. */
-.hud-choose-banner {
-  position: absolute;
-  top: 52px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 8px 16px;
+  color: var(--hud-base);
   background: #ffffff;
-  border: 2px solid var(--agu-color-base, #263f2a);
-  border-radius: 8px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--agu-color-base, #263f2a);
-  pointer-events: none;
+  border: 2px solid var(--hud-base);
+  border-radius: 999px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.18);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
 }
 
-/* Testing shortcut indicator (typing TEST toggles store.demoMode). Sits
-   below the connection banner slot so the two never overlap. */
-.hud-demo-badge {
-  position: absolute;
-  top: 56px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 4px 10px;
-  background: var(--agu-color-base, #263f2a);
+.hud-status-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+
+.hud-status-code {
+  letter-spacing: 0.14em;
+}
+
+.hud-status-pill--alert {
   color: #ffffff;
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  border-radius: 8px;
-  opacity: 0.85;
+  background: var(--agu-color-red, #e9576f);
+  cursor: default;
+}
+
+.hud-status-pill--demo {
+  color: #ffffff;
+  background: var(--hud-base);
+  cursor: default;
+}
+
+/* ── Players: a turn-order rail on the left ──────────────── */
+.hud-players {
+  position: absolute;
+  top: calc(var(--hud-pad) + var(--safe-t) + 60px);
+  left: calc(var(--hud-pad) + var(--safe-l));
+  width: 210px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   pointer-events: none;
 }
 
-/* ── Corner seat chips (same look as the lobby's) ────────── */
-.hud-seats-layer {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-
-.hud-seat-chip {
-  position: absolute;
+.hud-player {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
-  min-width: 150px;
-  max-width: 220px;
-  min-height: 44px;
-  padding: 8px 14px 12px;
+  min-width: 0;
+  padding: 8px 12px 11px 16px;
   background: #ffffff;
-  border: 2px solid var(--agu-color-base, #263f2a);
-  border-radius: 8px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
-  font-size: 12px;
-  color: var(--agu-color-base, #263f2a);
+  border: 2px solid var(--hud-base);
+  border-radius: 10px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.18);
+  color: var(--hud-base);
   pointer-events: all;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: transform 180ms ease;
+}
+
+/* Seat color stripe down the left edge. */
+.hud-player::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 6px;
+  border-radius: 8px 0 0 8px;
+  background: var(--chip-color);
+}
+
+/* Active ring, pre-drawn and faded (opacity only, never an animated shadow). */
+.hud-player::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 10px;
+  box-shadow: 0 0 0 4px var(--chip-color);
+  opacity: 0;
+  transition: opacity 180ms ease;
+  pointer-events: none;
+}
+
+.hud-player--active {
+  transform: translateX(8px);
+}
+
+.hud-player--active::after {
+  opacity: 1;
+}
+
+.hud-player--self {
+  background: var(--agu-color-orange, #fdc25b);
+}
+
+.hud-player--bot,
+.hud-player--self {
+  cursor: default;
+}
+
+.hud-player--offline .hud-player-avatar,
+.hud-player--offline .hud-player-body {
+  opacity: 0.45;
+}
+
+.hud-player-avatar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--chip-color);
+  border: 2px solid var(--hud-base);
+  color: #ffffff;
+  font-size: 0.85rem;
+  font-weight: 800;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
   box-sizing: border-box;
 }
 
-.hud-seat-chip--active {
-  border-color: var(--chip-color, #263f2a);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18), 0 0 0 3px var(--chip-color, rgba(255, 255, 255, 0.25));
-  /* "Playing now" reads bigger — scaled from its own corner so it grows
-     into the screen, not off it. */
-  transform: scale(1.22);
+.hud-player--bot .hud-player-avatar {
+  background: #d9dccf;
+  color: var(--hud-base);
+  text-shadow: none;
 }
 
-.hud-seat-chip {
-  transition: transform 180ms ease, box-shadow 180ms ease;
+.hud-player-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
 }
 
-.hud-seat-chip--corner-0 { top: 16px; left: 16px; transform-origin: top left; }
-.hud-seat-chip--corner-1 { top: 16px; right: 16px; transform-origin: top right; }
-.hud-seat-chip--corner-2 { bottom: 16px; right: 16px; transform-origin: bottom right; }
-.hud-seat-chip--corner-3 { bottom: 16px; left: 16px; transform-origin: bottom left; }
-
-.hud-seat-chip-name {
+.hud-player-name {
   font-size: 0.85rem;
   font-weight: 700;
   line-height: 1.2;
@@ -445,22 +630,68 @@ export default {
   text-overflow: ellipsis;
 }
 
-/* ── Turn timer bar (bottom edge of the active chip) ─────── */
-.hud-seat-chip-timer {
+.hud-player-you {
+  margin-left: 6px;
+  padding: 1px 5px;
+  font-size: 0.6rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  vertical-align: 1px;
+  color: #ffffff;
+  background: var(--hud-base);
+  border-radius: 6px;
+}
+
+.hud-player-sub {
+  font-size: 0.7rem;
+  font-style: italic;
+}
+
+/* Four pawns: finished (filled), on the track (tinted), at home (hollow). */
+.hud-player-pips {
+  display: flex;
+  gap: 4px;
+}
+
+.hud-pip {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid var(--hud-base);
+  box-sizing: border-box;
+}
+
+.hud-pip--home {
+  background: transparent;
+  border-color: rgba(38, 63, 42, 0.35);
+}
+
+.hud-pip--track {
+  background: color-mix(in srgb, var(--chip-color) 45%, #ffffff);
+}
+
+.hud-pip--done {
+  background: var(--chip-color);
+}
+
+/* ── Turn timer (chip + turn bar share the drain) ────────── */
+.hud-player-timer,
+.hud-turnbar-timer {
   position: absolute;
-  left: 8px;
-  right: 8px;
-  bottom: 4px;
-  height: 5px;
-  border-radius: 3px;
+  left: 10px;
+  right: 10px;
+  bottom: 3px;
+  height: 4px;
+  border-radius: 2px;
   background: rgba(38, 63, 42, 0.16);
   overflow: hidden;
 }
 
-.hud-seat-chip-timer-fill {
+.hud-player-timer-fill {
   position: relative;
   height: 100%;
-  background: var(--chip-color, #4cf2ca);
+  background: var(--chip-color, var(--turn-color));
   transform-origin: left center;
   animation: hud-timer-drain var(--timer-duration, 60000ms) linear var(--timer-elapsed, 0ms) forwards;
 }
@@ -468,7 +699,7 @@ export default {
 /* Last 10 seconds: a red layer pulsing over the fill. The class is only
    applied then (a pending delayed animation still ticks the main thread),
    and both animations are transform/opacity so they run on the compositor. */
-.hud-seat-chip-timer--low .hud-seat-chip-timer-fill::after {
+.hud-player-timer--low .hud-player-timer-fill::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -486,76 +717,260 @@ export default {
   50% { opacity: 0.45; }
 }
 
-.hud-speech-bubble {
+/* ── Turn bar: bottom center, in the active player's color ── */
+.hud-turnbar {
   position: absolute;
-  bottom: calc(100% + 8px);
   left: 50%;
+  bottom: calc(var(--hud-pad) + var(--safe-b));
   transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 260px;
+  max-width: calc(100vw - 24px);
+  min-height: 52px;
+  padding: 8px 12px 12px 14px;
   background: #ffffff;
-  color: #000000;
-  padding: 6px 10px;
-  border-radius: 8px;
-  border: 2px solid var(--agu-color-base, #263f2a);
-  font-size: 0.58rem;
+  border: 2px solid var(--hud-base);
+  border-radius: 14px;
+  box-shadow: 0 0 0 4px var(--turn-color), 0 6px 14px rgba(0, 0, 0, 0.25);
+  color: var(--hud-base);
+  pointer-events: all;
+  box-sizing: border-box;
+  z-index: 35;
+}
+
+.hud-turnbar--mine {
+  background: color-mix(in srgb, var(--turn-color) 22%, #ffffff);
+}
+
+/* Our turn: an extra ring breathes around the bar (opacity only). */
+.hud-turnbar--mine::after {
+  content: '';
+  position: absolute;
+  inset: -10px;
+  border-radius: 20px;
+  border: 3px solid var(--turn-color);
+  opacity: 0;
+  animation: hud-turn-breathe 1.6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes hud-turn-breathe {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 0.85; }
+}
+
+.hud-turnbar-dot {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--turn-color);
+  border: 2px solid var(--hud-base);
+}
+
+.hud-turnbar-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
   white-space: nowrap;
-  z-index: 100;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.25);
-  max-width: 160px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.hud-speech-bubble::after {
-  content: '';
+.hud-roll-icon {
+  margin-right: 8px;
+}
+
+.hud-roll-btn {
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 10px 20px;
+  margin: 0;
+  font-size: 1rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-turnbar--mine::after {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+/* ── Speech bubbles: beside the rail chip, toward the board ─ */
+.hud-speech-bubble {
   position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  border: 6px solid transparent;
-  border-top-color: #ffffff;
-}
-
-.hud-speech-bubble::before {
-  content: '';
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%) translateY(2px);
-  border: 6px solid transparent;
-  border-top-color: var(--agu-color-base, #263f2a);
-  z-index: -1;
-}
-
-/* Top-corner chips flip the bubble underneath, arrows pointing up. */
-.hud-speech-bubble--below {
-  bottom: auto;
-  top: calc(100% + 8px);
-}
-
-.hud-speech-bubble--below::after {
-  top: auto;
-  bottom: 100%;
-  border-top-color: transparent;
-  border-bottom-color: #ffffff;
-}
-
-.hud-speech-bubble--below::before {
-  top: auto;
-  bottom: 100%;
-  transform: translateX(-50%) translateY(-2px);
-  border-top-color: transparent;
-  border-bottom-color: var(--agu-color-base, #263f2a);
+  top: 50%;
+  left: calc(100% + 14px);
+  transform: translateY(-50%);
+  width: max-content;
+  max-width: 220px;
+  padding: 6px 10px;
+  background: #ffffff;
+  color: #000000;
+  border: 2px solid var(--hud-base);
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+  font-size: 0.8rem;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  z-index: 5;
+  pointer-events: none;
 }
 
 .speech-fade-enter-active,
 .speech-fade-leave-active {
-  transition: opacity 150ms ease, transform 150ms ease;
+  transition: opacity 150ms ease;
 }
 
 .speech-fade-enter-from,
 .speech-fade-leave-to {
   opacity: 0;
-  transform: translateX(-50%) translateY(6px);
 }
 
+/* ── Phones held upright: a strip of four under the top bar ─ */
+@media (max-width: 600px) and (orientation: portrait) {
+  .hud-players {
+    top: calc(var(--hud-pad) + var(--safe-t) + 56px);
+    right: calc(var(--hud-pad) + var(--safe-r));
+    width: auto;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .hud-player {
+    gap: 6px;
+    padding: 6px 6px 9px 11px;
+    border-radius: 9px;
+  }
+
+  .hud-player::before {
+    width: 5px;
+    border-radius: 7px 0 0 7px;
+  }
+
+  .hud-player::after {
+    border-radius: 9px;
+  }
+
+  .hud-player--active {
+    transform: translateY(4px);
+  }
+
+  /* No room for an avatar in a quarter of the width: the stripe carries
+     the color, the name the identity. */
+  .hud-player-avatar {
+    display: none;
+  }
+
+  .hud-player-name {
+    font-size: 0.72rem;
+  }
+
+  /* Our own chip is already orange-filled; the pill doesn't fit here. */
+  .hud-player-you {
+    display: none;
+  }
+
+  .hud-player-pips {
+    gap: 3px;
+  }
+
+  .hud-pip {
+    width: 6px;
+    height: 6px;
+    border-width: 1px;
+  }
+
+  .hud-player-timer {
+    left: 6px;
+    right: 6px;
+  }
+
+  /* Bubbles drop below the strip, kept inside the screen edges. */
+  .hud-speech-bubble {
+    top: calc(100% + 10px);
+    left: 0;
+    transform: none;
+    max-width: 60vw;
+  }
+
+  .hud-player--slot-2 .hud-speech-bubble,
+  .hud-player--slot-3 .hud-speech-bubble {
+    left: auto;
+    right: 0;
+  }
+
+  .hud-turnbar {
+    left: calc(var(--hud-pad) + var(--safe-l));
+    right: calc(var(--hud-pad) + var(--safe-r));
+    transform: none;
+    min-width: 0;
+    max-width: none;
+  }
+}
+
+/* ── Phones held sideways: compact rail, turn bar bottom right ─ */
+@media (max-height: 500px) and (orientation: landscape) {
+  .hud-topbar {
+    top: calc(8px + var(--safe-t));
+  }
+
+  .hud-players {
+    top: calc(8px + var(--safe-t) + 54px);
+    width: 160px;
+    gap: 6px;
+  }
+
+  .hud-player {
+    padding: 5px 10px 8px 14px;
+    gap: 8px;
+  }
+
+  .hud-player-avatar {
+    width: 22px;
+    height: 22px;
+    font-size: 0.7rem;
+  }
+
+  .hud-player-name {
+    font-size: 0.75rem;
+  }
+
+  .hud-player-you {
+    display: none;
+  }
+
+  /* Narrow and stacked, so it stays in the grass beside the board. */
+  .hud-turnbar {
+    left: auto;
+    right: calc(var(--hud-pad) + var(--safe-r));
+    bottom: calc(8px + var(--safe-b));
+    transform: none;
+    flex-wrap: wrap;
+    min-width: 0;
+    width: 196px;
+    row-gap: 6px;
+  }
+
+  .hud-turnbar-text {
+    white-space: normal;
+    font-size: 0.85rem;
+  }
+
+  .hud-roll-btn {
+    width: 100%;
+  }
+
+  .hud-status-label {
+    display: none;
+  }
+}
 </style>

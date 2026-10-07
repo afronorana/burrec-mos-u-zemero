@@ -2,7 +2,8 @@
   <div class="chat-panel">
     <app-scrollable
       ref="scrollable"
-      max-height="200px"
+      :max-height="scrollMaxHeight"
+      :style="{ maxHeight: scrollMaxHeight }"
       class="chat-messages-scroll"
     >
       <div class="chat-messages-list">
@@ -69,6 +70,11 @@ export default {
     selfId: {
       type: String,
       default: null,
+    },
+    // Any CSS length — the chat sheet passes a var() sized to its layout.
+    scrollMaxHeight: {
+      type: String,
+      default: '200px',
     },
   },
   emits: ['send'],

@@ -80,7 +80,8 @@
     </div>
 
     <profile-sheet v-if="store.online.profileOpen" />
-    <cookie-consent />
+    <!-- Menus only: in a lobby/game it would cover the chat and turn bar. -->
+    <cookie-consent v-if="!['lobby', 'game-screen'].includes(store.currentScreen)" />
 
     <!-- Account / sign-in modal (menu account row, #verify= / #reset= links) -->
     <auth-modal v-if="store.online.authOpen" />
