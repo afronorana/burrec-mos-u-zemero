@@ -3,7 +3,12 @@
     <!-- Top-center column: its own instruction panel, then (host only) the
          room code + start controls stacked beneath it. -->
     <div class="lobby-top">
-      <app-panel v-if="instructionText" class="lobby-card lobby-instruction-card">
+      <!-- Unseated: say plainly what to do — the color seats are buttons. -->
+      <app-panel v-if="!mySeatObject" class="lobby-card lobby-instruction-card lobby-instruction-card--pick">
+        <h2 class="lobby-pick-title">{{ t('online.pickColorTitle') }}</h2>
+        <p class="lobby-instruction lobby-instruction--sub">{{ t('online.pickColorBody') }}</p>
+      </app-panel>
+      <app-panel v-else-if="instructionText" class="lobby-card lobby-instruction-card">
         <p class="lobby-instruction">{{ instructionText }}</p>
       </app-panel>
 
@@ -25,7 +30,7 @@
           :disabled="!canStart"
           @click="startGame"
         >
-          {{ t('online.start') }}
+          {{ canStart ? t('online.start') : t('online.pickColorFirst') }}
         </app-button>
       </app-panel>
     </div>
@@ -56,12 +61,24 @@
     <!-- Seats: pinned to the 4 screen corners on desktop, 2x2 grid at the
          bottom on small screens. Free slots double as claim buttons. -->
     <div class="lobby-seats-layer">
+      <!-- A Bot's seat is an open offer: until we're seated it's a solid
+           button in its own color ("Play Red"); once seated, the other
+           open colors stay tappable to switch. -->
       <button
         v-for="index in seatDisplayOrder"
         :key="index"
         type="button"
         class="lobby-seat-chip"
-        :class="[`lobby-seat-chip--corner-${index}`, seatAt(index) ? 'lobby-seat-chip--taken' : 'lobby-seat-chip--free']"
+        :class="[
+          `lobby-seat-chip--corner-${index}`,
+          seatAt(index) ? 'lobby-seat-chip--taken' : 'lobby-seat-chip--free',
+          {
+            'lobby-seat-chip--offer': !seatAt(index) && !mySeatObject,
+            'lobby-seat-chip--mine': seatAt(index) && seatAt(index).userId === store.online.selfUserId,
+            'lobby-seat-chip--dark-text': index === 1 || index === 3,
+          },
+        ]"
+        :style="{ '--seat-color': playerColors[index] }"
         @click="claimSeat(index)"
       >
         <span class="player-dot" :style="{ background: playerColors[index] }"></span>
@@ -76,8 +93,10 @@
         </template>
         <template v-else>
           <span class="lobby-seat-chip-text">
-            <span class="lobby-seat-chip-name lobby-seat-chip-name--free">{{ t('online.computer') }}</span>
-            <span class="lobby-seat-chip-meta">{{ t('online.clickToJoin') }}</span>
+            <span class="lobby-seat-chip-name lobby-seat-chip-name--free">
+              {{ mySeatObject ? t('online.computer') : t('online.playColor', { color: t(`online.color_${index}`) }) }}
+            </span>
+            <span class="lobby-seat-chip-meta">{{ mySeatObject ? t('online.tapToSwitch') : t('online.nowComputer') }}</span>
           </span>
         </template>
       </button>
@@ -215,6 +234,19 @@ export default {
   text-align: center;
 }
 
+.lobby-pick-title {
+  margin: 0 0 6px;
+  font-size: 1.3rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--agu-color-base, #263f2a);
+}
+
+.lobby-instruction--sub {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
 .lobby-instruction {
   margin: 0;
   font-size: 0.95rem;
@@ -284,12 +316,51 @@ export default {
 
 .lobby-seat-chip--free {
   cursor: pointer;
-  background: rgba(255, 255, 255, 0.82);
-  border-style: dashed;
 }
 
-.lobby-seat-chip--free:hover {
-  background: #ffffff;
+/* Open seat before we've picked: a solid, button-like chip in its color. */
+.lobby-seat-chip--offer {
+  min-height: 52px;
+  background: var(--seat-color);
+  color: #ffffff;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 -4px 0 rgba(0, 0, 0, 0.22), 0 4px 10px rgba(0, 0, 0, 0.22);
+  transition: transform 120ms ease;
+}
+
+.lobby-seat-chip--offer.lobby-seat-chip--dark-text {
+  color: var(--agu-color-base, #263f2a);
+  text-shadow: none;
+}
+
+.lobby-seat-chip--offer .player-dot {
+  display: none;
+}
+
+.lobby-seat-chip--offer .lobby-seat-chip-name {
+  font-size: 1rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.lobby-seat-chip--offer .lobby-seat-chip-name--free,
+.lobby-seat-chip--offer .lobby-seat-chip-meta {
+  opacity: 1;
+}
+
+.lobby-seat-chip--offer:hover {
+  transform: translateY(-2px);
+}
+
+.lobby-seat-chip--offer:active {
+  transform: translateY(1px);
+}
+
+/* Our own seat. */
+.lobby-seat-chip--mine {
+  background: var(--agu-color-orange, #fdc25b);
+  box-shadow: 0 0 0 3px var(--seat-color), 0 4px 10px rgba(0, 0, 0, 0.18);
 }
 
 .lobby-seat-chip--corner-0 { top: 16px; left: 16px; }
