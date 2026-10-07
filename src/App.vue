@@ -85,6 +85,15 @@ const BOARD_TOP_CORNER_RADIUS = 0.55;
 // hides the cut edges). Invisible walls (an octagon of static physics boxes)
 // keep the dice inside without caging it visually.
 const DICE_PIT_NEUTRAL_COLOR = '#e8d8a9';
+// Turn pulse: the whole pit (rim + bowl) breathes in the active player's
+// color. It's the one deliberate exception to "static cues": redrawn at
+// ~15fps (a slow sine needs no more) and frozen while the window is
+// unfocused, so it costs a fraction of a full-rate continuous render.
+const PIT_PULSE_PERIOD_MS = 1600;
+const PIT_PULSE_FRAME_MS = 66;
+const _pitPulseColor = new THREE.Color();
+const _pitPulseBase = new THREE.Color();
+const _pitPulseLight = new THREE.Color('#ffffff');
 const DICE_PIT = {
   center: { x: 5, z: 5 },
   holeRadius: 1.42, // slab cutout — also the outer edge of the beveled rim
@@ -556,6 +565,7 @@ export default {
       dicePredictionSim: null,
       dicePitMesh: null,
       dicePitRimMaterial: null,
+      dicePitBowlMaterial: null,
       pawnMeshes: markRaw({}),
       pawnMotionStates: markRaw({}),
       cameraTransition: null,
@@ -600,6 +610,7 @@ export default {
     this.menuOrbitLastAt = 0;
     this.hoveredTarget = null;
     this.hoverNeedsUpdate = false;
+    this.pitPulseAt = 0; // last turn-pulse repaint (updatePitPulse)
     // false, or the hovered target the 2D outline was last drawn for.
     this.overlayHasContent = false;
     // Demand rendering: render passes run only when something changed.
@@ -1096,7 +1107,7 @@ export default {
             new THREE.Vector2(DICE_PIT.innerRadius, DICE_PIT.floorY),
             new THREE.Vector2(0.001, DICE_PIT.floorY),
           ], 64)),
-          this.createToonMaterial('dice-pit-liner-material', {
+          this.dicePitBowlMaterial = this.createToonMaterial('dice-pit-liner-material', {
             color: DICE_PIT_NEUTRAL_COLOR,
             side: THREE.DoubleSide,
           }),
@@ -1111,13 +1122,46 @@ export default {
     // The pit rim doubles as a turn indicator: the active player's color
     // during a game, the neutral board tone everywhere else.
     applyPitRimColor() {
-      if (!this.dicePitRimMaterial) {
+      this.pitPulseAt = 0; // repaint on the next frame, in the new color
+      if (!this.pitPulseColor()) {
+        this.paintPit(null, 0);
+      }
+    },
+
+    // The active player's color while a game runs, else null (neutral pit).
+    pitPulseColor() {
+      const player = this.store.players[this.store.currentPlayerId];
+      return this.store.currentScreen === 'game-screen' && player ? player.color : null;
+    },
+
+    // amount 0..1: how far the pit has swung toward the "bright" end.
+    paintPit(color, amount) {
+      if (!this.dicePitRimMaterial || !this.dicePitBowlMaterial) {
         return;
       }
-      const player = this.store.players[this.store.currentPlayerId];
-      const useColor = this.store.currentScreen === 'game-screen' && player;
-      this.dicePitRimMaterial.color.set(useColor ? player.color : DICE_PIT_NEUTRAL_COLOR);
+      if (!color) {
+        this.dicePitRimMaterial.color.set(DICE_PIT_NEUTRAL_COLOR);
+        this.dicePitBowlMaterial.color.set(DICE_PIT_NEUTRAL_COLOR);
+      } else {
+        _pitPulseBase.set(color);
+        // Rim: the player's color, flaring toward white at the peak.
+        this.dicePitRimMaterial.color.copy(_pitPulseBase).lerp(_pitPulseLight, 0.4 * amount);
+        // Bowl: tinted from a light wash up to a strong fill of the color.
+        _pitPulseColor.set(DICE_PIT_NEUTRAL_COLOR);
+        this.dicePitBowlMaterial.color.copy(_pitPulseColor).lerp(_pitPulseBase, 0.25 + (0.5 * amount));
+      }
       this.requestRender();
+    },
+
+    // Per frame: the turn pulse, throttled to PIT_PULSE_FRAME_MS.
+    updatePitPulse(now) {
+      const color = this.pitPulseColor();
+      if (!color || !this.windowFocused || now - this.pitPulseAt < PIT_PULSE_FRAME_MS) {
+        return;
+      }
+      this.pitPulseAt = now;
+      const amount = 0.5 - (0.5 * Math.cos((now / PIT_PULSE_PERIOD_MS) * Math.PI * 2));
+      this.paintPit(color, amount);
     },
 
     createPhysicsWorld() {
@@ -1315,6 +1359,7 @@ export default {
 
         this.updateCameraPath(frameNow);
         this.updateFinisher(frameNow);
+        this.updatePitPulse(frameNow);
         if (this.wardrobeOpen()) {
           this.updateWardrobeStage(frameNow);
         }
