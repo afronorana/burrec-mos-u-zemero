@@ -206,24 +206,45 @@ const _wardrobeScratch = new THREE.Vector3();
 // the pawn stands at the origin; a Finisher preview hits a victim along +X
 // with the camera side-on from +Z. Idle framing is a close-up of the pawn,
 // action framing is wide enough for the tools and the launch.
-const WARDROBE_BACKGROUND = '#3b4256';
+// A white photo-studio room: off-white backdrop, a fine grid on the floor
+// that fog fades into the backdrop, and a light plinth.
+const WARDROBE_BACKGROUND = '#f4f2ed';
+const WARDROBE_FLOOR_Y = -1.6;
 
-// A white-to-transparent radial gradient (the wardrobe's spotlight pool).
-function radialGlowTexture(color) {
+// Floor tile: white with a faint grid line on two edges (tiles via repeat).
+function gridFloorTexture() {
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, size, size);
+  ctx.fillStyle = 'rgba(38, 63, 42, 0.13)';
+  ctx.fillRect(0, 0, size, 3);
+  ctx.fillRect(0, 0, 3, size);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(24, 24);
+  return texture;
+}
+
+// A soft dark radial blob (contact shadow under the preview pawn).
+function contactShadowTexture() {
   const size = 128;
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext('2d');
   const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-  gradient.addColorStop(0, color);
-  gradient.addColorStop(0.55, `${color}99`);
-  gradient.addColorStop(1, `${color}00`);
+  gradient.addColorStop(0, 'rgba(0, 0, 0, 0.32)');
+  gradient.addColorStop(0.6, 'rgba(0, 0, 0, 0.12)');
+  gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, size, size);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
+  return new THREE.CanvasTexture(canvas);
 }
 const WARDROBE_FRAMING = {
   idle: { pos: [0.2, 1.55, 4.7], look: [0.2, 0.82, 0] },
@@ -2527,17 +2548,19 @@ export default {
       }
       const scene = markRaw(new THREE.Scene());
       scene.background = markRaw(new THREE.Color(WARDROBE_BACKGROUND));
+      // The grid floor fades into the backdrop instead of ending at a horizon.
+      scene.fog = markRaw(new THREE.Fog(WARDROBE_BACKGROUND, 6, 16));
       const camera = markRaw(new THREE.PerspectiveCamera(30, 1, 0.1, 60));
 
-      // Brighter than the board: a strong ambient term plus a warm spotlight
-      // from above that pools on the plinth top — a stage, not a dark room.
-      // (Its own little scene, so the extra light costs nothing on the board.)
-      const sky = markRaw(new THREE.HemisphereLight('#fff7ec', '#6a7090', 2.9));
-      const key = markRaw(new THREE.DirectionalLight('#fff1db', 2));
+      // A bright studio: strong ambient, a key, a cool rim and a soft
+      // spotlight from above. (Its own little scene, so the extra lights
+      // cost nothing on the board.)
+      const sky = markRaw(new THREE.HemisphereLight('#ffffff', '#d8d4cb', 2.4));
+      const key = markRaw(new THREE.DirectionalLight('#fff4e6', 1.7));
       key.position.set(-2.5, 4, 3.5);
-      const rim = markRaw(new THREE.DirectionalLight('#9fb8ff', 1));
+      const rim = markRaw(new THREE.DirectionalLight('#cfdcff', 0.8));
       rim.position.set(3, 2.5, -3);
-      const spot = markRaw(new THREE.SpotLight('#fff3d6', 4.5, 0, Math.PI / 7, 0.55, 0));
+      const spot = markRaw(new THREE.SpotLight('#fff6e8', 2.2, 0, Math.PI / 7, 0.55, 0));
       spot.position.set(0, 7, 1.2);
       spot.target.position.set(0, 0, 0);
       scene.add(sky, key, rim, spot, spot.target);
@@ -2546,27 +2569,35 @@ export default {
       // to hide it falling through the trapdoor).
       const plinth = this.createOutlinedMesh(
           this.getSharedGeometry('wardrobe-plinth', () => new THREE.CylinderGeometry(0.95, 0.98, 1.6, 48)),
-          this.createToonMaterial('wardrobe-plinth-material', { color: '#59607a' }),
+          this.createToonMaterial('wardrobe-plinth-material', { color: '#e4dfd5' }),
           { outlineScale: { x: 1.02, y: 1.005, z: 1.02 } },
       );
       plinth.position.y = -0.8;
-      // The spotlight's pool on the plinth top: a soft additive disc reads as
-      // stage light far more clearly than the light's own falloff on a toon
-      // material.
-      const pool = markRaw(new THREE.Mesh(
-          this.getSharedGeometry('wardrobe-light-pool', () => new THREE.CircleGeometry(0.92, 48)),
-          markRaw(new THREE.MeshBasicMaterial({
-            map: this.getSharedTexture('wardrobe-light-pool', () => radialGlowTexture('#fff3d6')),
-            transparent: true,
-            depthWrite: false,
-            blending: THREE.AdditiveBlending,
-            opacity: 0.55,
+      const floor = markRaw(new THREE.Mesh(
+          this.getSharedGeometry('wardrobe-floor', () => new THREE.PlaneGeometry(48, 48)),
+          markRaw(new THREE.MeshLambertMaterial({
+            map: this.getSharedTexture('wardrobe-floor-grid', () => {
+              const texture = gridFloorTexture();
+              texture.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+              return texture;
+            }),
           })),
       ));
-      pool.rotation.x = -Math.PI / 2;
-      pool.position.y = 0.004;
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.y = WARDROBE_FLOOR_Y;
+      // Soft contact shadow under the pawn (the stage renders no shadow maps).
+      const shadow = markRaw(new THREE.Mesh(
+          this.getSharedGeometry('wardrobe-contact-shadow', () => new THREE.CircleGeometry(0.5, 32)),
+          markRaw(new THREE.MeshBasicMaterial({
+            map: this.getSharedTexture('wardrobe-contact-shadow', contactShadowTexture),
+            transparent: true,
+            depthWrite: false,
+          })),
+      ));
+      shadow.rotation.x = -Math.PI / 2;
+      shadow.position.y = 0.004;
       const pawn = this.buildPawnGroup('wardrobe-0', PLAYER_COLORS[0]);
-      scene.add(plinth, pool, pawn);
+      scene.add(floor, plinth, shadow, pawn);
 
       this.wardrobeStage = markRaw({
         scene,

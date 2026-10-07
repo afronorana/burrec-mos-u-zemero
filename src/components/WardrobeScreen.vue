@@ -415,11 +415,12 @@ function normalize(text) {
   pointer-events: none;
 }
 
-/* Over a running match: dim the board and keep clicks off it. */
+/* Over a running match: keep clicks off the board. No dimming — the
+   preview is drawn into the canvas beneath, so a dim layer would grey the
+   white studio too (the HUD hides itself instead). */
 .wardrobe--in-game {
   z-index: 50;
   pointer-events: all;
-  background: rgba(0, 0, 0, 0.45);
 }
 
 .wardrobe-restyle-note {
@@ -692,13 +693,13 @@ function normalize(text) {
   top: 12px;
   left: 12px;
   padding: 8px 14px;
-  background: rgba(255, 255, 255, 0.12);
-  border: 2px solid rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.85);
+  border: 2px solid var(--agu-color-base, #263f2a);
   border-radius: 8px;
   font: inherit;
   font-size: 0.85rem;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--agu-color-base, #263f2a);
   cursor: pointer;
 }
 
@@ -714,7 +715,7 @@ function normalize(text) {
   right: 0;
   text-align: center;
   font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.55);
+  color: rgba(38, 63, 42, 0.55);
   pointer-events: none;
 }
 
