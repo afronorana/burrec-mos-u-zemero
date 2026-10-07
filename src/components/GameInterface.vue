@@ -243,6 +243,7 @@ export default {
     canPick() {
       return this.isMyTurn
         && this.store.gamePlayStatus.isMoving
+        && !this.store.online.autoMovePawn
         && this.activePlayer.pawns.some((pawn) => pawn.isActive)
         && !this.activePlayer.pawns.some((pawn) => pawn.isMoving);
     },

@@ -3,6 +3,9 @@ import EventBus from './eventhandler';
 import EventKeys from './EventKeys';
 import Pawn from './Pawn';
 
+// A beat to read the dice before our only move plays itself.
+const AUTO_MOVE_DELAY_MS = 450;
+
 class Player {
   // controller: 'local' (this human, this client) | 'ai' (local computer)
   //           | 'remote' (online opponent — driven only by server events)
@@ -126,6 +129,12 @@ class Player {
     if (legal.length) {
       ApplicationStore.gamePlayStatus.isRolling = false;
       ApplicationStore.gamePlayStatus.isMoving = true;
+      const only = this.controller === 'local' ? this.onlyDistinctOption(legal) : null;
+      if (only) {
+        // One real choice: play it for the human (App handles the event).
+        ApplicationStore.online.autoMovePawn = only.id;
+        setTimeout(() => EventBus.fire(EventKeys.pawn.autoMove, { pawnId: only.id }), AUTO_MOVE_DELAY_MS);
+      }
     } else if (pending && !pending.autoEndTurn) {
       // All pawns home, another of the three tries granted.
       ApplicationStore.gamePlayStatus.isRolling = true;
@@ -137,8 +146,22 @@ class Player {
     }
   }
 
-  // AI only — humans always pick their pawn themselves, even when a single
-  // move is legal.
+  // The single pawn worth moving among the legal ones, or null when there's a
+  // real choice. Pawns still at home are interchangeable (any of them lands
+  // on the same start field), so they count as one option.
+  onlyDistinctOption(legalIndexes) {
+    const options = [];
+    legalIndexes.forEach((index) => {
+      const pawn = this.pawns[index];
+      if (pawn && !options.some((other) => other.position === 0 && pawn.position === 0)) {
+        options.push(pawn);
+      }
+    });
+    return options.length === 1 ? options[0] : null;
+  }
+
+  // Offline AI only. Online, a human's single option is played via
+  // onlyDistinctOption → EventKeys.pawn.autoMove.
   movePawnAutomatically() {
     if (ApplicationStore.online.enabled) {
       return;

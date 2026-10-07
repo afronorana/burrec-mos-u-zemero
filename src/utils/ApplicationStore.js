@@ -205,6 +205,7 @@ const ApplicationStore = reactive({
     pendingDice: null, // last DICE_RESULT payload, consumed when the dice settles
     diceInFlight: false, // gates MOVE_APPLIED/TURN_CHANGE replay while dice physics run
     finisherInFlight: false, // same gate while a capture's Finisher plays
+    autoMovePawn: null, // pawn id about to be played for us (single option)
     moveFinisher: null, // Finisher stamped on the MOVE_APPLIED being replayed
     chat: [],
     // Store (CONTEXT.md: Entitlement): item keys this Member owns, and the

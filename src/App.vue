@@ -775,6 +775,7 @@ export default {
         EventBus.listen(EventKeys.net.stateSync, this.handleNetStateSync),
         EventBus.listen(EventKeys.net.lobbyUpdated, this.handleLobbyUpdated),
         EventBus.listen(EventKeys.pawn.captured, this.handleCaptured),
+        EventBus.listen(EventKeys.pawn.autoMove, this.handleAutoMove),
       ];
     },
 
@@ -3621,7 +3622,22 @@ export default {
       }
     },
 
+    // Our only option, played for us — if the moment hasn't passed (turn
+    // timed out, a resync, or we already clicked).
+    handleAutoMove({ pawnId }) {
+      if (this.store.online.autoMovePawn !== pawnId) {
+        return;
+      }
+      this.store.online.autoMovePawn = null;
+      const pawn = this.findPawnById(pawnId);
+      if (pawn?.isActive && this.isHumanTurn() && this.store.gamePlayStatus.isMoving) {
+        this.movePawnAsCurrentPlayer(pawn);
+        this.hoverNeedsUpdate = true;
+      }
+    },
+
     movePawnAsCurrentPlayer(pawn) {
+      this.store.online.autoMovePawn = null;
       if (this.store.online.enabled) {
         // The server validates and echoes the move back as MOVE_APPLIED;
         // deactivate locally so it cannot be sent twice.
@@ -4099,6 +4115,7 @@ export default {
       this.store.playingPlayerIndex = playerIndex;
       player.isPlaying = true;
       this.store.online.pendingDice = null;
+      this.store.online.autoMovePawn = null;
       this.store.gamePlayStatus.isRolling = true;
       this.store.gamePlayStatus.isMoving = false;
       this.startTurnTimer(timing);

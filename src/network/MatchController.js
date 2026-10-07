@@ -290,6 +290,7 @@ class MatchControllerService {
     online.diceInFlight = false;
     online.finisherInFlight = false;
     online.moveFinisher = null;
+    online.autoMovePawn = null;
     online.enabled = false;
     online.resuming = false;
     online.resumePrompt = null;

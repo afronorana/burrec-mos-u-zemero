@@ -13,6 +13,7 @@ const EventKeys = {
     move: 'pawn.move',
     moveComplete: 'pawn.moveComplete',
     captured: 'pawn.captured',
+    autoMove: 'pawn.autoMove', // { pawnId } — our only option, played for us
   },
   finisher: {
     done: 'finisher.done',
