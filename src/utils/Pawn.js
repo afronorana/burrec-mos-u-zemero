@@ -114,21 +114,27 @@ class Pawn {
   // Pass `target` to reuse an object instead of allocating — the render loop
   // calls this per pawn per frame.
   getCoordinates(height = 0, target = null) {
+    return this.getCoordinatesAt(this.position, height, target);
+  }
+
+  // Where this pawn would stand at `position` (0 home, 1-40 track, 41-44
+  // target lane) — App.vue uses it to face the next field.
+  getCoordinatesAt(position, height = 0, target = null) {
     let x, y, z;
     let fields = ApplicationStore.fields;
-    if (!this.position) {
+    if (!position) {
       x = fields.home[this.playerIndex].fields[this.startingPlace - 1].x;
       y = height;
       z = fields.home[this.playerIndex].fields[this.startingPlace - 1].z;
-    } else if (this.position <= 40) {
-      const globalPosition = this.positionToGlobalPosition(this.position);
+    } else if (position <= 40) {
+      const globalPosition = this.positionToGlobalPosition(position);
       x = fields.path[globalPosition].x;
       y = height;
       z = fields.path[globalPosition].z;
-    } else if (this.position > 39) {
-      x = fields.target[this.playerIndex].fields[this.position - 41].x;
+    } else {
+      x = fields.target[this.playerIndex].fields[position - 41].x;
       y = height;
-      z = fields.target[this.playerIndex].fields[this.position - 41].z;
+      z = fields.target[this.playerIndex].fields[position - 41].z;
     }
 
     if (target) {

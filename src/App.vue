@@ -486,6 +486,10 @@ const PAWN_CENTER_Y = FIELD_CENTER_Y + 0.085;
 const PAWN_PERCH_HEIGHT = 1.0;
 const PAWN_PERCH_JUMP = 0.55;
 const _occupantScratch = { x: 0, y: 0, z: 0 };
+// Facing: the last target-lane position, and scratch for the two fields.
+const TARGET_LANE_END = 44;
+const _facingFromScratch = { x: 0, y: 0, z: 0 };
+const _facingToScratch = { x: 0, y: 0, z: 0 };
 const DICE_VISUAL_FLOAT_Y = 0.016;
 
 export default {
@@ -1615,9 +1619,9 @@ export default {
           );
 
           pawnMesh.scale.set(widthScale, heightScale, widthScale);
-          // Face (+Z, where face Props sit) toward the viewer. Only changes
-          // while the camera moves, which renders anyway.
-          const yaw = this.pawnFacingYaw(animatedPosition);
+          // On the board a pawn faces where it's going (its face, local +Z,
+          // toward the next field); at home it faces the viewer.
+          const yaw = this.pawnBoardYaw(pawn, animatedPosition);
           if (pawnMesh.rotation.y !== yaw) {
             pawnMesh.rotation.y = yaw;
             this.requestRender();
@@ -1641,6 +1645,27 @@ export default {
         // meshes are created after the seat snapshot arrived).
         this.applySeatPresence();
       }
+    },
+
+    // Board pawns: mid-hop, the direction of travel; at rest, toward the
+    // next field (the last lane field keeps the lane's direction). Home
+    // pawns face the camera.
+    pawnBoardYaw(pawn, animatedPosition) {
+      if (!pawn.position) {
+        return this.pawnFacingYaw(animatedPosition);
+      }
+      const motion = this.pawnMotionStates[pawn.id];
+      if (motion?.isAnimating) {
+        const dx = motion.to.x - motion.from.x;
+        const dz = motion.to.z - motion.from.z;
+        if (Math.abs(dx) + Math.abs(dz) > 0.01) {
+          return Math.atan2(dx, dz);
+        }
+      }
+      const last = pawn.position >= TARGET_LANE_END;
+      const from = pawn.getCoordinatesAt(last ? pawn.position - 1 : pawn.position, 0, _facingFromScratch);
+      const to = pawn.getCoordinatesAt(last ? pawn.position : pawn.position + 1, 0, _facingToScratch);
+      return Math.atan2(to.x - from.x, to.z - from.z);
     },
 
     // Yaw that turns a pawn's face (local +Z) toward the camera.
