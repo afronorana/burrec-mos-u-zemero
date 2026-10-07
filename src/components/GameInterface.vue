@@ -109,33 +109,35 @@
       </div>
     </div>
 
-    <!-- Whose turn, unmissable: the bar wears the active player's color. -->
-    <div v-if="!store.winner" class="hud-turnbar" :class="{ 'hud-turnbar--mine': isMyTurn }">
-      <template v-if="needsSeat">
-        <span class="hud-turnbar-text">{{ t('online.chooseColorPrompt') }}</span>
-      </template>
-      <template v-else-if="isMyTurn">
-        <span class="hud-turnbar-dot"></span>
-        <span class="hud-turnbar-text">
-          {{ canRoll ? t('hud.yourTurn') : (store.gamePlayStatus.isMoving ? t('hud.pickPawn') : t('hud.rolling')) }}
-        </span>
-        <app-button v-if="canRoll" orange class="hud-roll-btn" @click="roll">
-          <dices-icon :size="20" class="hud-roll-icon" />{{ t('hud.roll') }}
-        </app-button>
-      </template>
-      <template v-else-if="activePlayer">
-        <span class="hud-turnbar-dot"></span>
-        <span class="hud-turnbar-text">{{ t('hud.playerTurn', { name: activePlayer.name }) }}</span>
-      </template>
-      <div
-        v-if="activePlayer && store.turnTimer.running && !needsSeat"
-        :key="store.turnTimer.startedAt"
-        class="hud-turnbar-timer"
-        :class="{ 'hud-player-timer--low': timerLow }"
-      >
-        <div v-timer-drain="store.turnTimer" class="hud-player-timer-fill"></div>
+    <!-- Only when there's something for us to do: roll, or choose between
+         pawns (a single option plays itself), or — for a drop-in without a
+         seat — pick a color. Whose turn it is otherwise is shown by the
+         highlighted player chip and the pit rim's color. -->
+    <transition name="turnbar-pop">
+      <div v-if="turnPrompt" :key="turnPrompt" class="hud-turnbar" :class="{ 'hud-turnbar--mine': turnPrompt !== 'seat' }">
+        <template v-if="turnPrompt === 'seat'">
+          <span class="hud-turnbar-text">{{ t('online.chooseColorPrompt') }}</span>
+        </template>
+        <template v-else>
+          <span class="hud-turnbar-dot"></span>
+          <span class="hud-turnbar-text">
+            {{ t('hud.yourTurn') }}
+            <span v-if="turnPrompt === 'pick'" class="hud-turnbar-sub">{{ t('hud.pickPawn') }}</span>
+          </span>
+          <app-button v-if="turnPrompt === 'roll'" orange class="hud-roll-btn" @click="roll">
+            <dices-icon :size="20" class="hud-roll-icon" />{{ t('hud.roll') }}
+          </app-button>
+          <div
+            v-if="store.turnTimer.running"
+            :key="store.turnTimer.startedAt"
+            class="hud-turnbar-timer"
+            :class="{ 'hud-player-timer--low': timerLow }"
+          >
+            <div v-timer-drain="store.turnTimer" class="hud-player-timer-fill"></div>
+          </div>
+        </template>
       </div>
-    </div>
+    </transition>
 
     <!-- Menu: preferences apply at once; Leave sits apart at the bottom. -->
     <div
@@ -234,6 +236,23 @@ export default {
     canRoll() {
       const status = this.store.gamePlayStatus;
       return this.isMyTurn && status.isRolling && !status.isDiceRolling;
+    },
+    // Waiting on our pawn choice: the server's legal pawns are lit (isActive)
+    // and nothing is in motion. gamePlayStatus.isMoving alone isn't enough —
+    // it's cleared the moment we pick, while the move still animates.
+    canPick() {
+      return this.isMyTurn
+        && this.store.gamePlayStatus.isMoving
+        && this.activePlayer.pawns.some((pawn) => pawn.isActive)
+        && !this.activePlayer.pawns.some((pawn) => pawn.isMoving);
+    },
+    // 'seat' | 'roll' | 'pick' | null — what the turn bar asks of us.
+    turnPrompt() {
+      if (this.store.winner) return null;
+      if (this.needsSeat) return 'seat';
+      if (this.canRoll) return 'roll';
+      if (this.canPick) return 'pick';
+      return null;
     },
     needsSeat() {
       return this.store.online.enabled && this.store.online.mySeat < 0 && !this.store.winner;
@@ -744,21 +763,25 @@ export default {
   background: color-mix(in srgb, var(--turn-color) 22%, #ffffff);
 }
 
-/* Our turn: an extra ring breathes around the bar (opacity only). */
-.hud-turnbar--mine::after {
-  content: '';
-  position: absolute;
-  inset: -10px;
-  border-radius: 20px;
-  border: 3px solid var(--turn-color);
-  opacity: 0;
-  animation: hud-turn-breathe 1.6s ease-in-out infinite;
-  pointer-events: none;
+.hud-turnbar-sub {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  opacity: 0.8;
 }
 
-@keyframes hud-turn-breathe {
-  0%, 100% { opacity: 0; }
-  50% { opacity: 0.85; }
+/* The bar appearing is the cue: a quick fade + rise, then it holds still. */
+.turnbar-pop-enter-active {
+  transition: opacity 200ms ease-out;
+}
+
+.turnbar-pop-leave-active {
+  transition: opacity 120ms ease-in;
+}
+
+.turnbar-pop-enter-from,
+.turnbar-pop-leave-to {
+  opacity: 0;
 }
 
 .hud-turnbar-dot {
@@ -790,13 +813,6 @@ export default {
   padding: 10px 20px;
   margin: 0;
   font-size: 1rem;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .hud-turnbar--mine::after {
-    animation: none;
-    opacity: 0.6;
-  }
 }
 
 /* ── Speech bubbles: beside the rail chip, toward the board ─ */
