@@ -23,6 +23,7 @@ import {
 } from '../utils/matchSession';
 
 const JOIN_CODE_RETRY_MS = 1500; // match label indexing lags ~1s behind matchCreate
+const LEAVE_ACK_TIMEOUT_MS = 1500; // max wait for the server to hand our seat to a Bot
 const REJOIN_ATTEMPTS = 5;
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -267,6 +268,11 @@ class MatchControllerService {
 
     await ChatController.leave();
     if (matchId && this.socket) {
+      // Tell the server this is a real Leave, not a dropped connection: our
+      // seat goes to a Computer right away instead of waiting as a
+      // "reconnecting" ghost. Wait (briefly) until it confirms — the leave
+      // itself could otherwise overtake the message.
+      await this.announceLeave(matchId);
       try {
         await this.socket.leaveMatch(matchId);
       } catch (error) {
@@ -301,6 +307,40 @@ class MatchControllerService {
     ApplicationStore.gamePlayStatus.isRolling = false;
     ApplicationStore.gamePlayStatus.isMoving = false;
     ApplicationStore.currentScreen = 'main-menu';
+  }
+
+  // Resolves once a LOBBY_STATE/STATE_SYNC no longer seats us (or after a
+  // short timeout, e.g. we had no seat or the socket is already gone).
+  announceLeave(matchId) {
+    const selfUserId = this.online().selfUserId;
+    if (this.seatOfSelf(this.online().seats) < 0) {
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      const previous = this.socket.onmatchdata;
+      const done = () => {
+        clearTimeout(timer);
+        if (this.socket && this.socket.onmatchdata === watcher) {
+          this.socket.onmatchdata = previous;
+        }
+        resolve();
+      };
+      const watcher = (matchData) => {
+        if (matchData.op_code === OpCode.LOBBY_STATE || matchData.op_code === OpCode.STATE_SYNC) {
+          const seats = decodePayload(matchData.data).seats || [];
+          if (!seats.some((seat) => seat && seat.userId === selfUserId)) {
+            done();
+          }
+        }
+      };
+      const timer = setTimeout(done, LEAVE_ACK_TIMEOUT_MS);
+      this.socket.onmatchdata = watcher;
+      try {
+        this.socket.sendMatchState(matchId, OpCode.LEAVE, encodePayload({}));
+      } catch (error) {
+        done();
+      }
+    });
   }
 
   send(opCode, payload) {

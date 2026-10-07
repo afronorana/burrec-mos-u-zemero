@@ -23,6 +23,7 @@ export var OpCode = {
   MOVE_REQUEST: 13, // { pawnIndex }
   SYNC_REQUEST: 14, // {}
   CLAIM_SEAT: 15, // { seat: number }
+  LEAVE: 17, // {} — an explicit Leave (vs a dropped connection): mid-game the seat goes straight to a Bot, pawns as they stand
   SET_COSMETICS: 16, // Cosmetics — lobby: answered with LOBBY_STATE; playing: once per player per match (Members only), answered with COSMETICS_CHANGED or REJECTED 'restyle_used' / 'members_only'
 };
 

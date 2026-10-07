@@ -302,13 +302,13 @@ function turnDeadline(state: LudoState, tick: number): number {
   return tick + ticks;
 }
 
-// Keeps a Bot from acting before `ticks` from now (never shortens a hold).
 // A random Finisher any Member gets for free (never a premium/special one).
 function botFinisher(): string {
   const free = FINISHER_IDS.filter((id: string) => itemTier('finisher', id).tier === 'free');
   return free.length ? free[Math.floor(Math.random() * free.length)] : DEFAULT_FINISHER;
 }
 
+// Keeps a Bot from acting before `ticks` from now (never shortens a hold).
 function holdBots(state: LudoState, tick: number, ticks: number) {
   state.botActTick = Math.max(state.botActTick, tick + ticks);
 }
@@ -703,6 +703,28 @@ const matchJoin = function (
   return { state };
 };
 
+// The seat goes back to a Bot (CONTEXT.md: Bot) — pawns as they stand. In
+// the lobby that's every leave; mid-game only an explicit LEAVE (a dropped
+// connection keeps the seat as an Abandoned seat for a reconnect). If it was
+// that seat's turn, the Bot plays it out after a short think.
+function vacateSeat(state: LudoState, seatIndex: number, userId: string, tick: number) {
+  state.seats[seatIndex] = botSeat(seatIndex);
+  if (state.hostUserId === userId) {
+    state.hostUserId = null;
+    for (let i = 0; i < MAX_SEATS; i += 1) {
+      const candidate = state.seats[i];
+      if (candidate && !candidate.bot) {
+        state.hostUserId = candidate.userId;
+        break;
+      }
+    }
+  }
+  if (state.phase === 'playing' && state.turnSeat === seatIndex) {
+    state.turnDeadlineTick = turnDeadline(state, tick);
+    holdBots(state, tick, BOT_THINK_TICKS);
+  }
+}
+
 const matchLeave = function (
   ctx: nkruntime.Context,
   logger: nkruntime.Logger,
@@ -722,18 +744,7 @@ const matchLeave = function (
     }
 
     if (state.phase === 'lobby') {
-      state.seats[seat.seat] = botSeat(seat.seat);
-
-      if (state.hostUserId === presence.userId) {
-        state.hostUserId = null;
-        for (let i = 0; i < MAX_SEATS; i += 1) {
-          const candidate = state.seats[i];
-          if (candidate && !candidate.bot) {
-            state.hostUserId = candidate.userId;
-            break;
-          }
-        }
-      }
+      vacateSeat(state, seat.seat, presence.userId, tick);
     } else {
       seat.connected = false;
       if (state.phase === 'playing' && state.turnSeat === seat.seat) {
@@ -795,6 +806,19 @@ const matchLoop = function (
       case OpCode.SET_COSMETICS:
         handleSetCosmetics(nk, state, dispatcher, sender, payload);
         break;
+      case OpCode.LEAVE: {
+        // Sent just before the client leaves the match on purpose.
+        const leaving = seatOfUser(state, sender.userId);
+        if (leaving && state.phase !== 'finished') {
+          vacateSeat(state, leaving.seat, sender.userId, tick);
+          if (state.phase === 'playing') {
+            broadcast(dispatcher, OpCode.STATE_SYNC, snapshotPayload(state, tick));
+          }
+          broadcast(dispatcher, OpCode.LOBBY_STATE, lobbyStatePayload(state));
+          refreshOpenLabel(state, dispatcher);
+        }
+        break;
+      }
       case OpCode.ROLL_REQUEST:
         handleRollRequest(state, dispatcher, tick, sender, payload);
         break;
