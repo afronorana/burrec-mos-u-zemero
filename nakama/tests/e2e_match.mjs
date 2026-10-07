@@ -179,6 +179,13 @@ class TestPlayer {
       }
       case OpCode.STATE_SYNC: {
         if (this.onStateSync) this.onStateSync(payload);
+        // Learn our seat from the snapshot itself: a mid-game takeover's
+        // STATE_SYNC arrives before takeOver() sets player.seat, and if the
+        // Bot had already rolled (awaitingMove) we must pick up its legal
+        // pawns here — otherwise we re-send ROLL_REQUEST every watchdog tick
+        // (not_your_roll) until the turn times out.
+        const mine = (payload.seats || []).find((seat) => seat && seat.userId === this.session.user_id);
+        if (mine) this.seat = mine.seat;
         this.turnSeat = payload.turnSeat;
         if (payload.pawns) this.pawns = JSON.parse(JSON.stringify(payload.pawns));
         if (this.name === 'Alice') {
