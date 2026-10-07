@@ -227,8 +227,10 @@ export default {
     restyleUsed() {
       return Boolean(this.store.online.restyled[this.store.online.selfUserId]);
     },
+    // currentPlayerId, not player.isPlaying: players are markRaw (no reactivity).
     isMyTurn() {
-      return this.store.players.some((player) => player.isPlaying && player.controller === 'local');
+      const player = this.store.players[this.store.currentPlayerId];
+      return Boolean(player && player.controller === 'local');
     },
     finisherLabelKey() {
       return `cosmetics.finisher_${this.draft.finisher}`;

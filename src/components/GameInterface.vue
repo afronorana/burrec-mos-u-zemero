@@ -61,7 +61,7 @@
         :class="[
           `hud-player--slot-${index}`,
           {
-            'hud-player--active': player.isPlaying,
+            'hud-player--active': player === activePlayer,
             'hud-player--self': isSelf(player),
             'hud-player--offline': seatOf(player)?.connected === false,
             'hud-player--bot': seatOf(player)?.bot,
@@ -93,7 +93,7 @@
              re-keyed per turn. v-timer-drain offsets it by the time already
              elapsed, so a refresh/remount resumes mid-way. -->
         <div
-          v-if="player.isPlaying && store.turnTimer.running"
+          v-if="player === activePlayer && store.turnTimer.running"
           :key="store.turnTimer.startedAt"
           class="hud-player-timer"
           :class="{ 'hud-player-timer--low': timerLow }"
@@ -114,17 +114,17 @@
          seat — pick a color. Whose turn it is otherwise is shown by the
          highlighted player chip and the pit rim's color. -->
     <transition name="turnbar-pop">
-      <div v-if="turnPrompt" :key="turnPrompt" class="hud-turnbar" :class="{ 'hud-turnbar--mine': turnPrompt !== 'seat' }">
-        <template v-if="turnPrompt === 'seat'">
+      <div v-if="turnPrompt()" :key="turnPrompt()" class="hud-turnbar" :class="{ 'hud-turnbar--mine': turnPrompt() !== 'seat' }">
+        <template v-if="turnPrompt() === 'seat'">
           <span class="hud-turnbar-text">{{ t('online.chooseColorPrompt') }}</span>
         </template>
         <template v-else>
           <span class="hud-turnbar-dot"></span>
           <span class="hud-turnbar-text">
             {{ t('hud.yourTurn') }}
-            <span v-if="turnPrompt === 'pick'" class="hud-turnbar-sub">{{ t('hud.pickPawn') }}</span>
+            <span v-if="turnPrompt() === 'pick'" class="hud-turnbar-sub">{{ t('hud.pickPawn') }}</span>
           </span>
-          <app-button v-if="turnPrompt === 'roll'" orange class="hud-roll-btn" @click="roll">
+          <app-button v-if="turnPrompt() === 'roll'" orange class="hud-roll-btn" @click="roll">
             <dices-icon :size="20" class="hud-roll-icon" />{{ t('hud.roll') }}
           </app-button>
           <div
@@ -227,8 +227,13 @@ export default {
     orderedPlayers() {
       return this.store.players.slice().sort((a, b) => a.turn - b.turn);
     },
+    // Players (and their pawns) are markRaw — their fields never notify
+    // Vue, so turn state keys off the reactive currentPlayerId, and anything
+    // reading raw pawn flags is a method (re-run on every render), not a
+    // cached computed.
     activePlayer() {
-      return this.store.players.find((player) => player.isPlaying) || null;
+      if (this.store.currentScreen !== 'game-screen') return null;
+      return this.store.players[this.store.currentPlayerId] || null;
     },
     isMyTurn() {
       return Boolean(this.activePlayer && this.activePlayer.controller === 'local');
@@ -237,24 +242,7 @@ export default {
       const status = this.store.gamePlayStatus;
       return this.isMyTurn && status.isRolling && !status.isDiceRolling;
     },
-    // Waiting on our pawn choice: the server's legal pawns are lit (isActive)
-    // and nothing is in motion. gamePlayStatus.isMoving alone isn't enough —
-    // it's cleared the moment we pick, while the move still animates.
-    canPick() {
-      return this.isMyTurn
-        && this.store.gamePlayStatus.isMoving
-        && !this.store.online.autoMovePawn
-        && this.activePlayer.pawns.some((pawn) => pawn.isActive)
-        && !this.activePlayer.pawns.some((pawn) => pawn.isMoving);
-    },
-    // 'seat' | 'roll' | 'pick' | null — what the turn bar asks of us.
-    turnPrompt() {
-      if (this.store.winner) return null;
-      if (this.needsSeat) return 'seat';
-      if (this.canRoll) return 'roll';
-      if (this.canPick) return 'pick';
-      return null;
-    },
+
     needsSeat() {
       return this.store.online.enabled && this.store.online.mySeat < 0 && !this.store.winner;
     },
@@ -360,6 +348,24 @@ export default {
     document.removeEventListener('visibilitychange', this.visibilityHandler);
   },
   methods: {
+    // Waiting on our pawn choice: the server's legal pawns are lit (isActive)
+    // and nothing is in motion. gamePlayStatus.isMoving alone isn't enough —
+    // it's cleared the moment we pick, while the move still animates.
+    canPick() {
+      return this.isMyTurn
+        && this.store.gamePlayStatus.isMoving
+        && !this.store.online.autoMovePawn
+        && this.activePlayer.pawns.some((pawn) => pawn.isActive)
+        && !this.activePlayer.pawns.some((pawn) => pawn.isMoving);
+    },
+    // 'seat' | 'roll' | 'pick' | null — what the turn bar asks of us.
+    turnPrompt() {
+      if (this.store.winner) return null;
+      if (this.needsSeat) return 'seat';
+      if (this.canRoll) return 'roll';
+      if (this.canPick()) return 'pick';
+      return null;
+    },
     openWardrobe() {
       this.settingsOpen = false;
       this.store.wardrobe.inGame = true;
