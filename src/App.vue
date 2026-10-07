@@ -2,7 +2,6 @@
   <main class="app-shell">
     <canvas ref="canvas" class="board-canvas"></canvas>
     <canvas ref="overlayCanvas" class="overlay-canvas"></canvas>
-    <div ref="hitEffectLayer" class="hit-effect-layer"></div>
     <start-screen></start-screen>
     <win-screen></win-screen>
 
@@ -28,7 +27,6 @@ import { PLAYER_COLORS } from './utils/playerColors';
 import Player from './utils/Player';
 import MatchController, { seatPlayerName } from './network/MatchController';
 import { readMatchUrl, loadActiveMatch } from './utils/matchSession';
-import { getRandomHitEffectSvg, HIT_EFFECT_DURATION_MS } from './utils/hitEffects';
 import {
   loadNatureKit,
   NATURE_BACKDROP,
@@ -191,7 +189,6 @@ const buildPawnGeometry = (bodyScale, headScale) => {
 
 // Render-loop scratch objects — reused every frame to avoid GC churn.
 const _cameraLookScratch = new THREE.Vector3();
-const _hitEffectScratch = new THREE.Vector3();
 const _finisherCamPos = new THREE.Vector3();
 const _finisherCamLook = new THREE.Vector3();
 const _finisherBasePos = new THREE.Vector3();
@@ -587,7 +584,6 @@ export default {
       controlsChangeHandler: null,
       isPointerInsideCanvas: false,
       demoKeyBuffer: '',
-      activeHitEffects: markRaw([]),
       // The running Finisher (see startFinisher), or null.
       finisher: null,
       // Wardrobe preview scene, built on first visit (ensureWardrobeStage).
@@ -1178,7 +1174,7 @@ export default {
       if (this.dicePhysicsBody && this.dicePhysicsBody.sleepState !== CANNON.Body.SLEEPING) {
         return true;
       }
-      if (this.activeHitEffects.length || this.finisher) {
+      if (this.finisher) {
         return true;
       }
       if (this.store.wardrobe.inGame && this.windowFocused) {
@@ -1359,7 +1355,6 @@ export default {
           if (this.wardrobeOpen()) {
             this.renderWardrobeStage();
           }
-          this.updateHitEffects();
           this.sampleRenderPerformance(frameNow);
           // The interval is a whole number of vsyncs (minus half a vsync of
           // slack), so stamping the actual render time keeps an even cadence.
@@ -1958,58 +1953,6 @@ export default {
       return fillMesh;
     },
 
-    // Comic burst over a captured pawn: a DOM element (inline SVG from
-    // utils/hitEffects.js) in .hit-effect-layer. CSS runs the pop/fade
-    // choreography; the render loop only re-projects the world anchor so
-    // the burst stays glued to the board while the camera moves.
-    // `view` ({ camera, rect }) projects into a sub-viewport instead of the
-    // board camera's full window (the wardrobe preview).
-    spawnHitEffect(data, view = null) {
-      const layer = this.$refs.hitEffectLayer;
-      const svg = getRandomHitEffectSvg();
-      if (!layer || !svg) return;
-
-      const el = document.createElement('div');
-      el.className = 'hit-effect';
-      el.style.setProperty('--fx-duration', `${HIT_EFFECT_DURATION_MS}ms`);
-      el.style.setProperty('--fx-tilt', `${(Math.random() * 16 - 8).toFixed(1)}deg`);
-      el.innerHTML = svg;
-      layer.appendChild(el);
-
-      this.activeHitEffects.push({
-        el,
-        // Anchor slightly above the pawn's head so the burst covers it.
-        worldPosition: markRaw(new THREE.Vector3(data.x, data.y + 1.05, data.z)),
-        view,
-        expiresAt: performance.now() + HIT_EFFECT_DURATION_MS,
-      });
-      this.updateHitEffects();
-    },
-
-    updateHitEffects() {
-      if (!this.activeHitEffects.length) return;
-
-      const now = performance.now();
-      for (let i = this.activeHitEffects.length - 1; i >= 0; i -= 1) {
-        const effect = this.activeHitEffects[i];
-        if (now >= effect.expiresAt) {
-          effect.el.remove();
-          this.activeHitEffects.splice(i, 1);
-          continue;
-        }
-
-        const view = effect.view;
-        const v = _hitEffectScratch.copy(effect.worldPosition).project(view ? view.camera : this.camera);
-        const rect = view ? view.rect : null;
-        const left = rect ? rect.left : 0;
-        const top = rect ? rect.top : 0;
-        const width = rect ? rect.width : window.innerWidth;
-        const height = rect ? rect.height : window.innerHeight;
-        effect.el.style.left = `${(left + ((v.x * 0.5 + 0.5) * width)).toFixed(1)}px`;
-        effect.el.style.top = `${(top + ((-v.y * 0.5 + 0.5) * height)).toFixed(1)}px`;
-      }
-    },
-
     // ── Finishers ──────────────────────────────────────────────────────
     // A Capture is logically instant (the victims are already home); the
     // Finisher only delays the victims' meshes. While it runs,
@@ -2392,8 +2335,6 @@ export default {
 
       if (!f.impactDone && t >= T.impact) {
         f.impactDone = true;
-        const view = f.wardrobe ? this.wardrobeView() : null;
-        f.victims.forEach((victim) => this.spawnHitEffect(victim.stand, view));
         playFinisherImpact(f.id);
       }
 
@@ -2599,12 +2540,6 @@ export default {
       });
       this.applyOutlineAppearance();
       return this.wardrobeStage;
-    },
-
-    wardrobeView() {
-      const stage = this.wardrobeStage;
-      const rect = this.store.wardrobe.rect;
-      return stage && rect ? { camera: stage.camera, rect: { ...rect } } : null;
     },
 
     // Per frame while the wardrobe is open: dress the pawn in the draft,
