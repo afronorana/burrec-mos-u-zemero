@@ -481,6 +481,11 @@ const FIELD_CLEARANCE_Y = 0.022;
 const FIELD_CENTER_Y = BOARD_TOP_SURFACE_Y + 0.04 + FIELD_CLEARANCE_Y;
 const START_FIELD_CENTER_Y = BOARD_TOP_SURFACE_Y + 0.05 + FIELD_CLEARANCE_Y;
 const PAWN_CENTER_Y = FIELD_CENTER_Y + 0.085;
+// Passing a pawn mid-move: the hop lands on its head (pawn ≈ 1.03 tall)
+// and leaps higher to get there.
+const PAWN_PERCH_HEIGHT = 1.0;
+const PAWN_PERCH_JUMP = 0.55;
+const _occupantScratch = { x: 0, y: 0, z: 0 };
 const DICE_VISUAL_FLOAT_Y = 0.016;
 
 export default {
@@ -1645,6 +1650,20 @@ export default {
       return Math.atan2(this.camera.position.x - position.x, this.camera.position.z - position.z);
     },
 
+    // Another pawn (any color) standing on this field, by logical position.
+    isFieldOccupiedByOther(pawn, x, z) {
+      for (const player of this.store.players) {
+        for (const other of player.pawns) {
+          if (other === pawn) continue;
+          const at = other.getCoordinates(0, _occupantScratch);
+          if (Math.abs(at.x - x) < 0.01 && Math.abs(at.z - z) < 0.01) {
+            return true;
+          }
+        }
+      }
+      return false;
+    },
+
     getPawnJumpHeight(pawn) {
       if (pawn.position === 0) {
         return 0.2;
@@ -1693,20 +1712,24 @@ export default {
         motion.from.y = motion.current.y;
         motion.from.z = motion.current.z;
         motion.landOffset = this.captureLandingOffset(pawn);
+        // Passing over another pawn: perch on it rather than clip through.
+        motion.perchY = pawn.passingStep && this.isFieldOccupiedByOther(pawn, targetX, targetZ)
+          ? PAWN_PERCH_HEIGHT
+          : 0;
         motion.to.x = targetX + (motion.landOffset?.x ?? 0);
-        motion.to.y = targetY;
+        motion.to.y = targetY + motion.perchY;
         motion.to.z = targetZ + (motion.landOffset?.z ?? 0);
         motion.position = pawn.position;
         motion.globalPosition = pawn.globalPosition;
         motion.inDestination = pawn.isInDestinationField;
         motion.startTime = now;
-        motion.jumpHeight = this.getPawnJumpHeight(pawn);
+        motion.jumpHeight = motion.perchY ? PAWN_PERCH_JUMP : this.getPawnJumpHeight(pawn);
         motion.isAnimating = true;
       }
 
       if (!motion.isAnimating) {
         motion.current.x = targetX + (motion.landOffset?.x ?? 0);
-        motion.current.y = targetY;
+        motion.current.y = targetY + (motion.perchY ?? 0);
         motion.current.z = targetZ + (motion.landOffset?.z ?? 0);
         motion.stretch = 1;
         return motion.current;

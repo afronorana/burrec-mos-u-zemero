@@ -20,6 +20,9 @@ class Pawn {
     this.isMoving = false;
     this.activeMoveTimeout = null;
     this.landingOnCapture = false;
+    // Presentation hint: this hop isn't the move's last, so another pawn on
+    // the field is being passed — App.vue hops onto it instead of through.
+    this.passingStep = false;
   }
 
   /**
@@ -52,6 +55,7 @@ class Pawn {
     this.isMoving = false;
     this.activeMoveTimeout = null;
     this.landingOnCapture = false;
+    this.passingStep = false;
 
     if (ApplicationStore.online.enabled) {
       // Online, turn advancement comes only from the server's TURN_CHANGE.
@@ -270,6 +274,7 @@ class Pawn {
       // Presentation hint for App.vue: this hop may land on a Capture, so the
       // mesh stops beside the victim instead of on top of it.
       this.landingOnCapture = captureField !== null && index === states.length - 1;
+      this.passingStep = index < states.length - 1;
       this.applyMoveState(states[index], index);
 
       if (index < states.length - 1) {
