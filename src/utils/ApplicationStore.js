@@ -190,6 +190,10 @@ const ApplicationStore = reactive({
     environment: null,
     // userId -> { prop, finisher } for everyone in the match, seated or not.
     cosmetics: {},
+    // userId -> true once that player used their one mid-game restyle
+    // (SET_COSMETICS during play; the in-game Wardrobe).
+    restyled: {},
+    restyleError: null, // REJECTED reason for our last in-game restyle, if any
     seatToPlayerIndex: {}, // seat number -> index into store.players (seats can be non-contiguous)
     // Resume-after-reload plumbing (see utils/matchSession.js):
     resuming: false, // rejoining a match from the URL/record — show the overlay
@@ -228,7 +232,7 @@ const ApplicationStore = reactive({
     // 'login' | 'register' | 'account' | 'forgot' | 'reset' | 'verify' | 'delete'.
     authOpen: false,
     authView: 'login',
-    // Why a Guest was sent to the modal ('chat' | 'wardrobe'), shown above
+    // Why a Guest was sent to the modal ('chat' | 'wardrobe' | 'restyle'), shown above
     // the form; null when opened from the menu (utils/authPrompt.js).
     authReason: null,
     // Profile sheet (ProfileSheet.vue), opened from the top-right button.
@@ -247,6 +251,9 @@ const ApplicationStore = reactive({
   // preview stage into, the drag-rotated yaw, and a Finisher replay request
   // ({ id, nonce } — a new nonce restarts it).
   wardrobe: {
+    // Open over the running game (GameInterface "Style" button) rather than
+    // as the menu screen — currentScreen stays 'game-screen'.
+    inGame: false,
     draft: null,
     previewPawn: 0, // which pawn's Prop the preview pawn wears (0-3)
     rect: null,

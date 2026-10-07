@@ -24,6 +24,17 @@
       >
         <component :is="settingsOpen ? 'XIcon' : 'SettingsIcon'" :size="20" />
       </app-button>
+      <!-- One restyle per game (in-game Wardrobe); for a Guest it's the
+           register pitch — the Wardrobe offers sign-up right there. -->
+      <app-button
+        v-if="canRestyle"
+        blue
+        class="hud-icon-btn"
+        :title="t('cosmetics.styleButton')"
+        @click="openWardrobe"
+      >
+        <shirt-icon :size="20" />
+      </app-button>
     </div>
 
     <div
@@ -129,12 +140,13 @@ import ApplicationStore from '../utils/ApplicationStore';
 import MatchController from '../network/MatchController';
 import { t } from '../utils/i18n';
 import { playTick } from '../utils/sound';
-import { Settings, X } from '@lucide/vue';
+import { Settings, Shirt, X } from '@lucide/vue';
 
 export default {
   components: {
     ChatDrawer,
     SettingsIcon: Settings,
+    ShirtIcon: Shirt,
     XIcon: X,
   },
   data() {
@@ -150,6 +162,11 @@ export default {
   computed: {
     needsSeat() {
       return this.store.online.enabled && this.store.online.mySeat < 0 && !this.store.winner;
+    },
+    // Seated, game still running, and the one restyle not spent yet.
+    canRestyle() {
+      const online = this.store.online;
+      return online.enabled && online.mySeat >= 0 && !this.store.winner && !online.restyled[online.selfUserId];
     },
     connectionMessage() {
       if (!this.store.online.enabled) return '';
@@ -247,6 +264,10 @@ export default {
     document.removeEventListener('visibilitychange', this.visibilityHandler);
   },
   methods: {
+    openWardrobe() {
+      this.settingsOpen = false;
+      this.store.wardrobe.inGame = true;
+    },
     // Tap another player's chip: Block / Report them (seat = turn - 1).
     openSeatActions(player) {
       const seat = (this.store.online.seats || [])[player.turn - 1];

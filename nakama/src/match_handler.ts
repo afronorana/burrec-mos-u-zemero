@@ -55,6 +55,8 @@ export interface LudoState {
   // seat, so an unseated joiner's pick is known before they claim a color and
   // a disconnected seat keeps its owner's look.
   cosmetics: { [userId: string]: Cosmetics };
+  // userId -> true once that player used their one mid-game Cosmetics change.
+  restyled: { [userId: string]: boolean };
   hostUserId: string | null;
   turnSeat: number;
   round: number;
@@ -181,6 +183,7 @@ function snapshotPayload(state: LudoState, tick: number): object {
     joinCode: state.joinCode,
     displayNames: state.displayNames,
     cosmetics: state.cosmetics,
+    restyled: state.restyled,
     environment: state.environment,
     turnSeat: state.turnSeat,
     round: state.round,
@@ -256,6 +259,33 @@ function broadcast(dispatcher: nkruntime.MatchDispatcher, opCode: number, payloa
 
 function reject(dispatcher: nkruntime.MatchDispatcher, sender: nkruntime.Presence, reason: string, forOpCode: number) {
   broadcast(dispatcher, OpCode.REJECTED, { reason, forOpCode }, [sender]);
+}
+
+// Cosmetics ride join metadata and change freely in the lobby. Once the
+// game runs, each seated Member may restyle exactly once per match (the
+// in-game Wardrobe); a Guest asking is told to register instead.
+function handleSetCosmetics(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkruntime.MatchDispatcher, sender: nkruntime.Presence, payload: any) {
+  const userId = sender.userId;
+  if (state.phase === 'lobby') {
+    state.cosmetics[userId] = isMember(nk, userId) ? wearableCosmetics(payload, ownedItems(nk, userId)) : guestCosmetics();
+    broadcast(dispatcher, OpCode.LOBBY_STATE, lobbyStatePayload(state));
+    return;
+  }
+  if (state.phase !== 'playing' || !seatOfUser(state, userId)) {
+    reject(dispatcher, sender, 'not_seated', OpCode.SET_COSMETICS);
+    return;
+  }
+  if (!isMember(nk, userId)) {
+    reject(dispatcher, sender, 'members_only', OpCode.SET_COSMETICS);
+    return;
+  }
+  if (state.restyled[userId]) {
+    reject(dispatcher, sender, 'restyle_used', OpCode.SET_COSMETICS);
+    return;
+  }
+  state.restyled[userId] = true;
+  state.cosmetics[userId] = wearableCosmetics(payload, ownedItems(nk, userId));
+  broadcast(dispatcher, OpCode.COSMETICS_CHANGED, { userId, cosmetics: state.cosmetics[userId] });
 }
 
 function resetTurnState(state: LudoState) {
@@ -531,6 +561,7 @@ const matchInit = function (
     seats: [botSeat(0), botSeat(1), botSeat(2), botSeat(3)],
     displayNames: {},
     cosmetics: {},
+    restyled: {},
     hostUserId: null,
     turnSeat: -1,
     round: 0,
@@ -755,15 +786,7 @@ const matchLoop = function (
         handleStart(nk, state, dispatcher, tick, sender);
         break;
       case OpCode.SET_COSMETICS:
-        // Cosmetics are picked in the menu wardrobe and ride join metadata;
-        // once the game starts they're locked for the rest of the match.
-        if (state.phase !== 'lobby') {
-          break;
-        }
-        state.cosmetics[sender.userId] = isMember(nk, sender.userId)
-          ? wearableCosmetics(payload, ownedItems(nk, sender.userId))
-          : guestCosmetics();
-        broadcast(dispatcher, OpCode.LOBBY_STATE, lobbyStatePayload(state));
+        handleSetCosmetics(nk, state, dispatcher, sender, payload);
         break;
       case OpCode.ROLL_REQUEST:
         handleRollRequest(state, dispatcher, tick, sender, payload);

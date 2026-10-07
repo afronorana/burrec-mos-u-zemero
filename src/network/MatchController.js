@@ -255,6 +255,8 @@ class MatchControllerService {
     online.seats = [];
     online.displayNames = {};
     online.cosmetics = {};
+    online.restyled = {};
+    online.restyleError = null;
     online.environment = null;
     online.seatToPlayerIndex = {};
     online.pendingDice = null;
@@ -305,6 +307,12 @@ class MatchControllerService {
     this.send(OpCode.CLAIM_SEAT, { seat: seatIndex });
   }
 
+  // The one mid-game restyle (the server refuses a second one).
+  requestRestyle(cosmetics) {
+    this.online().restyleError = null;
+    this.send(OpCode.SET_COSMETICS, cosmetics);
+  }
+
   handleMatchData(matchData) {
     const payload = decodePayload(matchData.data);
     // Client-only arrival stamp: `turnMsLeft` is relative to when the server
@@ -339,7 +347,22 @@ class MatchControllerService {
       case OpCode.STATE_SYNC:
         this.handleStateSync(payload);
         break;
+      case OpCode.COSMETICS_CHANGED: {
+        // Applied at once: Props are purely visual, and queued MOVE_APPLIEDs
+        // carry their own stamped Finisher.
+        const online = this.online();
+        online.cosmetics = { ...online.cosmetics, [payload.userId]: payload.cosmetics };
+        online.restyled = { ...online.restyled, [payload.userId]: true };
+        break;
+      }
       case OpCode.REJECTED:
+        if (payload.forOpCode === OpCode.SET_COSMETICS) {
+          this.online().restyleError = payload.reason;
+          if (payload.reason === 'restyle_used') {
+            this.online().restyled = { ...this.online().restyled, [this.online().selfUserId]: true };
+          }
+          break;
+        }
         // An illegal request usually means we drifted from server state.
         if (payload.forOpCode === OpCode.MOVE_REQUEST || payload.forOpCode === OpCode.ROLL_REQUEST) {
           this.requestSync();
@@ -475,6 +498,7 @@ class MatchControllerService {
     online.joinCode = payload.joinCode || online.joinCode;
     online.displayNames = payload.displayNames || online.displayNames;
     online.cosmetics = payload.cosmetics || online.cosmetics;
+    online.restyled = payload.restyled || online.restyled;
     online.environment = payload.environment || online.environment;
     if (online.joinCode && !online.mode) {
       online.mode = 'private';

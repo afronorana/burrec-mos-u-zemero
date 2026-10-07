@@ -136,19 +136,58 @@ export function sendEmail(logger: nkruntime.Logger, nk: nkruntime.Nakama, env: E
   }
 }
 
-// Bilingual (sq/en) single-button email body shared by both flows.
+// Bilingual (sq/en) single-button email body shared by both flows, dressed
+// like the game's UI (afrons-game-ui): an orange panel with a dark-green
+// border and pill title, a green chunky button, Outfit type. Email clients
+// ignore inset box-shadows and most CSS, so it's tables + inline styles,
+// with a thick bottom border standing in for the panel/button "lip".
+const EMAIL_COLORS = {
+  backdrop: '#241d18',
+  base: '#263f2a',
+  orange: '#fdc25b',
+  orangeDark: '#ee9448',
+  green: '#71bd26',
+  greenDark: '#4f8a17',
+};
+const EMAIL_FONT = "'Outfit', 'Helvetica Neue', Arial, sans-serif";
+
 function emailHtml(heading: string, body: string, link: string, button: string): string {
+  const c = EMAIL_COLORS;
   return (
-    '<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;">' +
-    '<h2 style="margin:0 0 12px;">' + heading + '</h2>' +
-    '<p style="margin:0 0 20px;line-height:1.5;">' + body + '</p>' +
-    '<p style="margin:0 0 20px;"><a href="' + link + '" ' +
-    'style="background:#e76f51;color:#fff;padding:12px 20px;border-radius:6px;text-decoration:none;display:inline-block;">' +
-    button + '</a></p>' +
-    '<p style="font-size:12px;color:#888;line-height:1.5;">' +
+    '<!doctype html><html><head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">' +
+    '</head>' +
+    '<body style="margin:0;padding:0;background:' + c.backdrop + ';">' +
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:' + c.backdrop + ';">' +
+    '<tr><td align="center" style="padding:32px 16px;">' +
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:480px;font-family:' + EMAIL_FONT + ';">' +
+    // Game title, as on the start screen.
+    '<tr><td align="center" style="padding:0 0 28px;font-size:26px;line-height:1.2;font-weight:800;' +
+    'letter-spacing:0.03em;text-transform:uppercase;color:' + c.orange + ';">Burrec mos u zemero</td></tr>' +
+    // Panel: orange card, dark-green border, darker orange bottom lip.
+    '<tr><td style="background:' + c.orange + ';border:2px solid ' + c.base + ';border-bottom:8px solid ' + c.orangeDark + ';' +
+    'border-radius:12px;padding:24px;color:' + c.base + ';">' +
+    // Pill title (in the game it straddles the panel edge; mail clients
+    // strip the negative margin that needs, so it sits just inside).
+    '<table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 18px;">' +
+    '<tr><td style="background:' + c.orange + ';border:2px solid ' + c.base + ';border-bottom:4px solid ' + c.orangeDark + ';' +
+    'border-radius:20px;padding:6px 16px;font-size:14px;line-height:1.5;font-weight:800;letter-spacing:0.03em;' +
+    'text-transform:uppercase;white-space:nowrap;color:' + c.base + ';">' + heading + '</td></tr></table>' +
+    '<p style="margin:0 0 22px;font-size:16px;line-height:1.55;text-align:center;color:' + c.base + ';">' + body + '</p>' +
+    // Chunky green game button.
+    '<table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 22px;">' +
+    '<tr><td style="background:' + c.green + ';border:2px solid ' + c.base + ';border-bottom:5px solid ' + c.greenDark + ';border-radius:8px;">' +
+    '<a href="' + link + '" style="display:inline-block;padding:14px 26px;font-family:' + EMAIL_FONT + ';font-size:16px;' +
+    'font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#ffffff;text-decoration:none;">' + button + '</a>' +
+    '</td></tr></table>' +
+    '<p style="margin:0;font-size:12px;line-height:1.5;text-align:center;color:' + c.base + ';opacity:0.8;">' +
     'Nëse butoni nuk punon, hape këtë lidhje / If the button does not work, open this link:<br>' +
-    '<a href="' + link + '">' + link + '</a></p>' +
-    '</div>'
+    '<a href="' + link + '" style="color:' + c.base + ';word-break:break-all;">' + link + '</a></p>' +
+    '</td></tr>' +
+    '<tr><td align="center" style="padding:20px 0 0;font-size:12px;line-height:1.5;color:#a8998a;">' +
+    'burrec.com</td></tr>' +
+    '</table></td></tr></table></body></html>'
   );
 }
 
@@ -164,8 +203,9 @@ function sendVerificationEmail(logger: nkruntime.Logger, nk: nkruntime.Nakama, e
     logger, nk, env, email,
     'Vërteto email-in / Verify your email — Burrec Mos u Zemero',
     emailHtml(
-      'Mirësevjen në Burrec!',
-      'Kliko butonin për të vërtetuar adresën tënde. / Click the button to verify your email address.',
+      'Mirësevjen! / Welcome!',
+      'Vërteto adresën tënde dhe vishi pionët me aksesorë, zgjidh goditjen kur kap dhe bisedo në lojë. / ' +
+      'Verify your address to dress your pawns in Props, pick a capture Finisher and chat in games.',
       link,
       'Vërteto / Verify',
     ),

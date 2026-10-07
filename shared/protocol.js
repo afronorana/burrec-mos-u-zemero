@@ -14,6 +14,7 @@ export var OpCode = {
   STATE_SYNC: 6, // full snapshot incl. turnMsLeft (reconnect/desync recovery)
   GAME_OVER: 7, // { winnerSeat }
   REJECTED: 8, // { reason, forOpCode }
+  COSMETICS_CHANGED: 9, // { userId, cosmetics } — a player's one mid-game restyle (see SET_COSMETICS)
 
   // client → server
   READY: 10, // { ready: boolean }
@@ -22,7 +23,7 @@ export var OpCode = {
   MOVE_REQUEST: 13, // { pawnIndex }
   SYNC_REQUEST: 14, // {}
   CLAIM_SEAT: 15, // { seat: number }
-  SET_COSMETICS: 16, // { prop, finisher, flag } — lobby phase only; answered with a LOBBY_STATE broadcast
+  SET_COSMETICS: 16, // Cosmetics — lobby: answered with LOBBY_STATE; playing: once per player per match (Members only), answered with COSMETICS_CHANGED or REJECTED 'restyle_used' / 'members_only'
 };
 
 // CONTEXT.md: Bot — every seat no human holds. Bots have no userId, wear no

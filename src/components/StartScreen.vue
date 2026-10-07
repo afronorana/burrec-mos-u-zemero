@@ -63,6 +63,7 @@
     </transition>
 
     <game-interface v-if="store.currentScreen === 'game-screen'" />
+    <wardrobe-screen v-if="store.currentScreen === 'game-screen' && store.wardrobe.inGame" />
 
     <!-- Top right on menu screens: Settings + Profile (the lobby carries its
          own gear). The Profile button wears the sign-in provider's mark. -->

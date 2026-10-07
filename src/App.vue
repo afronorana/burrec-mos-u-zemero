@@ -478,6 +478,12 @@ export default {
         this.applyPawnProps();
       },
     },
+    'store.wardrobe.inGame'(open) {
+      if (!open && this.finisher?.wardrobe) {
+        this.endFinisher();
+      }
+      this.requestRender();
+    },
     'store.wardrobe.play'(request) {
       if (request) {
         this.startWardrobeFinisher(request.id);
@@ -510,6 +516,9 @@ export default {
         }
       }
 
+      if (oldScreen === 'game-screen') {
+        this.store.wardrobe.inGame = false;
+      }
       if (oldScreen === 'wardrobe' && this.finisher?.wardrobe) {
         this.endFinisher();
       }
@@ -1169,6 +1178,9 @@ export default {
       if (this.activeHitEffects.length || this.finisher) {
         return true;
       }
+      if (this.store.wardrobe.inGame && this.windowFocused) {
+        return true; // the in-game Wardrobe's turning preview pawn
+      }
       return false;
     },
 
@@ -1304,7 +1316,7 @@ export default {
 
         this.updateCameraPath(frameNow);
         this.updateFinisher(frameNow);
-        if (this.store.currentScreen === 'wardrobe') {
+        if (this.wardrobeOpen()) {
           this.updateWardrobeStage(frameNow);
         }
         this.syncHomeBaseHelpers();
@@ -1341,7 +1353,7 @@ export default {
         if (this.renderNeeded && sinceLastRender >= interval) {
           this.renderNeeded = false;
           this.renderer.render(this.scene, this.camera);
-          if (this.store.currentScreen === 'wardrobe') {
+          if (this.wardrobeOpen()) {
             this.renderWardrobeStage();
           }
           this.updateHitEffects();
@@ -2051,7 +2063,8 @@ export default {
     // full version, since that's what's being chosen.
     startWardrobeFinisher(finisherId) {
       const stage = this.ensureWardrobeStage();
-      if (!stage || this.store.currentScreen !== 'wardrobe') {
+      // In-game, a real capture's Finisher has the slot — never cut it short.
+      if (!stage || !this.wardrobeOpen() || (this.finisher && !this.finisher.wardrobe)) {
         this.store.wardrobe.play = null;
         return;
       }
@@ -2231,7 +2244,9 @@ export default {
         this.pawnMotionStates[attackerId].landOffset = null;
       }
       this.finisher = markRaw(f);
-      this.store.online.finisherInFlight = true;
+      if (!wardrobe) {
+        this.store.online.finisherInFlight = true;
+      }
       this.requestShadowUpdate();
     },
 
@@ -2536,6 +2551,11 @@ export default {
     // with a scissored viewport, after the orbiting board. Reusing this
     // renderer and the shared caches means props and Finishers preview with
     // exactly the code the match uses.
+    // The Wardrobe is the menu screen or, during a match, an overlay.
+    wardrobeOpen() {
+      return this.store.currentScreen === 'wardrobe' || this.store.wardrobe.inGame;
+    },
+
     ensureWardrobeStage() {
       if (this.wardrobeStage) {
         return this.wardrobeStage;
@@ -2727,11 +2747,14 @@ export default {
         }
       }
 
+      this.requestShadowUpdate();
+      // A Wardrobe preview never held MatchController's queue, so it must not
+      // release it (in-game, a real capture may be preempting it right now).
       if (f.wardrobe) {
         this.store.wardrobe.play = null;
+        return;
       }
       this.store.online.finisherInFlight = false;
-      this.requestShadowUpdate();
       EventBus.fire(EventKeys.finisher.done);
     },
 

@@ -1,13 +1,20 @@
 <template>
-  <div class="wardrobe">
+  <div class="wardrobe" :class="{ 'wardrobe--in-game': inGame }">
     <app-panel class="wardrobe-options">
       <h2 class="panel-title">{{ t('cosmetics.title') }}</h2>
 
       <!-- Guests preview everything but wear nothing (CONTEXT.md: Guest). -->
       <div v-if="!isMember" class="wardrobe-guest-banner">
         <span>{{ t('cosmetics.guestBanner') }}</span>
-        <app-button small @click="promptRegister('wardrobe')">{{ t('cosmetics.registerNow') }}</app-button>
+        <app-button small @click="promptRegister(registerReason)">{{ t('cosmetics.registerNow') }}</app-button>
       </div>
+
+      <!-- In a running match: one restyle per game, and the game goes on. -->
+      <div v-if="inGame" class="wardrobe-restyle-note" :class="{ 'wardrobe-restyle-note--used': restyleUsed }">
+        {{ restyleUsed ? t('cosmetics.restyleUsed') : t('cosmetics.restyleOnce') }}
+      </div>
+      <p v-if="inGame && store.online.restyleError && !restyleUsed" class="wardrobe-store-error">{{ t('cosmetics.restyleFailed') }}</p>
+      <p v-if="inGame && isMyTurn" class="wardrobe-turn-note">{{ t('cosmetics.yourTurn') }}</p>
 
       <div class="wardrobe-scroll">
         <!-- Props are per pawn: style all four at once or pick one. -->
@@ -107,8 +114,9 @@
 
       <div class="menu-row wardrobe-actions">
         <app-button red @click="close">{{ t('back') }}</app-button>
-        <app-button v-if="isMember" :disabled="!!lockedPick" @click="save">{{ t('save') }}</app-button>
-        <app-button v-else @click="promptRegister('wardrobe')">{{ t('cosmetics.registerToSave') }}</app-button>
+        <app-button v-if="isMember && inGame" :disabled="!!lockedPick || restyleUsed" @click="wearInGame">{{ t('cosmetics.wearNow') }}</app-button>
+        <app-button v-else-if="isMember" :disabled="!!lockedPick" @click="save">{{ t('save') }}</app-button>
+        <app-button v-else @click="promptRegister(registerReason)">{{ t('cosmetics.registerToSave') }}</app-button>
       </div>
     </app-panel>
 
@@ -144,11 +152,14 @@ import { canWear, itemTier, sanitizeCosmetics, specialOpen } from '../../shared/
 import { t } from '../utils/i18n';
 import { promptRegister } from '../utils/authPrompt';
 import NakamaClient from '../network/NakamaClient';
+import MatchController from '../network/MatchController';
 
-// Menu-only Cosmetics editor. Edits a draft (store.wardrobe.draft) that the
-// preview pawn wears live; Save commits it to settings + localStorage, Back
-// discards it. Cosmetics travel with the next match join and are locked
-// for the rest of that match.
+// Cosmetics editor. Edits a draft (store.wardrobe.draft) that the preview
+// pawn wears live; Save commits it to settings + localStorage, Back discards
+// it. Cosmetics travel with the next match join. In a running match it opens
+// as an overlay (store.wardrobe.inGame): "Wear it" commits the draft and
+// sends the player's one mid-game restyle (SET_COSMETICS); a Guest gets the
+// register prompt instead, so they can sign up and restyle on the spot.
 export default {
   data() {
     return {
@@ -207,6 +218,18 @@ export default {
       }
       return null;
     },
+    inGame() {
+      return this.store.wardrobe.inGame;
+    },
+    registerReason() {
+      return this.inGame ? 'restyle' : 'wardrobe';
+    },
+    restyleUsed() {
+      return Boolean(this.store.online.restyled[this.store.online.selfUserId]);
+    },
+    isMyTurn() {
+      return this.store.players.some((player) => player.isPlaying && player.controller === 'local');
+    },
     finisherLabelKey() {
       return `cosmetics.finisher_${this.draft.finisher}`;
     },
@@ -231,12 +254,23 @@ export default {
       this.syncRect();
     };
     track();
+    // Verifying happens in the mail app / another tab: coming back here
+    // should unlock "Wear it" without reopening the account modal.
+    this.onFocus = () => {
+      const account = this.store.online.account;
+      if (account.method !== 'guest' && !account.member) {
+        NakamaClient.refreshAccountStatus();
+      }
+    };
+    window.addEventListener('focus', this.onFocus);
+    this.onFocus();
     if (this.currentLook.prop === 'flag') {
       this.scrollActiveFlagIntoView();
     }
   },
   beforeUnmount() {
     cancelAnimationFrame(this.rectFrame);
+    window.removeEventListener('focus', this.onFocus);
     const wardrobe = this.store.wardrobe;
     wardrobe.draft = null;
     wardrobe.previewPawn = 0;
@@ -340,7 +374,19 @@ export default {
       window.localStorage.setItem('burrec.settings.flag', picked.flag);
       this.close();
     },
+    wearInGame() {
+      if (this.restyleUsed) {
+        return;
+      }
+      const picked = sanitizeCosmetics(this.draft);
+      this.save();
+      MatchController.requestRestyle(picked);
+    },
     close() {
+      if (this.inGame) {
+        this.store.wardrobe.inGame = false;
+        return;
+      }
       this.store.currentScreen = 'main-menu';
     },
   },
@@ -367,6 +413,32 @@ function normalize(text) {
   gap: 16px;
   padding: 16px;
   pointer-events: none;
+}
+
+/* Over a running match: dim the board and keep clicks off it. */
+.wardrobe--in-game {
+  z-index: 50;
+  pointer-events: all;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.wardrobe-restyle-note {
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  border-radius: 6px;
+  background: rgba(58, 155, 220, 0.18);
+}
+.wardrobe-restyle-note--used {
+  background: rgba(38, 63, 42, 0.12);
+}
+
+.wardrobe-turn-note {
+  margin: 0 0 12px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-align: center;
 }
 
 .wardrobe-options {
