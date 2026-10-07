@@ -1,7 +1,7 @@
 // Authoritative 'ludo' match handler. All timing lives in matchLoop ticks —
 // the goja runtime has no setTimeout.
 
-import { BOT_DISPLAY_NAME, NO_FINISHER, OpCode, decodePayload, encodePayload, guestCosmetics, sanitizeCosmetics, wearableCosmetics } from '../../shared/protocol.js';
+import { BOT_DISPLAY_NAME, DEFAULT_FINISHER, FINISHER_IDS, NO_FINISHER, OpCode, decodePayload, encodePayload, guestCosmetics, itemTier, sanitizeCosmetics, wearableCosmetics } from '../../shared/protocol.js';
 import { isMember } from './auth';
 import { recordGamesPlayed, touchLastSeen } from './moderation';
 import { ownedItems } from './store';
@@ -303,6 +303,12 @@ function turnDeadline(state: LudoState, tick: number): number {
 }
 
 // Keeps a Bot from acting before `ticks` from now (never shortens a hold).
+// A random Finisher any Member gets for free (never a premium/special one).
+function botFinisher(): string {
+  const free = FINISHER_IDS.filter((id: string) => itemTier('finisher', id).tier === 'free');
+  return free.length ? free[Math.floor(Math.random() * free.length)] : DEFAULT_FINISHER;
+}
+
 function holdBots(state: LudoState, tick: number, ticks: number) {
   state.botActTick = Math.max(state.botActTick, tick + ticks);
 }
@@ -367,8 +373,9 @@ function doMove(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkruntime.Ma
     extraTurn: result.extraTurn && !result.won,
     // Stamped here so every client plays the same Finisher even if the
     // mover changes cosmetics while this event is still queued client-side.
-    // A Bot wears nothing, so its Capture is the lite one.
-    finisher: moverCosmetics ? moverCosmetics.finisher : NO_FINISHER,
+    // A Bot wears no Props but captures with a random free Finisher, so
+    // games against Computers show the cinematics too.
+    finisher: mover && mover.bot ? botFinisher() : (moverCosmetics ? moverCosmetics.finisher : NO_FINISHER),
   });
 
   if (result.won) {

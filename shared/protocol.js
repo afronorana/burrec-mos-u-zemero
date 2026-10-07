@@ -27,7 +27,8 @@ export var OpCode = {
 };
 
 // CONTEXT.md: Bot — every seat no human holds. Bots have no userId, wear no
-// Cosmetics and are shown under this name (clients may translate it).
+// Props (their Captures get a random free Finisher, stamped server-side) and
+// are shown under this name (clients may translate it).
 export var BOT_DISPLAY_NAME = 'Computer';
 
 // Cosmetics catalog: a player's Prop (worn by all four pawns) and Finisher
