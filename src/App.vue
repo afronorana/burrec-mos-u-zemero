@@ -376,7 +376,10 @@ const RENDER_FPS_HIGH = 48;
 // Display refresh is estimated from the median of recent rAF deltas.
 const REFRESH_SAMPLE_COUNT = 31;
 const REFRESH_DEFAULT_HZ = 60;
-const MENU_ORBIT_RAD_PER_MS = 0.15 / 1000;
+// Menu backdrop drift: deliberately barely-there (~5 min per full turn,
+// a gentle height swell) so it reads as a living scene, not a spin.
+const MENU_ORBIT_RAD_PER_MS = 0.02 / 1000;
+const MENU_ORBIT_BOB = 0.35;
 
 const DICE_SETTLE_RULES = {
   minimumMotionMs: 500,
@@ -4774,7 +4777,7 @@ export default {
         if (this.controls) {
           this.controls.enabled = false;
         }
-        // Slow cinematic orbit, time-based so it runs at the same speed on
+        // Very slow cinematic drift, time-based so it runs at the same speed on
         // 60Hz and 120Hz displays (clamped across tab-switch gaps). Holds
         // still while the window is unfocused.
         const dt = this.windowFocused && this.menuOrbitLastAt
@@ -4786,7 +4789,7 @@ export default {
         const target = CAMERA_GAME_TARGET;
         this.camera.position.x = target.x + Math.sin(this.menuOrbitTime) * radius;
         this.camera.position.z = target.z + Math.cos(this.menuOrbitTime) * radius;
-        this.camera.position.y = 4.2 + Math.sin(this.menuOrbitTime * 2.2) * 1.5; // low and high wave
+        this.camera.position.y = 4.2 + Math.sin(this.menuOrbitTime * 3) * MENU_ORBIT_BOB; // slow swell
         this.camera.lookAt(target);
       } else if (this.cameraTransition) {
         if (this.controls) {

@@ -157,6 +157,14 @@
       </app-panel>
     </div>
 
+    <!-- Quick play / create / join in progress (MatchController.withMatchmaking) -->
+    <div v-if="store.online.matchmaking" class="resume-modal-backdrop matchmaking-backdrop" role="status" aria-live="polite">
+      <app-panel class="menu-card resume-card matchmaking-card">
+        <app-spinner />
+        <p class="panel-desc matchmaking-text">{{ t(`online.matchmaking_${store.online.matchmaking}`) }}</p>
+      </app-panel>
+    </div>
+
     <!-- Rejoining a match after a reload -->
     <div v-if="store.online.resuming" class="resume-modal-backdrop">
       <app-panel class="menu-card resume-card">
@@ -471,6 +479,30 @@ export default {
   background: rgba(0, 0, 0, 0.55);
   z-index: 60;
   padding: 16px;
+}
+/* Fades in after a beat, so a fast connection never flashes it. */
+.matchmaking-backdrop {
+  opacity: 0;
+  animation: matchmakingIn 200ms ease-out 250ms forwards;
+}
+@keyframes matchmakingIn {
+  to { opacity: 1; }
+}
+.matchmaking-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding-top: 24px;
+}
+.matchmaking-text {
+  margin: 0;
+  font-weight: 700;
+}
+@media (prefers-reduced-motion: reduce) {
+  .matchmaking-backdrop {
+    animation-duration: 1ms;
+  }
 }
 .resume-card {
   text-align: center;

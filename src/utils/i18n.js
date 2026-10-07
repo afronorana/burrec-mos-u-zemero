@@ -208,6 +208,10 @@ const translations = {
       dawn: 'Dawn',
     },
     online: {
+      matchmaking_connecting: 'Connecting…',
+      matchmaking_finding: 'Finding a match…',
+      matchmaking_creating: 'Creating your room…',
+      matchmaking_joining: 'Joining the room…',
       playOnline: 'Play Online',
       searching: 'Searching for players…',
       cancel: 'Cancel',
@@ -525,6 +529,10 @@ const translations = {
       dawn: 'Agim',
     },
     online: {
+      matchmaking_connecting: 'Duke u lidhur…',
+      matchmaking_finding: 'Duke kërkuar lojë…',
+      matchmaking_creating: 'Duke krijuar dhomën…',
+      matchmaking_joining: 'Duke hyrë në dhomë…',
       playOnline: 'Luaj Online',
       searching: 'Duke kërkuar për lojtarë…',
       cancel: 'Anulo',

@@ -76,8 +76,26 @@ class MatchControllerService {
     return ApplicationStore.settings.environment || 'day';
   }
 
-  async createPrivate(displayName) {
-    await this.ensureConnected(displayName);
+  // Matchmaking progress for the loader overlay (StartScreen): 'connecting'
+  // while the socket comes up, then the request's own stage until it lands
+  // (lobby/game screen) or fails. Always cleared.
+  async withMatchmaking(stage, displayName, run) {
+    const online = this.online();
+    online.matchmaking = 'connecting';
+    try {
+      await this.ensureConnected(displayName);
+      online.matchmaking = stage;
+      await run();
+    } finally {
+      online.matchmaking = null;
+    }
+  }
+
+  createPrivate(displayName) {
+    return this.withMatchmaking('creating', displayName, () => this.createPrivateRoom());
+  }
+
+  async createPrivateRoom() {
     const result = await NakamaClient.rpc('create_private_match', { environment: this.creationEnvironment() });
     if (!result.matchId) {
       throw new Error(result.error || 'create_failed');
@@ -85,8 +103,11 @@ class MatchControllerService {
     await this.joinById(result.matchId, { mode: 'private', joinCode: result.code });
   }
 
-  async createPublic(displayName) {
-    await this.ensureConnected(displayName);
+  createPublic(displayName) {
+    return this.withMatchmaking('creating', displayName, () => this.createPublicRoom());
+  }
+
+  async createPublicRoom() {
     const result = await NakamaClient.rpc('create_public_match', { environment: this.creationEnvironment() });
     if (!result.matchId) {
       throw new Error(result.error || 'create_failed');
@@ -94,8 +115,11 @@ class MatchControllerService {
     await this.joinById(result.matchId, { mode: 'public' });
   }
 
-  async joinByCode(code, displayName) {
-    await this.ensureConnected(displayName);
+  joinByCode(code, displayName) {
+    return this.withMatchmaking('joining', displayName, () => this.joinRoomByCode(code));
+  }
+
+  async joinRoomByCode(code) {
     let result = await NakamaClient.rpc('join_by_code', { code });
     if (result.error === 'not_found') {
       // The label index lags match creation by ~1s; retry once.
@@ -110,8 +134,11 @@ class MatchControllerService {
 
   // Find-or-create: the server returns an open public room (or makes one). If
   // the room filled between the query and our join, ask again for a fresh one.
-  async quickMatch(displayName) {
-    await this.ensureConnected(displayName);
+  quickMatch(displayName) {
+    return this.withMatchmaking('finding', displayName, () => this.findQuickMatch());
+  }
+
+  async findQuickMatch() {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       // Environment only applies when quick_match has to create a fresh room.
       const result = await NakamaClient.rpc('quick_match', { environment: this.creationEnvironment() });

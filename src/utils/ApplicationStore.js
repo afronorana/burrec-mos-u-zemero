@@ -193,6 +193,9 @@ const ApplicationStore = reactive({
     // userId -> true once that player used their one mid-game restyle
     // (SET_COSMETICS during play; the in-game Wardrobe).
     restyled: {},
+    // Matchmaking stage shown by the loader overlay: null | 'connecting' |
+    // 'finding' | 'creating' | 'joining' (MatchController.withMatchmaking).
+    matchmaking: null,
     restyleError: null, // REJECTED reason for our last in-game restyle, if any
     seatToPlayerIndex: {}, // seat number -> index into store.players (seats can be non-contiguous)
     // Resume-after-reload plumbing (see utils/matchSession.js):
