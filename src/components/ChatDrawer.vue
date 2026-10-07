@@ -2,7 +2,8 @@
   <div class="chat-drawer" :class="{ 'chat-drawer--embedded': embedded }">
     <app-button orange class="hud-icon-btn chat-drawer-toggle" :title="chatOpen ? 'Close chat' : 'Chat'" @click="chatOpen = !chatOpen">
       <component :is="chatOpen ? 'XIcon' : 'MessageSquareIcon'" :size="20" />
-      <span v-if="unreadCount > 0 && !chatOpen" class="chat-drawer-unread">{{ unreadCount > 9 ? '9+' : unreadCount }}</span>
+      <!-- Re-keyed per message, so each arrival replays the pop. -->
+      <span v-if="unreadCount > 0 && !chatOpen" :key="unreadCount" class="chat-drawer-unread">{{ unreadCount > 9 ? '9+' : unreadCount }}</span>
     </app-button>
     <!-- A sheet, never a box on the board: from the right on wide screens
          and phones held sideways, from the bottom on phones held upright.
@@ -259,5 +260,21 @@ export default {
   align-items: center;
   justify-content: center;
   border: 1.5px solid var(--agu-color-base, #263f2a);
+  animation: chat-unread-pop 520ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* A new message: the badge springs in with an overshoot and a small wobble,
+   then sits still (transform only — no repaint, no WebGL render). */
+@keyframes chat-unread-pop {
+  0% { transform: scale(0.2) rotate(-25deg); }
+  55% { transform: scale(1.35) rotate(10deg); }
+  75% { transform: scale(0.9) rotate(-5deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-drawer-unread {
+    animation: none;
+  }
 }
 </style>
