@@ -215,7 +215,25 @@ const _wardrobeScratch = new THREE.Vector3();
 // the pawn stands at the origin; a Finisher preview hits a victim along +X
 // with the camera side-on from +Z. Idle framing is a close-up of the pawn,
 // action framing is wide enough for the tools and the launch.
-const WARDROBE_BACKGROUND = '#1b1d24';
+const WARDROBE_BACKGROUND = '#3b4256';
+
+// A white-to-transparent radial gradient (the wardrobe's spotlight pool).
+function radialGlowTexture(color) {
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  gradient.addColorStop(0, color);
+  gradient.addColorStop(0.55, `${color}99`);
+  gradient.addColorStop(1, `${color}00`);
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, size, size);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
 const WARDROBE_FRAMING = {
   idle: { pos: [0.2, 1.55, 4.7], look: [0.2, 0.82, 0] },
   action: { pos: [0.45, 1.9, 6.4], look: [0.45, 0.65, 0] },
@@ -2556,28 +2574,50 @@ export default {
       scene.background = markRaw(new THREE.Color(WARDROBE_BACKGROUND));
       const camera = markRaw(new THREE.PerspectiveCamera(30, 1, 0.1, 60));
 
-      const sky = markRaw(new THREE.HemisphereLight('#fff4e4', '#3b4058', 1.5));
-      const key = markRaw(new THREE.DirectionalLight('#fff1db', 1.5));
+      // Brighter than the board: a strong ambient term plus a warm spotlight
+      // from above that pools on the plinth top — a stage, not a dark room.
+      // (Its own little scene, so the extra light costs nothing on the board.)
+      const sky = markRaw(new THREE.HemisphereLight('#fff7ec', '#6a7090', 2.9));
+      const key = markRaw(new THREE.DirectionalLight('#fff1db', 2));
       key.position.set(-2.5, 4, 3.5);
-      const rim = markRaw(new THREE.DirectionalLight('#9fb8ff', 0.9));
+      const rim = markRaw(new THREE.DirectionalLight('#9fb8ff', 1));
       rim.position.set(3, 2.5, -3);
-      scene.add(sky, key, rim);
+      const spot = markRaw(new THREE.SpotLight('#fff3d6', 4.5, 0, Math.PI / 7, 0.55, 0));
+      spot.position.set(0, 7, 1.2);
+      spot.target.position.set(0, 0, 0);
+      scene.add(sky, key, rim, spot, spot.target);
 
       // A tall pedestal, wide enough for a Finisher's victim to stand on (and
       // to hide it falling through the trapdoor).
       const plinth = this.createOutlinedMesh(
           this.getSharedGeometry('wardrobe-plinth', () => new THREE.CylinderGeometry(0.95, 0.98, 1.6, 48)),
-          this.createToonMaterial('wardrobe-plinth-material', { color: '#3d4252' }),
+          this.createToonMaterial('wardrobe-plinth-material', { color: '#59607a' }),
           { outlineScale: { x: 1.02, y: 1.005, z: 1.02 } },
       );
       plinth.position.y = -0.8;
+      // The spotlight's pool on the plinth top: a soft additive disc reads as
+      // stage light far more clearly than the light's own falloff on a toon
+      // material.
+      const pool = markRaw(new THREE.Mesh(
+          this.getSharedGeometry('wardrobe-light-pool', () => new THREE.CircleGeometry(0.92, 48)),
+          markRaw(new THREE.MeshBasicMaterial({
+            map: this.getSharedTexture('wardrobe-light-pool', () => radialGlowTexture('#fff3d6')),
+            transparent: true,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+            opacity: 0.55,
+          })),
+      ));
+      pool.rotation.x = -Math.PI / 2;
+      pool.position.y = 0.004;
       const pawn = this.buildPawnGroup('wardrobe-0', PLAYER_COLORS[0]);
-      scene.add(plinth, pawn);
+      scene.add(plinth, pool, pawn);
 
       this.wardrobeStage = markRaw({
         scene,
         camera,
         pawn,
+        pawnColor: PLAYER_COLORS[0],
         spin: 0,
         framing: 0,
         lastAt: 0,
@@ -2590,6 +2630,16 @@ export default {
     // Per frame while the wardrobe is open: dress the pawn in the draft,
     // turntable it (plus the viewer's drag), and ease the camera between the
     // close-up and the wide Finisher framing.
+    wardrobePawnColor() {
+      if (this.store.wardrobe.inGame) {
+        const own = this.store.players.find((player) => player.turn - 1 === this.store.online.mySeat);
+        if (own) {
+          return own.color;
+        }
+      }
+      return PLAYER_COLORS[0];
+    },
+
     updateWardrobeStage(now) {
       const stage = this.ensureWardrobeStage();
       const rect = this.store.wardrobe.rect;
@@ -2601,6 +2651,12 @@ export default {
 
       const look = pawnLook(this.store.wardrobe.draft || this.store.settings.cosmetics, this.store.wardrobe.previewPawn);
       this.applyPropToPawnGroup(stage.pawn, 'wardrobe-0', look.prop, look.flag);
+      // In a match the preview pawn wears our own seat's color.
+      const ownColor = this.wardrobePawnColor();
+      if (stage.pawnColor !== ownColor) {
+        stage.pawnColor = ownColor;
+        stage.pawn.userData.bodyMaterial.color.set(ownColor);
+      }
 
       const acting = Boolean(this.finisher?.wardrobe);
       if (acting) {
