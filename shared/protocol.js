@@ -12,7 +12,7 @@ export var OpCode = {
   MOVE_APPLIED: 4, // { seat, pawnIndex, fromPos, toPos, steps, captures:[{seat,pawnIndex}], extraTurn, finisher }
   TURN_CHANGE: 5, // { turnSeat, round, reason:'end'|'repeat'|'timeout'|'noMoves'|'left', turnMsLeft }
   STATE_SYNC: 6, // full snapshot incl. turnMsLeft (reconnect/desync recovery)
-  GAME_OVER: 7, // { winnerSeat }
+  GAME_OVER: 7, // { winnerSeat, stats: [{ rolls, sixes, moves, captures, captured, finished } x4], durationMs, rounds }
   REJECTED: 8, // { reason, forOpCode }
   COSMETICS_CHANGED: 9, // { userId, cosmetics } — a player's one mid-game restyle (see SET_COSMETICS)
 
@@ -23,6 +23,7 @@ export var OpCode = {
   MOVE_REQUEST: 13, // { pawnIndex }
   SYNC_REQUEST: 14, // {}
   CLAIM_SEAT: 15, // { seat: number }
+  PLAY_AGAIN: 18, // {} — finished phase only: the room goes back to its lobby (same players, same Game mode; empty/abandoned seats become Bots), answered with LOBBY_STATE
   LEAVE: 17, // {} — an explicit Leave (vs a dropped connection): mid-game the seat goes straight to a Bot, pawns as they stand
   SET_COSMETICS: 16, // Cosmetics — lobby: answered with LOBBY_STATE; playing: once per player per match (Members only), answered with COSMETICS_CHANGED or REJECTED 'restyle_used' / 'members_only'
 };

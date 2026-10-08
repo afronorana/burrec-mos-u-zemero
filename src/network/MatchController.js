@@ -24,6 +24,8 @@ import {
 
 const JOIN_CODE_RETRY_MS = 1500; // match label indexing lags ~1s behind matchCreate
 const LEAVE_ACK_TIMEOUT_MS = 1500; // max wait for the server to hand our seat to a Bot
+// The winner's pawns jump this long before the end-of-game board appears.
+export const CELEBRATION_MS = 2600;
 const REJOIN_ATTEMPTS = 5;
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -292,6 +294,8 @@ class MatchControllerService {
     online.restyleError = null;
     online.environment = null;
     online.gameMode = null;
+    online.gameOver = null;
+    clearTimeout(this.celebrationTimer);
     online.seatToPlayerIndex = {};
     online.pendingDice = null;
     online.diceInFlight = false;
@@ -370,6 +374,11 @@ class MatchControllerService {
 
   requestSync() {
     this.send(OpCode.SYNC_REQUEST, {});
+  }
+
+  // End-of-game board: reopen this room as a lobby for another round.
+  requestPlayAgain() {
+    this.send(OpCode.PLAY_AGAIN, {});
   }
 
   requestClaimSeat(seatIndex) {
@@ -454,6 +463,17 @@ class MatchControllerService {
 
   applyLobbyState(payload) {
     const online = this.online();
+    // Someone pressed Play again: the finished room is a lobby again —
+    // everyone still in it goes back to the lobby together.
+    if (payload.phase === 'lobby' && ApplicationStore.currentScreen === 'game-screen') {
+      clearTimeout(this.celebrationTimer);
+      online.gameOver = null;
+      online.enabled = false;
+      online.restyled = {};
+      ApplicationStore.winner = null;
+      ApplicationStore.currentScreen = 'lobby';
+      this.persistSession(); // resumable again after a reload
+    }
     online.seats = payload.seats || [];
     online.hostUserId = payload.hostUserId || null;
     online.joinCode = payload.joinCode || online.joinCode;
@@ -543,13 +563,24 @@ class MatchControllerService {
     const online = this.online();
     const playerIndex = online.seatToPlayerIndex[payload.winnerSeat];
     const player = ApplicationStore.players[playerIndex];
-    ApplicationStore.winner = {
-      name: player ? player.name : 'Player',
-      color: player ? player.color : '#ffffff',
-      self: payload.winnerSeat === online.mySeat,
-    };
+    online.gameOver = payload;
     ApplicationStore.gamePlayStatus.isRolling = false;
     ApplicationStore.gamePlayStatus.isMoving = false;
+    // First the winner's pawns jump on the board, then the board of stats.
+    EventBus.fire(EventKeys.game.celebrate, { playerIndex });
+    clearTimeout(this.celebrationTimer);
+    const matchId = online.matchId;
+    this.celebrationTimer = setTimeout(() => {
+      if (online.matchId !== matchId || !online.gameOver) {
+        return; // left or already back in the lobby
+      }
+      ApplicationStore.winner = {
+        name: player ? player.name : 'Player',
+        color: player ? player.color : '#ffffff',
+        self: payload.winnerSeat === online.mySeat,
+        seat: payload.winnerSeat,
+      };
+    }, CELEBRATION_MS);
     // The match is over — don't offer to resume a finished game.
     clearMatchSession();
   }

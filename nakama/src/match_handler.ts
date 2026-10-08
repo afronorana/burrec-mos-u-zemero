@@ -41,6 +41,41 @@ export interface Seat {
   bot: boolean;
 }
 
+export interface SeatStats {
+  rolls: number;
+  sixes: number;
+  moves: number;
+  captures: number;
+  captured: number;
+}
+
+function emptyStats(): SeatStats[] {
+  const stats: SeatStats[] = [];
+  for (let i = 0; i < MAX_SEATS; i += 1) {
+    stats.push({ rolls: 0, sixes: 0, moves: 0, captures: 0, captured: 0 });
+  }
+  return stats;
+}
+
+// The end-of-game board: the counters plus pawns in the finish per seat.
+function gameOverPayload(state: LudoState): object {
+  const stats = [];
+  for (let i = 0; i < MAX_SEATS; i += 1) {
+    const s = state.stats[i];
+    let finished = 0;
+    for (let j = 0; j < 4; j += 1) {
+      if (state.pawns[i][j] > 40) finished += 1;
+    }
+    stats.push({ rolls: s.rolls, sixes: s.sixes, moves: s.moves, captures: s.captures, captured: s.captured, finished });
+  }
+  return {
+    winnerSeat: state.winnerSeat,
+    stats,
+    durationMs: state.startedAtMs ? Date.now() - state.startedAtMs : 0,
+    rounds: state.round,
+  };
+}
+
 export interface LudoState {
   phase: 'lobby' | 'playing' | 'finished';
   mode: 'private' | 'public';
@@ -77,6 +112,9 @@ export interface LudoState {
   savedTurnDeadline: { seat: number; tick: number } | null;
   emptyTicks: number;
   winnerSeat: number | null;
+  // Per seat, for the end-of-game board (GAME_OVER / finished STATE_SYNC).
+  stats: SeatStats[];
+  startedAtMs: number;
   presences: { [userId: string]: nkruntime.Presence };
   pendingDisplayNames: { [userId: string]: string };
   labelOpen: number;
@@ -189,6 +227,7 @@ function snapshotPayload(state: LudoState, tick: number): object {
     displayNames: state.displayNames,
     cosmetics: state.cosmetics,
     restyled: state.restyled,
+    gameOver: state.phase === 'finished' ? gameOverPayload(state) : null,
     environment: state.environment,
     gameMode: state.gameMode,
     turnSeat: state.turnSeat,
@@ -363,6 +402,11 @@ function doMove(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkruntime.Ma
   const seat = state.turnSeat;
   const steps = state.dice as number;
   const result = applyMove(state.pawns, seat, pawnIndex, steps, state.gameMode);
+  state.stats[seat].moves += 1;
+  state.stats[seat].captures += result.captures.length;
+  for (let c = 0; c < result.captures.length; c += 1) {
+    state.stats[result.captures[c].seat].captured += 1;
+  }
   const mover = state.seats[seat];
   const moverCosmetics = mover && !mover.bot ? state.cosmetics[mover.userId] : null;
   const moveMs = (result.fromPos === 0 ? 1 : steps) * BOT_STEP_MS + BOT_MOVE_EXTRA_MS +
@@ -389,7 +433,7 @@ function doMove(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkruntime.Ma
     state.winnerSeat = seat;
     state.turnDeadlineTick = 0;
     resetTurnState(state);
-    broadcast(dispatcher, OpCode.GAME_OVER, { winnerSeat: seat });
+    broadcast(dispatcher, OpCode.GAME_OVER, gameOverPayload(state));
     // A finished match takes no more joiners — close the label.
     refreshOpenLabel(state, dispatcher);
 
@@ -440,6 +484,10 @@ function rollForTurn(state: LudoState, dispatcher: nkruntime.MatchDispatcher, ti
   holdBots(state, tick, BOT_DICE_TICKS);
   state.dice = value;
   state.rollsThisTurn += 1;
+  state.stats[state.turnSeat].rolls += 1;
+  if (value === 6) {
+    state.stats[state.turnSeat].sixes += 1;
+  }
 
   const legal = legalPawns(state.pawns, state.turnSeat, value);
 
@@ -529,6 +577,8 @@ function handleStart(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkrunti
   state.phase = 'playing';
   state.pawns = initialPawns(state.gameMode);
   state.round = 1;
+  state.stats = emptyStats();
+  state.startedAtMs = Date.now();
   state.winnerSeat = null;
   resetTurnState(state);
 
@@ -593,6 +643,8 @@ const matchInit = function (
     savedTurnDeadline: null,
     emptyTicks: 0,
     winnerSeat: null,
+    stats: emptyStats(),
+    startedAtMs: 0,
     presences: {},
     pendingDisplayNames: {},
     labelOpen: 1,
@@ -736,6 +788,38 @@ function vacateSeat(state: LudoState, seatIndex: number, userId: string, tick: n
   }
 }
 
+// "Play again" from the end-of-game board: the finished room becomes its own
+// lobby again — same Game mode, environment, host and players still here;
+// seats whose players left become Bots. Everyone still in the room lands in
+// the lobby together (LOBBY_STATE with phase 'lobby').
+function handlePlayAgain(state: LudoState, dispatcher: nkruntime.MatchDispatcher, tick: number, sender: nkruntime.Presence) {
+  if (state.phase !== 'finished' || !state.presences[sender.userId]) {
+    return;
+  }
+  state.phase = 'lobby';
+  for (let i = 0; i < MAX_SEATS; i += 1) {
+    const seat = state.seats[i];
+    if (!seat || seat.bot || !seat.connected || !state.presences[seat.userId]) {
+      state.seats[i] = botSeat(i);
+    }
+  }
+  if (!state.hostUserId || !seatOfUser(state, state.hostUserId)) {
+    state.hostUserId = sender.userId;
+  }
+  state.pawns = initialPawns(state.gameMode);
+  state.round = 0;
+  state.turnSeat = -1;
+  state.winnerSeat = null;
+  state.turnDeadlineTick = 0;
+  state.savedTurnDeadline = null;
+  state.restyled = {};
+  state.stats = emptyStats();
+  state.startedAtMs = 0;
+  resetTurnState(state);
+  refreshOpenLabel(state, dispatcher);
+  broadcast(dispatcher, OpCode.LOBBY_STATE, lobbyStatePayload(state));
+}
+
 const matchLeave = function (
   ctx: nkruntime.Context,
   logger: nkruntime.Logger,
@@ -816,6 +900,9 @@ const matchLoop = function (
         break;
       case OpCode.SET_COSMETICS:
         handleSetCosmetics(nk, state, dispatcher, sender, payload);
+        break;
+      case OpCode.PLAY_AGAIN:
+        handlePlayAgain(state, dispatcher, tick, sender);
         break;
       case OpCode.LEAVE: {
         // Sent just before the client leaves the match on purpose.

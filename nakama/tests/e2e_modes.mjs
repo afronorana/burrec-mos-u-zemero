@@ -1,7 +1,8 @@
 // End-to-end test of Game modes against the local dev stack (pnpm nakama:up,
 // DEMO_DICE=1): Quick mode starts every seat with a pawn out, Quick play
 // only matches rooms of the same mode, and First capture ends the game on
-// the first Capture.
+// the first Capture — with the end-of-game stats, and Play again reopening
+// the room as its lobby.
 //
 // Run: node nakama/tests/e2e_modes.mjs   (from the repo root)
 
@@ -29,7 +30,7 @@ const toGlobal = (seat, pos) => ((seat * 10) + pos - 1) % 40;
 
 // One seated human in seat 0; the other three are Bots. Plays instantly and,
 // when `hunt` is set, demands (DEMO_DICE) a roll that captures if one exists.
-async function soloGame(name, gameMode, { hunt = false, until }) {
+async function soloGame(name, gameMode, { hunt = false, until, playAgain = false }) {
   const session = await client.authenticateDevice(`e2e-modes-${name}-${stamp}`, true);
   const { matchId } = await rpc(session, 'create_private_match', { gameMode });
   const socket = client.createSocket(false);
@@ -86,6 +87,8 @@ async function soloGame(name, gameMode, { hunt = false, until }) {
       log.moves.push(p);
     } else if (data.op_code === OpCode.GAME_OVER) {
       log.over = p;
+    } else if (data.op_code === OpCode.LOBBY_STATE && log.over && p.phase === 'lobby') {
+      log.lobby = p;
     }
   };
   await socket.joinMatch(matchId, null, { displayName: name });
@@ -95,6 +98,12 @@ async function soloGame(name, gameMode, { hunt = false, until }) {
   send(OpCode.START);
   const t0 = Date.now();
   while (!until(log) && Date.now() - t0 < 240000) await delay(250);
+  if (playAgain && log.over) {
+    send(OpCode.PLAY_AGAIN);
+    const t1 = Date.now();
+    while (!log.lobby && Date.now() - t1 < 4000) await delay(100);
+    log.selfId = session.user_id;
+  }
   closed = true;
   socket.disconnect(false);
   return log;
@@ -123,12 +132,24 @@ async function main() {
   sockA.disconnect(false);
 
   // First capture: the game ends on the first Capture.
-  const fc = await soloGame('first', 'firstCapture', { hunt: true, until: (log) => log.over });
+  const fc = await soloGame('first', 'firstCapture', { hunt: true, until: (log) => log.over, playAgain: true });
   const firstCapture = fc.moves.find((move) => move.captures.length > 0);
   assert(Boolean(fc.over), 'a first-capture game finishes');
   assert(firstCapture && fc.over && fc.over.winnerSeat === firstCapture.seat,
     `the first capturer wins (capture by seat ${firstCapture && firstCapture.seat}, winner ${fc.over && fc.over.winnerSeat})`);
   assert(firstCapture && fc.moves[fc.moves.length - 1] === firstCapture, 'no moves are played after the first Capture');
+
+  // End-of-game board + Play again.
+  const stats = fc.over && fc.over.stats;
+  assert(Array.isArray(stats) && stats.length === 4, 'GAME_OVER carries stats for every seat');
+  assert(stats && firstCapture && stats[firstCapture.seat].captures === 1, 'the capturer is credited with the Capture');
+  const victimSeat = firstCapture && firstCapture.captures[0].seat;
+  assert(stats && victimSeat != null && stats[victimSeat].captured === 1, 'the victim is credited with being captured');
+  assert(stats && stats.reduce((sum, s) => sum + s.moves, 0) === fc.moves.length, 'move counts add up to the moves played');
+  assert(fc.over && fc.over.durationMs > 0 && fc.over.rounds >= 1, 'GAME_OVER reports game time and rounds');
+  assert(fc.lobby && fc.lobby.phase === 'lobby', 'Play again reopens the room as a lobby');
+  assert(fc.lobby && fc.lobby.seats[0].userId === fc.selfId && fc.lobby.gameMode === 'firstCapture',
+    'the player keeps their seat and the room keeps its Game mode');
 }
 
 main()

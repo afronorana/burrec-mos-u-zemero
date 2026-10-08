@@ -193,6 +193,8 @@ const ApplicationStore = reactive({
     environment: null,
     // The room's Game mode (LOBBY_STATE / GAME_START / STATE_SYNC).
     gameMode: null,
+    // The end-of-game board (GAME_OVER payload: stats, durationMs, rounds).
+    gameOver: null,
     // userId -> { prop, finisher } for everyone in the match, seated or not.
     cosmetics: {},
     // userId -> true once that player used their one mid-game restyle

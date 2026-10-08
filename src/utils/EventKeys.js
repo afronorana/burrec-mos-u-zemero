@@ -4,6 +4,7 @@ const EventKeys = {
     start: 'game.start',
     startOnline: 'game.startOnline',
     won: 'game.won',
+    celebrate: 'game.celebrate', // { playerIndex } — the winner's pawns jump before the board shows
   },
   turns: {
     endTurn: 'turns.endTurn',

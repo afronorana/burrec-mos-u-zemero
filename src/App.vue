@@ -485,6 +485,12 @@ const PAWN_CENTER_Y = FIELD_CENTER_Y + 0.085;
 // and leaps higher to get there.
 const PAWN_PERCH_HEIGHT = 1.0;
 const PAWN_PERCH_JUMP = 0.55;
+// Game over: the winner's pawns hop (staggered) while the board waits
+// (MatchController CELEBRATION_MS), and a little after it appears.
+const CELEBRATION_TOTAL_MS = 4200;
+const CELEBRATION_HOP_MS = 420;
+const CELEBRATION_HOP_HEIGHT = 0.9;
+const CELEBRATION_STAGGER_MS = 110;
 const _occupantScratch = { x: 0, y: 0, z: 0 };
 // Facing: the last target-lane position, and scratch for the two fields.
 const TARGET_LANE_END = 44;
@@ -575,6 +581,10 @@ export default {
       this.requestRender();
 
       if (newScreen === 'lobby') {
+        // Play again: back from a finished game to the same room's lobby.
+        if (oldScreen === 'game-screen') {
+          this.resetGameState();
+        }
         this.syncOnlinePlayersFromLobby();
       }
     },
@@ -648,6 +658,8 @@ export default {
     this.menuOrbitLastAt = 0;
     this.hoveredTarget = null;
     this.hoverNeedsUpdate = false;
+    // Game over: { playerIndex, start } while the winner's pawns jump.
+    this.celebration = null;
     // false, or the hovered target the 2D outline was last drawn for.
     this.overlayHasContent = false;
     // Demand rendering: render passes run only when something changed.
@@ -780,6 +792,7 @@ export default {
         EventBus.listen(EventKeys.net.lobbyUpdated, this.handleLobbyUpdated),
         EventBus.listen(EventKeys.pawn.captured, this.handleCaptured),
         EventBus.listen(EventKeys.pawn.autoMove, this.handleAutoMove),
+        EventBus.listen(EventKeys.game.celebrate, this.startCelebration),
       ];
     },
 
@@ -1223,7 +1236,7 @@ export default {
       if (this.dicePhysicsBody && this.dicePhysicsBody.sleepState !== CANNON.Body.SLEEPING) {
         return true;
       }
-      if (this.finisher) {
+      if (this.finisher || this.celebration) {
         return true;
       }
       if (this.store.wardrobe.inGame && this.windowFocused) {
@@ -1593,6 +1606,14 @@ export default {
             _attackerPoseScratch.z = animatedPosition.z + finisher.attackerOffset.z;
             animatedPosition = _attackerPoseScratch;
           }
+          // Game over: the winner's pawns bounce in a staggered wave.
+          const bounce = this.celebrationBounce(pawn, now);
+          if (bounce) {
+            _attackerPoseScratch.x = animatedPosition.x;
+            _attackerPoseScratch.y = animatedPosition.y + bounce;
+            _attackerPoseScratch.z = animatedPosition.z;
+            animatedPosition = _attackerPoseScratch;
+          }
           const targetScale = pawn.isActive ? 1.1 : 1;
           // Squash & stretch from the hop (and the attacker's Finisher
           // crouch/spring), roughly volume-preserving.
@@ -1674,6 +1695,39 @@ export default {
         return 0;
       }
       return Math.atan2(this.camera.position.x - position.x, this.camera.position.z - position.z);
+    },
+
+    // ── Game-over celebration ──────────────────────────────────────────
+    startCelebration({ playerIndex }) {
+      if (playerIndex == null || !this.store.players[playerIndex]) {
+        return;
+      }
+      this.celebration = markRaw({ playerIndex, start: performance.now() });
+      this.stopTurnTimer(); // the game is over — no turn is running
+    },
+
+    // Height offset for a winner's pawn: repeated hops, each pawn a beat
+    // behind the previous one, easing out over the celebration.
+    celebrationBounce(pawn, now) {
+      const c = this.celebration;
+      if (!c) {
+        return 0;
+      }
+      const elapsed = now - c.start;
+      if (elapsed > CELEBRATION_TOTAL_MS) {
+        this.celebration = null;
+        this.requestShadowUpdate(); // settle the final resting frame
+        return 0;
+      }
+      if (pawn.playerIndex !== this.store.players[c.playerIndex]?.turn - 1) {
+        return 0;
+      }
+      const t = elapsed - ((pawn.startingPlace - 1) * CELEBRATION_STAGGER_MS);
+      if (t <= 0) {
+        return 0;
+      }
+      const fade = Math.max(0, 1 - (elapsed / CELEBRATION_TOTAL_MS));
+      return Math.abs(Math.sin((t / CELEBRATION_HOP_MS) * Math.PI)) * CELEBRATION_HOP_HEIGHT * (0.4 + (0.6 * fade));
     },
 
     // Another pawn (any color) standing on this field, by logical position.
@@ -3713,6 +3767,7 @@ export default {
       this.freezeDiceBody();
       this.syncDice();
       this.clearHoveredTarget();
+      this.celebration = null;
     },
 
     // Seats changed (join/leave/claim): in the lobby rebuild the roster; in a
@@ -4228,10 +4283,12 @@ export default {
 
       if (payload.phase === 'finished' && payload.winnerSeat != null) {
         const winner = this.store.players[this.store.online.seatToPlayerIndex[payload.winnerSeat]];
+        this.store.online.gameOver = payload.gameOver || null;
         this.store.winner = {
           name: winner ? winner.name : 'Player',
           color: winner ? winner.color : '#ffffff',
           self: payload.winnerSeat === this.store.online.mySeat,
+          seat: payload.winnerSeat,
         };
       }
 
