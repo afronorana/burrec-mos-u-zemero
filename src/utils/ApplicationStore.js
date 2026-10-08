@@ -193,6 +193,10 @@ const ApplicationStore = reactive({
     environment: null,
     // The room's Game mode (LOBBY_STATE / GAME_START / STATE_SYNC).
     gameMode: null,
+    // CONTEXT.md: Table — 'open' | 'solo' | 'shared' (same payloads). At a
+    // shared table every human seat is played from this device; mySeat is
+    // the owner's own one.
+    table: null,
     // The end-of-game board (GAME_OVER payload: stats, durationMs, rounds).
     gameOver: null,
     // userId -> { prop, finisher } for everyone in the match, seated or not.

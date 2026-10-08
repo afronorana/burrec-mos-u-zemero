@@ -111,7 +111,7 @@ export default {
             seat,
             name: player.name,
             color: player.color,
-            self: player.controller === 'local',
+            self: MatchController.isSelfSeat(seat),
             winner: seat === winnerSeat,
             finished: stats.finished || 0,
             captures: stats.captures || 0,
@@ -176,7 +176,14 @@ export default {
     },
     // Same room, same players, same Game mode: the server reopens the lobby
     // and LOBBY_STATE moves everyone there (MatchController.applyLobbyState).
-    playAgain() {
+    // A Shared table goes back to its setup instead (names kept there); a
+    // Solo table restarts straight away.
+    async playAgain() {
+      if (this.store.online.table === 'shared') {
+        await MatchController.leaveMatch();
+        this.store.currentScreen = 'shared-setup';
+        return;
+      }
       this.replaying = true;
       this.replayFailed = false;
       MatchController.requestPlayAgain();

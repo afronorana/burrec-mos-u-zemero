@@ -55,6 +55,8 @@
       </div>
 
       <home-screen v-else-if="store.currentScreen === 'home'" key="home" />
+      <play-mode-screen v-else-if="store.currentScreen === 'play-mode'" key="play-mode" />
+      <shared-table-setup v-else-if="store.currentScreen === 'shared-setup'" key="shared-setup" />
       <create-room-screen v-else-if="store.currentScreen === 'create-room'" key="create-room" />
       <join-room-screen v-else-if="store.currentScreen === 'join-room'" key="join-room" />
       <lobby-screen v-else-if="store.currentScreen === 'lobby'" key="lobby" />
@@ -178,6 +180,8 @@
 <script>
 import GameInterface from './GameInterface.vue';
 import HomeScreen from './HomeScreen.vue';
+import PlayModeScreen from './PlayModeScreen.vue';
+import SharedTableSetup from './SharedTableSetup.vue';
 import CreateRoomScreen from './CreateRoomScreen.vue';
 import JoinRoomScreen from './JoinRoomScreen.vue';
 import LobbyScreen from './LobbyScreen.vue';
@@ -200,6 +204,8 @@ export default {
   components: {
     GameInterface,
     HomeScreen,
+    PlayModeScreen,
+    SharedTableSetup,
     CreateRoomScreen,
     JoinRoomScreen,
     LobbyScreen,
@@ -230,7 +236,7 @@ export default {
       return this.store.online.pendingResume;
     },
     isMenuScreen() {
-      return ['main-menu', 'home', 'create-room', 'join-room'].includes(this.store.currentScreen);
+      return ['main-menu', 'home', 'play-mode', 'shared-setup', 'create-room', 'join-room'].includes(this.store.currentScreen);
     },
     errorMessage() {
       const error = this.store.online.lastError;

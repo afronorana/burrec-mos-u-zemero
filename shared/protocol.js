@@ -23,21 +23,39 @@ export var OpCode = {
   MOVE_REQUEST: 13, // { pawnIndex }
   SYNC_REQUEST: 14, // {}
   CLAIM_SEAT: 15, // { seat: number }
-  PLAY_AGAIN: 18, // {} — finished phase only: the room goes back to its lobby (same players, same Game mode; empty/abandoned seats become Bots), answered with LOBBY_STATE
-  LEAVE: 17, // {} — an explicit Leave (vs a dropped connection): mid-game the seat goes straight to a Bot, pawns as they stand
+  PLAY_AGAIN: 18, // {} — finished phase only: the room goes back to its lobby (same players, same Game mode; empty/abandoned seats become Bots), answered with LOBBY_STATE; a solo table restarts at once (GAME_START)
+  LEAVE: 17, // {} — an explicit Leave (vs a dropped connection): mid-game the seat goes straight to a Bot, pawns as they stand; at a solo/shared table the match ends
   SET_COSMETICS: 16, // Cosmetics — lobby: answered with LOBBY_STATE; playing: once per player per match (Members only), answered with COSMETICS_CHANGED or REJECTED 'restyle_used' / 'members_only'
 };
 
 // Game modes (CONTEXT.md: Game mode), chosen when a room is created:
 // - classic: the full game — all four pawns into the finish.
-// - quick: every seat starts with one pawn on its start field; two pawns in
-//   the finish win.
+// - quick: every seat starts with one pawn on its start field; the first
+//   pawn into the finish wins.
 // - firstCapture: the first Capture wins.
 export var GAME_MODES = ['classic', 'quick', 'firstCapture'];
 export var DEFAULT_GAME_MODE = 'classic';
 
 export function sanitizeGameMode(mode) {
   return GAME_MODES.indexOf(mode) !== -1 ? mode : DEFAULT_GAME_MODE;
+}
+
+// Tables (CONTEXT.md: Table) — who plays and whether anyone else can join:
+// - open: anyone (Quick play, a room code); the only kind with chat.
+// - solo: one human (seat 0) vs three Bots; starts as soon as its owner joins.
+// - shared: 2-4 humans on the owner's one device (`companion` seats are the
+//   ones the owner plays for someone else), the rest Bots.
+// Solo and shared tables are never joinable, have no turn timer, pause while
+// their owner is disconnected and end on an explicit LEAVE (adr/0002).
+export var TABLES = ['open', 'solo', 'shared'];
+export var DEFAULT_TABLE = 'open';
+
+export function sanitizeTable(table) {
+  return TABLES.indexOf(table) !== -1 ? table : DEFAULT_TABLE;
+}
+
+export function isClosedTable(table) {
+  return table === 'solo' || table === 'shared';
 }
 
 // CONTEXT.md: Bot — every seat no human holds. Bots have no userId, wear no

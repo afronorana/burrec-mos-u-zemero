@@ -1,4 +1,4 @@
-import { MATCH_MODULE, sanitizeGameMode } from '../../shared/protocol.js';
+import { MATCH_MODULE, isClosedTable, sanitizeGameMode, sanitizeTable } from '../../shared/protocol.js';
 
 // Letters only (same alphabet Shtet Qytet uses for room codes).
 const CODE_ALPHABET = 'ABDEFGHIJKLMNOPQRSTUVWZ';
@@ -93,7 +93,7 @@ export const rpcQuickMatch: nkruntime.RpcFunction = function (ctx, logger, nk, p
   // presences) guards against piling everyone into one room. Only rooms of
   // the requested Game mode.
   const gameMode = gameModeFromPayload(payload);
-  const matches = nk.matchList(20, true, null, 1, MAX_SEATS - 1, '+label.mode:public +label.open:1 +label.gameMode:' + gameMode);
+  const matches = nk.matchList(20, true, null, 1, MAX_SEATS - 1, '+label.mode:public +label.table:open +label.open:1 +label.gameMode:' + gameMode);
 
   if (matches && matches.length > 0) {
     // Fill the fullest joinable room first so games start sooner.
@@ -108,6 +108,33 @@ export const rpcQuickMatch: nkruntime.RpcFunction = function (ctx, logger, nk, p
 
   const matchId = nk.matchCreate(MATCH_MODULE, { mode: 'public', environment: environmentFromPayload(payload), gameMode });
   return JSON.stringify({ matchId, created: true });
+};
+
+// CONTEXT.md: Table — a Solo or Shared table: a closed match only the caller
+// may join, started by the server as soon as they do (adr/0002). Payload:
+// { table: 'solo' | 'shared', seats?: [{ kind: 'player' | 'computer', name } x4], environment }.
+export const rpcCreateTable: nkruntime.RpcFunction = function (ctx, logger, nk, payload) {
+  let request: { table?: string; seats?: any } = {};
+  try {
+    request = payload ? JSON.parse(payload) : {};
+  } catch (error) {
+    throw new Error('invalid_table');
+  }
+  const table = sanitizeTable(String(request.table || ''));
+  if (!isClosedTable(table) || !ctx.userId) {
+    throw new Error('invalid_table');
+  }
+  const params: { [key: string]: string } = { table, owner: ctx.userId, environment: environmentFromPayload(payload) };
+  if (table === 'shared') {
+    const seats = Array.isArray(request.seats) ? request.seats.slice(0, MAX_SEATS) : [];
+    const players = seats.filter(function (seat: any) { return seat && seat.kind === 'player'; }).length;
+    if (players < 2) {
+      throw new Error('invalid_table');
+    }
+    params.seats = JSON.stringify(seats);
+  }
+  const matchId = nk.matchCreate(MATCH_MODULE, params);
+  return JSON.stringify({ matchId });
 };
 
 export const rpcJoinByCode: nkruntime.RpcFunction = function (ctx, logger, nk, payload) {

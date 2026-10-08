@@ -3,6 +3,7 @@ import { ludoMatchHandler } from './match_handler';
 import {
   rpcCreatePrivateMatch,
   rpcCreatePublicMatch,
+  rpcCreateTable,
   rpcHealthcheck,
   rpcJoinByCode,
   rpcQuickMatch,
@@ -47,6 +48,7 @@ function InitModule(
   initializer.registerRpc('create_public_match', rpcCreatePublicMatch);
   initializer.registerRpc('quick_match', rpcQuickMatch);
   initializer.registerRpc('join_by_code', rpcJoinByCode);
+  initializer.registerRpc('create_table', rpcCreateTable);
   initializer.registerAfterAuthenticateEmail(afterAuthenticateEmail);
   initializer.registerAfterLinkEmail(afterLinkEmail);
   initializer.registerRtBefore('ChannelMessageSend', beforeChannelMessageSend);

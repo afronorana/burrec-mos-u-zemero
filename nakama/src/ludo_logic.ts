@@ -25,7 +25,7 @@ export type GameMode = string;
 
 // Pawns needed in the finish (positions 41-44) to win, per mode.
 function pawnsToWin(mode: GameMode): number {
-  return mode === 'quick' ? 2 : 4;
+  return mode === 'quick' ? 1 : 4;
 }
 
 // Quick mode starts every seat with its first pawn already on the start

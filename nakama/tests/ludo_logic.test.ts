@@ -140,15 +140,14 @@ test('quick mode: every seat starts with one pawn on its start field', () => {
   assert.deepEqual(legalPawns(pawns, 0, 3), [0]);
 });
 
-test('quick mode: two pawns in the finish win', () => {
+test('quick mode: the first pawn into the finish wins', () => {
   const pawns = initialPawns('quick');
-  pawns[0][0] = 43;
-  pawns[0][1] = 38;
-  assert.equal(applyMove(pawns, 0, 1, 4, 'quick').won, true); // 38 + 4 = 42
+  pawns[0][0] = 38;
+  assert.equal(applyMove(pawns, 0, 0, 2, 'quick').won, false); // 40: still on the track
+  assert.equal(applyMove(pawns, 0, 0, 4, 'quick').won, true); // 38 + 4 = 42
   const classic = initialPawns();
-  classic[0][0] = 43;
-  classic[0][1] = 38;
-  assert.equal(applyMove(classic, 0, 1, 4).won, false);
+  classic[0][0] = 38;
+  assert.equal(applyMove(classic, 0, 0, 4).won, false);
 });
 
 test('first-capture mode: the first Capture wins', () => {

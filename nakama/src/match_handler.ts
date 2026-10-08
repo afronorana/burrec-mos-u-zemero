@@ -1,7 +1,7 @@
 // Authoritative 'ludo' match handler. All timing lives in matchLoop ticks —
 // the goja runtime has no setTimeout.
 
-import { BOT_DISPLAY_NAME, DEFAULT_FINISHER, FINISHER_IDS, NO_FINISHER, OpCode, decodePayload, encodePayload, guestCosmetics, itemTier, sanitizeCosmetics, sanitizeGameMode, wearableCosmetics } from '../../shared/protocol.js';
+import { BOT_DISPLAY_NAME, DEFAULT_FINISHER, FINISHER_IDS, NO_FINISHER, OpCode, decodePayload, encodePayload, guestCosmetics, isClosedTable, itemTier, sanitizeCosmetics, sanitizeGameMode, sanitizeTable, wearableCosmetics } from '../../shared/protocol.js';
 import { isMember } from './auth';
 import { recordGamesPlayed, touchLastSeen } from './moderation';
 import { ownedItems } from './store';
@@ -20,6 +20,8 @@ const TICK_RATE = 2; // ticks per second
 const TURN_TIMEOUT_TICKS = 60 * TICK_RATE;
 const DISCONNECTED_TURN_TIMEOUT_TICKS = 6 * TICK_RATE;
 const EMPTY_TERMINATE_TICKS = 60 * TICK_RATE;
+// A Solo/Shared table waits this long for its owner to come back (adr/0002).
+const CLOSED_TERMINATE_TICKS = 10 * 60 * TICK_RATE;
 const MAX_ROLLS_WHEN_ALL_HOME = 3;
 const MAX_SEATS = 4;
 // Bot pacing (CONTEXT.md: Bot) — roughly how long clients take to show what
@@ -39,6 +41,15 @@ export interface Seat {
   connected: boolean;
   // CONTEXT.md: Bot — no human owner (userId ''), played by the server.
   bot: boolean;
+  // Shared table: a human seat the owner's device plays for someone else
+  // (userId is the owner's). Wears no Cosmetics, captures without a Finisher.
+  companion?: boolean;
+}
+
+// Shared-table setup, one entry per seat (create_table RPC).
+interface SeatSetup {
+  kind: 'player' | 'computer';
+  name: string;
 }
 
 export interface SeatStats {
@@ -85,6 +96,14 @@ export interface LudoState {
   // CONTEXT.md: Game mode — 'classic' | 'quick' | 'firstCapture', fixed at
   // room creation (rules: ludo_logic initialPawns/applyMove).
   gameMode: string;
+  // CONTEXT.md: Table — 'open' | 'solo' | 'shared'. Solo/shared tables
+  // belong to ownerUserId alone: never joinable, no turn timer, paused while
+  // the owner is away, ended by their LEAVE.
+  table: string;
+  ownerUserId: string | null;
+  sharedSeats: SeatSetup[] | null;
+  // Set by a LEAVE at a closed table; matchLoop then ends the match.
+  ended: boolean;
   seats: (Seat | null)[];
   // userId -> displayName for everyone who ever joined (seated or not) —
   // broadcast so chat can name players who haven't picked a color yet.
@@ -140,19 +159,32 @@ function makeLabel(state: LudoState): string {
   return JSON.stringify({
     mode: state.mode,
     gameMode: state.gameMode,
+    table: state.table,
     code: state.joinCode || '',
     open: state.labelOpen,
   });
 }
 
+// The user's own seat (at a Shared table, never one of their companions).
 function seatOfUser(state: LudoState, userId: string): Seat | null {
   for (let i = 0; i < MAX_SEATS; i += 1) {
     const seat = state.seats[i];
-    if (seat && !seat.bot && seat.userId === userId) {
+    if (seat && !seat.bot && !seat.companion && seat.userId === userId) {
       return seat;
     }
   }
   return null;
+}
+
+// The seat whose turn it is is played from this user's device — their own
+// seat, or a companion seat at their Shared table.
+function holdsTurn(state: LudoState, userId: string): boolean {
+  const seat = state.seats[state.turnSeat];
+  return !!seat && !seat.bot && seat.userId === userId;
+}
+
+function isClosed(state: LudoState): boolean {
+  return isClosedTable(state.table);
 }
 
 // Every seat no human holds is a Bot (CONTEXT.md: Bot), from matchInit on.
@@ -206,6 +238,7 @@ function lobbyStatePayload(state: LudoState): object {
     cosmetics: state.cosmetics,
     environment: state.environment,
     gameMode: state.gameMode,
+    table: state.table,
   };
 }
 
@@ -230,6 +263,7 @@ function snapshotPayload(state: LudoState, tick: number): object {
     gameOver: state.phase === 'finished' ? gameOverPayload(state) : null,
     environment: state.environment,
     gameMode: state.gameMode,
+    table: state.table,
     turnSeat: state.turnSeat,
     round: state.round,
     dice: state.dice,
@@ -264,6 +298,9 @@ function hasAbandonedSeat(state: LudoState): boolean {
 // Drives label.open: lobbies with a Bot seat, and running games with a Bot
 // or an Abandoned seat, are joinable.
 function isJoinable(state: LudoState): boolean {
+  if (isClosed(state)) {
+    return false;
+  }
   if (state.phase === 'lobby') {
     return hasFreeSeat(state);
   }
@@ -342,6 +379,10 @@ function resetTurnState(state: LudoState) {
 
 function turnDeadline(state: LudoState, tick: number): number {
   state.savedTurnDeadline = null;
+  // Nobody else is waiting at a Solo/Shared table: no turn timer (0 = none).
+  if (isClosed(state)) {
+    return 0;
+  }
   const seat = state.seats[state.turnSeat];
   const ticks = seat && seat.connected ? TURN_TIMEOUT_TICKS : DISCONNECTED_TURN_TIMEOUT_TICKS;
   return tick + ticks;
@@ -425,7 +466,7 @@ function doMove(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkruntime.Ma
     // mover changes cosmetics while this event is still queued client-side.
     // A Bot wears no Props but captures with a random free Finisher, so
     // games against Computers show the cinematics too.
-    finisher: mover && mover.bot ? botFinisher() : (moverCosmetics ? moverCosmetics.finisher : NO_FINISHER),
+    finisher: mover && mover.bot ? botFinisher() : (moverCosmetics && mover && !mover.companion ? moverCosmetics.finisher : NO_FINISHER),
   });
 
   if (result.won) {
@@ -449,7 +490,7 @@ function doMove(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkruntime.Ma
         }
       }
     }
-    recordGameFinished(nk, state.mode, playerNames, winnerName);
+    recordGameFinished(nk, state.mode, state.table, playerNames, winnerName);
     return;
   }
 
@@ -461,12 +502,9 @@ function doMove(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkruntime.Ma
 }
 
 function handleRollRequest(state: LudoState, dispatcher: nkruntime.MatchDispatcher, tick: number, sender: nkruntime.Presence, payload: { demand?: number }) {
-  const senderSeat = seatOfUser(state, sender.userId);
-
   if (
     state.phase !== 'playing' ||
-    !senderSeat ||
-    senderSeat.seat !== state.turnSeat ||
+    !holdsTurn(state, sender.userId) ||
     state.dice !== null ||
     state.awaitingMove
   ) {
@@ -545,13 +583,11 @@ function playBot(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkruntime.M
 }
 
 function handleMoveRequest(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkruntime.MatchDispatcher, tick: number, sender: nkruntime.Presence, payload: { pawnIndex?: number }) {
-  const senderSeat = seatOfUser(state, sender.userId);
   const pawnIndex = typeof payload.pawnIndex === 'number' ? payload.pawnIndex : -1;
 
   if (
     state.phase !== 'playing' ||
-    !senderSeat ||
-    senderSeat.seat !== state.turnSeat ||
+    !holdsTurn(state, sender.userId) ||
     !state.awaitingMove ||
     state.legalPawns.indexOf(pawnIndex) === -1
   ) {
@@ -574,6 +610,10 @@ function handleStart(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkrunti
     return;
   }
 
+  startGame(nk, state, dispatcher, tick);
+}
+
+function startGame(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkruntime.MatchDispatcher, tick: number) {
   state.phase = 'playing';
   state.pawns = initialPawns(state.gameMode);
   state.round = 1;
@@ -597,6 +637,7 @@ function handleStart(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkrunti
   broadcast(dispatcher, OpCode.GAME_START, {
     seats: state.seats,
     gameMode: state.gameMode,
+    table: state.table,
     // Starting positions (Quick mode begins with a pawn out per seat).
     pawns: state.pawns,
     turnSeat: state.turnSeat,
@@ -605,7 +646,61 @@ function handleStart(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkrunti
   });
   dispatcher.matchLabelUpdate(makeLabel(state));
   recordGameStarted(nk);
-  recordGamesPlayed(nk, humanUserIds(state));
+  // A Shared table's other players have no identity of their own, and its
+  // owner didn't play a game of their own either.
+  if (state.table !== 'shared') {
+    recordGamesPlayed(nk, humanUserIds(state));
+  }
+}
+
+// Seats a Solo/Shared table's owner on their first join. Solo: the owner at
+// seat 0, Bots elsewhere. Shared: per the setup — the first player entry is
+// the owner's own seat, every other player entry a companion seat.
+function seatClosedTable(state: LudoState, presence: nkruntime.Presence) {
+  const ownName = state.displayNames[presence.userId] || presence.username || 'Player';
+  if (state.table === 'solo' || !state.sharedSeats) {
+    state.seats[0] = humanSeat(0, presence.userId, presence.username, ownName);
+    return;
+  }
+  let ownerSeated = false;
+  for (let i = 0; i < MAX_SEATS; i += 1) {
+    const setup = state.sharedSeats[i];
+    if (!setup || setup.kind !== 'player') {
+      state.seats[i] = botSeat(i);
+      continue;
+    }
+    const seat = humanSeat(i, presence.userId, presence.username, setup.name || (ownerSeated ? 'Player ' + (i + 1) : ownName));
+    if (ownerSeated) {
+      seat.companion = true;
+    }
+    ownerSeated = true;
+    state.seats[i] = seat;
+  }
+}
+
+function parseSharedSeats(raw: string | undefined): SeatSetup[] | null {
+  if (!raw) {
+    return null;
+  }
+  try {
+    const list = JSON.parse(raw);
+    if (!Array.isArray(list)) {
+      return null;
+    }
+    const seats: SeatSetup[] = [];
+    let players = 0;
+    for (let i = 0; i < MAX_SEATS; i += 1) {
+      const entry = list[i] || {};
+      const kind = entry.kind === 'player' ? 'player' : 'computer';
+      if (kind === 'player') {
+        players += 1;
+      }
+      seats.push({ kind, name: typeof entry.name === 'string' ? entry.name.trim().slice(0, 24) : '' });
+    }
+    return players >= 2 ? seats : null;
+  } catch (error) {
+    return null;
+  }
 }
 
 const matchInit = function (
@@ -618,14 +713,21 @@ const matchInit = function (
   const joinCode = params && params.code ? String(params.code) : null;
   const requestedEnv = params && params.environment ? String(params.environment) : 'day';
   const environment = ['day', 'night', 'dusk', 'dawn'].indexOf(requestedEnv) !== -1 ? requestedEnv : 'day';
-  const gameMode = sanitizeGameMode(params && params.gameMode ? String(params.gameMode) : '');
+  const table = sanitizeTable(params && params.table ? String(params.table) : '');
+  const closed = isClosedTable(table);
+  // Solo/Shared tables are Classic for now (CONTEXT.md: Table).
+  const gameMode = closed ? 'classic' : sanitizeGameMode(params && params.gameMode ? String(params.gameMode) : '');
 
   const state: LudoState = {
     phase: 'lobby',
-    mode,
+    mode: closed ? 'private' : mode,
     joinCode,
     environment,
     gameMode,
+    table,
+    ownerUserId: closed && params.owner ? String(params.owner) : null,
+    sharedSeats: table === 'shared' ? parseSharedSeats(params.seats) : null,
+    ended: false,
     seats: [botSeat(0), botSeat(1), botSeat(2), botSeat(3)],
     displayNames: {},
     cosmetics: {},
@@ -647,7 +749,7 @@ const matchInit = function (
     startedAtMs: 0,
     presences: {},
     pendingDisplayNames: {},
-    labelOpen: 1,
+    labelOpen: closed ? 0 : 1,
     demoDice: !!ctx.env && ctx.env['DEMO_DICE'] === '1',
   };
 
@@ -682,6 +784,11 @@ const matchJoinAttempt = function (
   presence: nkruntime.Presence,
   metadata: { [key: string]: any },
 ): { state: LudoState; accept: boolean; rejectMessage?: string } {
+  // A Solo/Shared table is its owner's alone.
+  if (isClosed(state) && presence.userId !== state.ownerUserId) {
+    return { state, accept: false, rejectMessage: 'table_closed' };
+  }
+
   const existing = seatOfUser(state, presence.userId);
 
   if (existing) {
@@ -694,6 +801,12 @@ const matchJoinAttempt = function (
 
   if (state.phase === 'finished') {
     return { state, accept: false, rejectMessage: 'match_over' };
+  }
+
+  if (isClosed(state)) {
+    // The owner's first join (the game starts in matchJoin).
+    rememberCosmetics(nk, state, presence.userId, metadata);
+    return { state, accept: state.phase === 'lobby', rejectMessage: 'match_over' };
   }
 
   // Lobby: any free seat. Playing: drop-in is allowed onto a free seat or an
@@ -744,6 +857,11 @@ const matchJoin = function (
         }
         state.savedTurnDeadline = null;
       }
+      // A paused Solo/Shared table resumes: give the client a moment to
+      // rebuild the board before a Bot acts.
+      if (isClosed(state)) {
+        holdBots(state, tick, BOT_DICE_TICKS);
+      }
       if (state.phase !== 'lobby') {
         broadcast(dispatcher, OpCode.STATE_SYNC, snapshotPayload(state, tick), [presence]);
       }
@@ -763,6 +881,14 @@ const matchJoin = function (
 
   refreshOpenLabel(state, dispatcher);
   broadcast(dispatcher, OpCode.LOBBY_STATE, lobbyStatePayload(state));
+
+  // A Solo/Shared table starts as soon as its owner is in — no lobby step.
+  if (isClosed(state) && state.phase === 'lobby' && state.ownerUserId && state.presences[state.ownerUserId]) {
+    const owner = state.presences[state.ownerUserId];
+    seatClosedTable(state, owner);
+    state.hostUserId = owner.userId;
+    startGame(nk, state, dispatcher, tick);
+  }
   return { state };
 };
 
@@ -792,14 +918,14 @@ function vacateSeat(state: LudoState, seatIndex: number, userId: string, tick: n
 // lobby again — same Game mode, environment, host and players still here;
 // seats whose players left become Bots. Everyone still in the room lands in
 // the lobby together (LOBBY_STATE with phase 'lobby').
-function handlePlayAgain(state: LudoState, dispatcher: nkruntime.MatchDispatcher, tick: number, sender: nkruntime.Presence) {
+function handlePlayAgain(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkruntime.MatchDispatcher, tick: number, sender: nkruntime.Presence) {
   if (state.phase !== 'finished' || !state.presences[sender.userId]) {
     return;
   }
   state.phase = 'lobby';
   for (let i = 0; i < MAX_SEATS; i += 1) {
     const seat = state.seats[i];
-    if (!seat || seat.bot || !seat.connected || !state.presences[seat.userId]) {
+    if (!seat || seat.bot || (!seat.companion && !seat.connected) || !state.presences[seat.userId]) {
       state.seats[i] = botSeat(i);
     }
   }
@@ -818,6 +944,10 @@ function handlePlayAgain(state: LudoState, dispatcher: nkruntime.MatchDispatcher
   resetTurnState(state);
   refreshOpenLabel(state, dispatcher);
   broadcast(dispatcher, OpCode.LOBBY_STATE, lobbyStatePayload(state));
+  // A Solo/Shared table has no lobby to wait in: same seats, straight on.
+  if (isClosed(state)) {
+    startGame(nk, state, dispatcher, tick);
+  }
 }
 
 const matchLeave = function (
@@ -838,7 +968,10 @@ const matchLeave = function (
       continue;
     }
 
-    if (state.phase === 'lobby') {
+    if (isClosed(state)) {
+      // Paused, not abandoned: nothing plays on until the owner is back.
+      seat.connected = false;
+    } else if (state.phase === 'lobby') {
       vacateSeat(state, seat.seat, presence.userId, tick);
     } else {
       seat.connected = false;
@@ -872,9 +1005,13 @@ const matchLoop = function (
     break;
   }
 
+  if (state.ended) {
+    return null;
+  }
+
   if (!hasPresence) {
     state.emptyTicks += 1;
-    if (state.emptyTicks >= EMPTY_TERMINATE_TICKS) {
+    if (state.emptyTicks >= (isClosed(state) ? CLOSED_TERMINATE_TICKS : EMPTY_TERMINATE_TICKS)) {
       return null;
     }
   } else {
@@ -902,10 +1039,14 @@ const matchLoop = function (
         handleSetCosmetics(nk, state, dispatcher, sender, payload);
         break;
       case OpCode.PLAY_AGAIN:
-        handlePlayAgain(state, dispatcher, tick, sender);
+        handlePlayAgain(nk, state, dispatcher, tick, sender);
         break;
       case OpCode.LEAVE: {
         // Sent just before the client leaves the match on purpose.
+        if (isClosed(state)) {
+          state.ended = sender.userId === state.ownerUserId;
+          break;
+        }
         const leaving = seatOfUser(state, sender.userId);
         if (leaving && state.phase !== 'finished') {
           vacateSeat(state, leaving.seat, sender.userId, tick);
@@ -927,6 +1068,9 @@ const matchLoop = function (
         broadcast(dispatcher, OpCode.STATE_SYNC, snapshotPayload(state, tick), [sender]);
         break;
       case OpCode.CLAIM_SEAT: {
+        if (isClosed(state)) {
+          break;
+        }
         const senderSeat = seatOfUser(state, sender.userId);
         const targetSeatIndex = typeof payload.seat === 'number' ? payload.seat : -1;
         if (targetSeatIndex < 0 || targetSeatIndex >= MAX_SEATS) {
@@ -994,13 +1138,16 @@ const matchLoop = function (
     }
   }
 
-  const turnHolder = state.phase === 'playing' ? state.seats[state.turnSeat] : null;
+  // A Solo/Shared table is paused while its owner is away.
+  const paused = isClosed(state) && !(state.ownerUserId && state.presences[state.ownerUserId]);
+  const turnHolder = state.phase === 'playing' && !paused ? state.seats[state.turnSeat] : null;
   if (turnHolder && turnHolder.bot) {
     if (tick >= state.botActTick) {
       playBot(nk, state, dispatcher, tick);
     }
   } else if (
     state.phase === 'playing' &&
+    !paused &&
     state.turnDeadlineTick > 0 &&
     tick >= state.turnDeadlineTick
   ) {

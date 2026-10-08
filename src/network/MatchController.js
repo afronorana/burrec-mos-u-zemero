@@ -9,7 +9,7 @@
 // (store.online.finisherInFlight) is playing, so server events never interrupt
 // a running animation.
 
-import { OpCode, encodePayload, decodePayload } from '../../shared/protocol';
+import { OpCode, encodePayload, decodePayload, isClosedTable } from '../../shared/protocol';
 import NakamaClient from './NakamaClient';
 import ChatController from './ChatController';
 import ApplicationStore from '../utils/ApplicationStore';
@@ -160,6 +160,24 @@ class MatchControllerService {
     }
   }
 
+  // CONTEXT.md: Table — a Solo or Shared table: a closed match the server
+  // starts as soon as we join (no lobby). `seats` (shared only):
+  // [{ kind: 'player' | 'computer', name } x4], the first player being us.
+  startTable(table, displayName, seats) {
+    return this.withMatchmaking('starting', displayName, async () => {
+      const result = await NakamaClient.rpc('create_table', { table, seats, environment: this.creationEnvironment() });
+      if (!result.matchId) {
+        throw new Error(result.error || 'create_failed');
+      }
+      this.online().table = table;
+      await this.joinById(result.matchId, { mode: 'private' });
+    });
+  }
+
+  isClosedTable() {
+    return isClosedTable(this.online().table);
+  }
+
   // Join metadata: the name plus this player's Cosmetics (the server
   // whitelists them).
   joinMetadata() {
@@ -178,12 +196,16 @@ class MatchControllerService {
     online.lastError = null;
     // Joining an ongoing match: the server's STATE_SYNC (sent during the
     // join) may already have routed us to the game screen — don't stomp it.
-    if (ApplicationStore.currentScreen !== 'game-screen') {
+    // A Solo/Shared table has no lobby: GAME_START takes us to the board.
+    if (ApplicationStore.currentScreen !== 'game-screen' && !this.isClosedTable()) {
       ApplicationStore.currentScreen = 'lobby';
     }
 
     this.persistSession();
 
+    if (this.isClosedTable()) {
+      return; // no chat at a Solo/Shared table
+    }
     try {
       await ChatController.join(matchId);
     } catch (error) {
@@ -234,7 +256,7 @@ class MatchControllerService {
     try {
       await ChatController.join(matchId);
     } catch (error) {
-      // Non-critical.
+      // Non-critical (and refused at a Solo/Shared table, which has no chat).
     }
 
     // Pull the authoritative snapshot; handleStateSync routes us to lobby or
@@ -294,6 +316,7 @@ class MatchControllerService {
     online.restyleError = null;
     online.environment = null;
     online.gameMode = null;
+    online.table = null;
     online.gameOver = null;
     clearTimeout(this.celebrationTimer);
     online.seatToPlayerIndex = {};
@@ -319,6 +342,15 @@ class MatchControllerService {
   announceLeave(matchId) {
     const selfUserId = this.online().selfUserId;
     if (this.seatOfSelf(this.online().seats) < 0) {
+      return Promise.resolve();
+    }
+    // A Solo/Shared table just ends — nothing to wait for.
+    if (this.isClosedTable()) {
+      try {
+        this.socket.sendMatchState(matchId, OpCode.LEAVE, encodePayload({}));
+      } catch (error) {
+        // Socket may already be closed.
+      }
       return Promise.resolve();
     }
     return new Promise((resolve) => {
@@ -451,10 +483,12 @@ class MatchControllerService {
     }
   }
 
+  // Our own seat — at a Shared table never a companion seat we play for
+  // someone else.
   seatOfSelf(seats) {
     const selfUserId = this.online().selfUserId;
     for (const seat of seats || []) {
-      if (seat && seat.userId === selfUserId) {
+      if (seat && !seat.companion && seat.userId === selfUserId) {
         return seat.seat;
       }
     }
@@ -465,13 +499,17 @@ class MatchControllerService {
     const online = this.online();
     // Someone pressed Play again: the finished room is a lobby again —
     // everyone still in it goes back to the lobby together.
+    // At a Solo table there's no lobby: the server's GAME_START follows at
+    // once and rebuilds the board where we are.
     if (payload.phase === 'lobby' && ApplicationStore.currentScreen === 'game-screen') {
       clearTimeout(this.celebrationTimer);
       online.gameOver = null;
-      online.enabled = false;
       online.restyled = {};
       ApplicationStore.winner = null;
-      ApplicationStore.currentScreen = 'lobby';
+      if (!isClosedTable(payload.table)) {
+        online.enabled = false;
+        ApplicationStore.currentScreen = 'lobby';
+      }
       this.persistSession(); // resumable again after a reload
     }
     online.seats = payload.seats || [];
@@ -481,6 +519,7 @@ class MatchControllerService {
     online.cosmetics = payload.cosmetics || online.cosmetics;
     online.environment = payload.environment || online.environment;
     online.gameMode = payload.gameMode || online.gameMode;
+    online.table = payload.table || online.table;
     // A code in the payload means this is a private room — infer it when we
     // resumed from a bare matchId and never learned the mode.
     if (online.joinCode && !online.mode) {
@@ -494,12 +533,20 @@ class MatchControllerService {
     const online = this.online();
     online.seats = payload.seats || [];
     online.gameMode = payload.gameMode || online.gameMode;
+    online.table = payload.table || online.table;
     online.mySeat = this.seatOfSelf(online.seats);
     online.pendingDice = null;
     online.diceInFlight = false;
     this.opQueue = [];
     this.moveInFlight = false;
     EventBus.fire(EventKeys.game.startOnline, payload);
+  }
+
+  // Is this seat "you"? At a Shared table nobody is singled out: everyone
+  // at the device is playing.
+  isSelfSeat(seat) {
+    const online = this.online();
+    return online.table !== 'shared' && seat === online.mySeat && seat >= 0;
   }
 
   queueBlocked() {
@@ -577,7 +624,7 @@ class MatchControllerService {
       ApplicationStore.winner = {
         name: player ? player.name : 'Player',
         color: player ? player.color : '#ffffff',
-        self: payload.winnerSeat === online.mySeat,
+        self: this.isSelfSeat(payload.winnerSeat),
         seat: payload.winnerSeat,
       };
     }, CELEBRATION_MS);
@@ -603,6 +650,7 @@ class MatchControllerService {
     online.restyled = payload.restyled || online.restyled;
     online.environment = payload.environment || online.environment;
     online.gameMode = payload.gameMode || online.gameMode;
+    online.table = payload.table || online.table;
     if (online.joinCode && !online.mode) {
       online.mode = 'private';
     }
@@ -623,7 +671,9 @@ class MatchControllerService {
       : null;
 
     if (payload.phase === 'lobby') {
-      ApplicationStore.currentScreen = 'lobby';
+      if (!isClosedTable(online.table)) {
+        ApplicationStore.currentScreen = 'lobby';
+      }
       return;
     }
     EventBus.fire(EventKeys.net.stateSync, payload);

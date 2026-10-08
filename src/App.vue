@@ -67,7 +67,7 @@ import {
   poseDustPuff,
 } from './utils/finishers';
 import { playFinisherImpact, playFinisherWindup } from './utils/sound';
-import { DEFAULT_FINISHER, DEFAULT_FLAG, NO_FINISHER, guestCosmetics, pawnLook, wearableCosmetics } from '../shared/protocol';
+import { DEFAULT_FINISHER, DEFAULT_FLAG, NO_FINISHER, guestCosmetics, isClosedTable, pawnLook, wearableCosmetics } from '../shared/protocol';
 
 const OUTLINE_COLOR = '#1b1411';
 const BOARD_CENTER = { x: 5, z: 5 };
@@ -485,6 +485,10 @@ const PAWN_CENTER_Y = FIELD_CENTER_Y + 0.085;
 // and leaps higher to get there.
 const PAWN_PERCH_HEIGHT = 1.0;
 const PAWN_PERCH_JUMP = 0.55;
+// Lobby: a claimed seat's pawns fall into their base, one after another.
+const PAWN_DROP_HEIGHT = 2.2;
+const PAWN_DROP_MS = 420;
+const PAWN_DROP_STAGGER_MS = 90;
 // Game over: the winner's pawns hop (staggered) while the board waits
 // (MatchController CELEBRATION_MS), and a little after it appears.
 const CELEBRATION_TOTAL_MS = 4200;
@@ -550,7 +554,7 @@ export default {
       this.applyPitRimColor();
     },
     'store.currentScreen'(newScreen, oldScreen) {
-      const isOrbitScreen = (s) => ['main-menu', 'home', 'create-room', 'join-room', 'admin', 'wardrobe'].includes(s) || !s;
+      const isOrbitScreen = (s) => ['main-menu', 'home', 'play-mode', 'shared-setup', 'create-room', 'join-room', 'admin', 'wardrobe'].includes(s) || !s;
       const isFixedScreen = (s) => ['lobby', 'game-screen'].includes(s);
 
       if (isFixedScreen(newScreen) && isOrbitScreen(oldScreen)) {
@@ -1583,7 +1587,11 @@ export default {
       this.store.players.forEach((player) => {
         player.pawns.forEach((pawn) => {
           activePawnIds.add(pawn.id);
+          const appearing = !this.pawnMeshes[pawn.id]?.visible;
           this.ensurePawnMesh(pawn);
+          if (appearing && this.store.currentScreen === 'lobby') {
+            this.startPawnDrop(pawn, now);
+          }
 
           const pawnMesh = this.pawnMeshes[pawn.id];
           if (!pawnMesh.visible) {
@@ -1815,7 +1823,8 @@ export default {
         return motion.current;
       }
 
-      const progress = Math.min((now - motion.startTime) / motion.duration, 1);
+      // max(0): a staggered drop waits at its start until its turn.
+      const progress = Math.max(0, Math.min((now - motion.startTime) / motion.duration, 1));
       if (progress >= 1) {
         motion.current.x = motion.to.x;
         motion.current.y = motion.to.y;
@@ -1839,6 +1848,26 @@ export default {
       motion.current.z = motion.from.z + ((motion.to.z - motion.from.z) * eased);
       motion.stretch = 0.94 + (0.18 * arc);
       return motion.current;
+    },
+
+    // A seat just claimed in the lobby: its pawns drop into the base from
+    // above (staggered), so picking a color shows you where you are.
+    startPawnDrop(pawn, now) {
+      const target = pawn.getCoordinates(PAWN_CENTER_Y, _pawnCoordsScratch);
+      const motion = markRaw({
+        current: { x: target.x, y: target.y + PAWN_DROP_HEIGHT, z: target.z },
+        from: { x: target.x, y: target.y + PAWN_DROP_HEIGHT, z: target.z },
+        to: { x: target.x, y: target.y, z: target.z },
+        position: pawn.position,
+        globalPosition: pawn.globalPosition,
+        inDestination: pawn.isInDestinationField,
+        startTime: now + (pawn.startingPlace - 1) * PAWN_DROP_STAGGER_MS,
+        duration: PAWN_DROP_MS,
+        jumpHeight: 0,
+        isAnimating: true,
+        stretch: 1,
+      });
+      this.pawnMotionStates[pawn.id] = motion;
     },
 
     // A hop that's about to Capture lands beside the victim (STAGE_GAP back
@@ -1947,8 +1976,10 @@ export default {
       if (!seatInfo) {
         return null;
       }
-      if (seatInfo.bot) {
-        return guestCosmetics(); // a Bot wears nothing (CONTEXT.md: Bot)
+      // A Bot wears nothing (CONTEXT.md: Bot); nor does a Shared table's
+      // companion seat, which only borrows the owner's device.
+      if (seatInfo.bot || seatInfo.companion) {
+        return guestCosmetics();
       }
       if (seatInfo.userId === online.selfUserId && online.account.member) {
         return wearableCosmetics(this.store.settings.cosmetics, online.store.owned);
@@ -3818,8 +3849,10 @@ export default {
       }
       this.store.players.splice(0, this.store.players.length);
       const seats = this.store.online.seats || [];
+      // Only seats people hold show pawns here: an empty base is a free
+      // color (a Bot's, until someone claims it); Bots' pawns arrive at Start.
       seats.forEach((seat) => {
-        if (seat) {
+        if (seat && !seat.bot) {
           const isMe = !seat.bot && seat.userId === this.store.online.selfUserId;
           const controller = isMe ? 'local' : 'remote';
           const name = seatPlayerName(seat);
@@ -4160,7 +4193,8 @@ export default {
                 seatPlayerName(seat),
                 PLAYER_COLORS[seat.seat],
                 seat.seat + 1,
-                seat.seat === this.store.online.mySeat ? 'local' : 'remote',
+                // Our seat — or, at a Shared table, any seat this device plays.
+                !seat.bot && seat.userId === this.store.online.selfUserId ? 'local' : 'remote',
             )),
         );
       });
@@ -4248,7 +4282,7 @@ export default {
       this.store.winner = {
         name: player.name,
         color: player.color,
-        self: player.controller === 'local',
+        self: MatchController.isSelfSeat(player.turn - 1),
       };
       this.store.gamePlayStatus.isRolling = false;
       this.store.gamePlayStatus.isMoving = false;
@@ -4287,7 +4321,7 @@ export default {
         this.store.winner = {
           name: winner ? winner.name : 'Player',
           color: winner ? winner.color : '#ffffff',
-          self: payload.winnerSeat === this.store.online.mySeat,
+          self: MatchController.isSelfSeat(payload.winnerSeat),
           seat: payload.winnerSeat,
         };
       }
@@ -4338,6 +4372,11 @@ export default {
     // Without it the turn starts now.
     startTurnTimer(timing) {
       const timer = this.store.turnTimer;
+      // CONTEXT.md: Table — no turn timer at a Solo/Shared table.
+      if (isClosedTable(this.store.online.table)) {
+        timer.running = false;
+        return;
+      }
       const now = performance.now();
       if (timing && typeof timing.turnMsLeft === 'number') {
         const msLeft = Math.min(timing.turnMsLeft, timer.duration);
@@ -4918,7 +4957,7 @@ export default {
     },
 
     isMenuMode() {
-      const orbitingScreens = ['main-menu', 'home', 'create-room', 'join-room', 'admin', 'wardrobe'];
+      const orbitingScreens = ['main-menu', 'home', 'play-mode', 'shared-setup', 'create-room', 'join-room', 'admin', 'wardrobe'];
       return orbitingScreens.includes(this.store.currentScreen);
     },
 

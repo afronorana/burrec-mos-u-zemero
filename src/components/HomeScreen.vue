@@ -1,27 +1,18 @@
 <template>
   <div class="menu-center home-center">
     <div class="home-stack">
-      <!-- Game mode: applies to Play now and to a new room. -->
-      <app-panel class="menu-card">
-        <h2 class="panel-title">{{ t('modes.title') }}</h2>
-        <game-mode-picker v-model="gameMode" />
-      </app-panel>
-
-      <!-- Quickplay -->
+      <!-- Quickplay: Play now opens the chooser (online Game modes, or a
+           Table on this device). -->
       <app-panel class="menu-card">
         <h2 class="panel-title">{{ t('online.quickPlayTitle') }}</h2>
 
         <app-button
           class="menu-btn-full home-play-btn"
           :disabled="busy || !hasName"
-          @click="quickPlay"
+          @click="goPlay"
         >
           {{ t('online.playNow') }}
         </app-button>
-
-        <button type="button" class="home-info-link" @click="infoOpen = true">
-          ⓘ {{ t('online.quickPlayInfoLink') }}
-        </button>
       </app-panel>
 
       <!-- Play with friends -->
@@ -45,43 +36,21 @@
         <app-button red :disabled="busy" @click="back">{{ t('back') }}</app-button>
       </div>
     </div>
-
-    <app-modal
-      v-model="infoOpen"
-      :title="t('online.quickPlayInfoLink')"
-      :confirm-text="t('online.close')"
-    >
-      <p class="home-info-body">{{ t('online.quickPlayInfoBody') }}</p>
-    </app-modal>
   </div>
 </template>
 
 <script>
 import ApplicationStore from '../utils/ApplicationStore';
-import MatchController from '../network/MatchController';
 import { t } from '../utils/i18n';
-import GameModePicker from './GameModePicker.vue';
 
 export default {
-  components: { GameModePicker },
   data() {
     return {
       store: ApplicationStore,
       busy: false,
-      infoOpen: false,
     };
   },
   computed: {
-    // CONTEXT.md: Game mode — remembered for the next game.
-    gameMode: {
-      get() {
-        return this.store.settings.gameMode;
-      },
-      set(mode) {
-        this.store.settings.gameMode = mode;
-        window.localStorage.setItem('burrec.settings.gameMode', mode);
-      },
-    },
     hasName() {
       return (this.store.online.displayName || '').trim().length > 0;
     },
@@ -92,17 +61,9 @@ export default {
   },
   methods: {
     t,
-    async quickPlay() {
-      const name = this.store.online.displayName;
-      this.busy = true;
+    goPlay() {
       this.store.online.lastError = null;
-      try {
-        await MatchController.quickMatch(name);
-      } catch (error) {
-        this.store.online.lastError = error?.message ? error.message : 'connect_failed';
-      } finally {
-        this.busy = false;
-      }
+      this.store.currentScreen = 'play-mode';
     },
     goCreate() {
       this.store.online.lastError = null;
@@ -139,29 +100,6 @@ export default {
 .home-play-btn {
   font-size: 1.15rem;
   padding: 16px 24px;
-}
-.home-info-link {
-  display: block;
-  width: 100%;
-  margin-top: 12px;
-  background: none;
-  border: none;
-  padding: 4px 0;
-  font: inherit;
-  font-size: 0.85rem;
-  color: inherit;
-  text-decoration: underline;
-  cursor: pointer;
-  opacity: 0.75;
-  text-align: center;
-}
-.home-info-link:hover {
-  opacity: 1;
-}
-.home-info-body {
-  margin: 0;
-  font-size: 0.95rem;
-  line-height: 1.6;
 }
 .home-or {
   text-align: center;

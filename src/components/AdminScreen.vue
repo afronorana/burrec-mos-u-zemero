@@ -154,6 +154,8 @@
             <p v-if="!overview.recentGames.length" class="admin-empty">No games recorded yet.</p>
             <div v-for="(game, idx) in overview.recentGames" :key="idx" class="admin-row">
               <span class="admin-muted">{{ formatDate(game.at) }}</span>
+              <!-- CONTEXT.md: Table (older records have none: open). -->
+              <span v-if="game.table && game.table !== 'open'" class="admin-muted">{{ game.table }}</span>
               <span class="admin-row-main">{{ game.players.join(', ') }}</span>
               <strong>🏆 {{ game.winner }}</strong>
             </div>

@@ -1,5 +1,6 @@
 // End-to-end test of Game modes against the local dev stack (pnpm nakama:up,
-// DEMO_DICE=1): Quick mode starts every seat with a pawn out, Quick play
+// DEMO_DICE=1): Quick mode starts every seat with a pawn out and is won by the
+// first pawn into the finish, Quick play
 // only matches rooms of the same mode, and First capture ends the game on
 // the first Capture — with the end-of-game stats, and Play again reopening
 // the room as its lobby.
@@ -30,7 +31,7 @@ const toGlobal = (seat, pos) => ((seat * 10) + pos - 1) % 40;
 
 // One seated human in seat 0; the other three are Bots. Plays instantly and,
 // when `hunt` is set, demands (DEMO_DICE) a roll that captures if one exists.
-async function soloGame(name, gameMode, { hunt = false, until, playAgain = false }) {
+async function soloGame(name, gameMode, { hunt = false, race = false, until, playAgain = false }) {
   const session = await client.authenticateDevice(`e2e-modes-${name}-${stamp}`, true);
   const { matchId } = await rpc(session, 'create_private_match', { gameMode });
   const socket = client.createSocket(false);
@@ -45,6 +46,7 @@ async function soloGame(name, gameMode, { hunt = false, until, playAgain = false
   let pawns = null;
   let turnSeat = -1;
   const demand = () => {
+    if (race) return 6; // every six repeats the turn: seat 0 runs a lap alone
     if (!hunt || !pawns) return null;
     for (const mine of pawns[0]) {
       if (mine < 1 || mine > 40) continue;
@@ -115,6 +117,12 @@ async function main() {
   assert(quick.start && quick.start.gameMode === 'quick', 'GAME_START reports the quick Game mode');
   assert(quick.start && quick.start.pawns.every((seat) => seat[0] === 1 && seat[1] === 0 && seat[2] === 0 && seat[3] === 0),
     `quick mode starts every seat with its first pawn on the start field (${JSON.stringify(quick.start && quick.start.pawns)})`);
+
+  // Quick mode: the first pawn into the finish wins.
+  const race = await soloGame('race', 'quick', { race: true, until: (log) => log.over });
+  const finishedPawns = race.start ? race.moves.filter((m) => m.seat === 0 && m.toPos > 40).length : 0;
+  assert(race.over && race.over.winnerSeat === 0, 'a quick game is won by seat 0 racing one pawn home');
+  assert(finishedPawns === 1, `one pawn in the finish ends a quick game (${finishedPawns})`);
 
   // Quick play matches by mode.
   const a = await client.authenticateDevice(`e2e-modes-qa-${stamp}`, true);

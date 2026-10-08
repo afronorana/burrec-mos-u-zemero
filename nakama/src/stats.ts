@@ -12,6 +12,8 @@ const MAX_TRACKED_PLAYERS = 500;
 export interface GameRecord {
   at: number;
   mode: string;
+  // CONTEXT.md: Table — 'open' | 'solo' | 'shared' (absent on older records).
+  table?: string;
   players: string[];
   winner: string;
 }
@@ -60,19 +62,20 @@ export function recordGameStarted(nk: nkruntime.Nakama) {
 }
 
 // Called once per finished game with the names of everyone seated at the end
-// (covers drop-in joiners too) and the winner's name.
-export function recordGameFinished(nk: nkruntime.Nakama, mode: string, playerNames: string[], winnerName: string) {
+// (covers drop-in joiners too) and the winner's name. A Shared table's names
+// are typed on one device, so they're listed but never counted per player.
+export function recordGameFinished(nk: nkruntime.Nakama, mode: string, table: string, playerNames: string[], winnerName: string) {
   try {
     const stats = readStats(nk);
     const now = Date.now();
     stats.totalFinished += 1;
 
-    stats.recentGames.unshift({ at: now, mode: mode, players: playerNames, winner: winnerName });
+    stats.recentGames.unshift({ at: now, mode: mode, table: table, players: playerNames, winner: winnerName });
     if (stats.recentGames.length > MAX_RECENT_GAMES) {
       stats.recentGames.length = MAX_RECENT_GAMES;
     }
 
-    for (let i = 0; i < playerNames.length; i += 1) {
+    for (let i = 0; table !== 'shared' && i < playerNames.length; i += 1) {
       const name = playerNames[i];
       const entry = stats.players[name] || { games: 0, lastAt: 0 };
       entry.games += 1;

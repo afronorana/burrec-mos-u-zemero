@@ -13,8 +13,12 @@ _Avoid_: kill, hit, knock out
 ### Game modes
 
 **Game mode**:
-The rules variant a room is played in, chosen by whoever creates it (or looks for a Quick play game) and fixed for that room: **Classic** (all four pawns into the finish), **Quick** (every seat starts with one pawn on its start field; two pawns in the finish win) or **First capture** (the first **Capture** wins). Quick play only matches rooms of the same Game mode.
+The rules variant a game is played by, fixed for its **Table**: **Classic** (all four pawns into the finish), **Quick** (every seat starts with one pawn on its start field; the first pawn into the finish wins) or **First capture** (the first **Capture** wins). Quick play only matches **Open tables** of the same Game mode. Says nothing about who plays; that is the **Table**.
 _Avoid_: variant, ruleset, game type
+
+**Table**:
+Who plays a game and whether anyone else can join it. An **Open table** takes anyone (Quick play, a room code); a **Solo table** is one human against three **Bots**; a **Shared table** is several humans taking turns on one device, any seats left over played by **Bots**. Solo and Shared tables are never joinable and are Classic for now.
+_Avoid_: room type, offline mode, pass and play (as a term; "Around the table" is only the label players see)
 
 ### Seats
 
@@ -98,6 +102,9 @@ _Avoid_: redeem, collect, unlock
 - Every item in the Wardrobe is previewable by everyone; tier only decides what can be worn
 - Every game is played with four seats: each is a human's, an **Abandoned seat**, or a **Bot**
 - A human taking a seat replaces its **Bot**, before or during the game (mid-game, with its pawns as they stand); a human leaving a seat before the game starts hands it back to a **Bot**
+- A **Solo table** or **Shared table** never has an **Abandoned seat**: when its device drops, the game waits for it instead of playing on, and ends if it doesn't return
+- At a **Shared table** every human seat belongs to the one device's player; only that player's own seat wears their **Cosmetics**, the others play as **Guests** would
+- Chat, **Reports** and **Blocks** exist only at **Open tables**
 - A **Bot** wears no **Cosmetics**, so its **Capture** plays the lite presentation; it never chats and cannot be **Reported** or **Blocked**
 - Every **Report** implies a **Block**; a **Block** never implies a **Report**
 - A **Block** and a **Shadowban** both touch chat only; neither removes anyone from a match or from matchmaking

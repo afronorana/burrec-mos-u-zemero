@@ -54,7 +54,7 @@
         >
           <shirt-icon :size="20" />
         </app-button>
-        <chat-drawer embedded />
+        <chat-drawer v-if="!closedTable" embedded />
       </div>
     </div>
 
@@ -127,7 +127,7 @@
         <template v-else>
           <span class="hud-turnbar-dot"></span>
           <span class="hud-turnbar-text">
-            {{ t('hud.yourTurn') }}
+            {{ sharedTable ? t('hud.turnOf', { name: activePlayer.name }) : t('hud.yourTurn') }}
             <span v-if="turnPrompt() === 'pick'" class="hud-turnbar-sub">{{ t('hud.pickPawn') }}</span>
           </span>
           <app-button v-if="turnPrompt() === 'roll'" orange class="hud-roll-btn" @click="roll">
@@ -183,7 +183,7 @@
     <div v-if="confirmLeave" class="global-settings-modal-backdrop" @click.self="confirmLeave = false">
       <app-panel class="global-settings-card" style="text-align: center;">
         <h3 class="panel-title" style="margin-bottom: 12px;">{{ t('online.leaveConfirmTitle') }}</h3>
-        <p class="panel-desc">{{ t('online.leaveConfirmBody') }}</p>
+        <p class="panel-desc">{{ closedTable ? t('online.leaveTableBody') : t('online.leaveConfirmBody') }}</p>
         <div class="menu-row" style="margin-top: 20px;">
           <app-button @click="confirmLeave = false">{{ t('online.leaveConfirmNo') }}</app-button>
           <app-button red @click="doLeave">{{ t('online.leaveConfirmYes') }}</app-button>
@@ -198,6 +198,7 @@ import ChatDrawer from './ChatDrawer.vue';
 import { openPlayerActions } from '../utils/authPrompt';
 import ApplicationStore from '../utils/ApplicationStore';
 import MatchController from '../network/MatchController';
+import { isClosedTable } from '../../shared/protocol';
 import { t } from '../utils/i18n';
 import { playTick } from '../utils/sound';
 import EventBus from '../utils/eventhandler';
@@ -249,6 +250,14 @@ export default {
       return this.isMyTurn && status.isRolling && !status.isDiceRolling;
     },
 
+    // CONTEXT.md: Table — Solo/Shared tables have no chat and no Player
+    // actions; at a Shared table the turn bar names whose turn it is.
+    closedTable() {
+      return isClosedTable(this.store.online.table);
+    },
+    sharedTable() {
+      return this.store.online.table === 'shared';
+    },
     needsSeat() {
       return this.store.online.enabled && this.store.online.mySeat < 0 && !this.store.winner;
     },
@@ -380,7 +389,7 @@ export default {
       return (this.store.online.seats || [])[player.turn - 1] || null;
     },
     isSelf(player) {
-      return player.controller === 'local';
+      return MatchController.isSelfSeat(player.turn - 1);
     },
     initialOf(player) {
       return (player.name || '?').trim().charAt(0).toUpperCase() || '?';
@@ -420,7 +429,7 @@ export default {
     // Tap another player's chip: Block / Report them (seat = turn - 1).
     openSeatActions(player) {
       const seat = (this.store.online.seats || [])[player.turn - 1];
-      if (seat && !seat.bot) {
+      if (seat && !seat.bot && !this.closedTable) {
         openPlayerActions({ userId: seat.userId, name: seat.displayName || player.name });
       }
     },
