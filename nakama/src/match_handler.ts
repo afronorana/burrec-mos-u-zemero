@@ -13,7 +13,7 @@ import {
   legalPawns,
   rollDie,
 } from './ludo_logic';
-import { recordGameFinished, recordGameStarted } from './stats';
+import { GameLogEntry, GameLogSeat, recordGameFinished, recordGameLog, recordGameStarted } from './stats';
 
 const TICK_RATE = 2; // ticks per second
 // Keep in sync with the client's turn-timer bar (store.turnTimer.duration).
@@ -58,12 +58,14 @@ export interface SeatStats {
   moves: number;
   captures: number;
   captured: number;
+  // How often each face 1..6 came up (game log only, not sent to clients).
+  faces: number[];
 }
 
 function emptyStats(): SeatStats[] {
   const stats: SeatStats[] = [];
   for (let i = 0; i < MAX_SEATS; i += 1) {
-    stats.push({ rolls: 0, sixes: 0, moves: 0, captures: 0, captured: 0 });
+    stats.push({ rolls: 0, sixes: 0, moves: 0, captures: 0, captured: 0, faces: [0, 0, 0, 0, 0, 0] });
   }
   return stats;
 }
@@ -84,6 +86,49 @@ function gameOverPayload(state: LudoState): object {
     stats,
     durationMs: state.startedAtMs ? Date.now() - state.startedAtMs : 0,
     rounds: state.round,
+  };
+}
+
+// One finished game for the game log (stats.ts): per-seat counters plus who
+// sat there at the end. No names or ids — just enough for aggregate numbers
+// (does going first help, how long a Quick game takes, are the dice fair).
+function gameLogEntry(state: LudoState): GameLogEntry {
+  const seats: (GameLogSeat | null)[] = [];
+  let firstSeat = -1;
+  for (let i = 0; i < MAX_SEATS; i += 1) {
+    const seat = state.seats[i];
+    if (!seat) {
+      seats.push(null);
+      continue;
+    }
+    if (firstSeat < 0) firstSeat = i;
+    const s = state.stats[i];
+    let finished = 0;
+    for (let j = 0; j < 4; j += 1) {
+      if (state.pawns[i][j] > 40) finished += 1;
+    }
+    seats.push({
+      kind: seat.bot ? 'bot' : (seat.companion ? 'companion' : 'human'),
+      connected: seat.connected,
+      rolls: s.rolls,
+      sixes: s.sixes,
+      faces: s.faces,
+      moves: s.moves,
+      captures: s.captures,
+      captured: s.captured,
+      finished,
+    });
+  }
+  return {
+    at: Date.now(),
+    durationMs: state.startedAtMs ? Date.now() - state.startedAtMs : 0,
+    rounds: state.round,
+    gameMode: state.gameMode,
+    room: state.mode,
+    table: state.table,
+    firstSeat,
+    winnerSeat: state.winnerSeat,
+    seats,
   };
 }
 
@@ -491,6 +536,7 @@ function doMove(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkruntime.Ma
       }
     }
     recordGameFinished(nk, state.mode, state.table, playerNames, winnerName);
+    recordGameLog(nk, gameLogEntry(state));
     return;
   }
 
@@ -523,6 +569,7 @@ function rollForTurn(state: LudoState, dispatcher: nkruntime.MatchDispatcher, ti
   state.dice = value;
   state.rollsThisTurn += 1;
   state.stats[state.turnSeat].rolls += 1;
+  state.stats[state.turnSeat].faces[value - 1] += 1;
   if (value === 6) {
     state.stats[state.turnSeat].sixes += 1;
   }

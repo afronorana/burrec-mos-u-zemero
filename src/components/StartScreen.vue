@@ -21,9 +21,11 @@
                 @keyup.enter="onEnter"
               />
               <template v-if="pendingResume">
-                <p class="intro-resume-note">{{ t('online.resumeBody') }}</p>
+                <!-- Only a visitor with no name lands here (App.checkResumeOnLoad):
+                     in practice someone who followed an invite link. -->
+                <p class="intro-resume-note">{{ t('online.invitedBody') }}</p>
                 <app-button class="menu-btn-full intro-play-btn" :disabled="!hasName || busy" @click="continuePending">
-                  {{ t('online.resume') }}
+                  {{ t('online.joinInvite') }}
                 </app-button>
               </template>
               <app-button v-else class="menu-btn-full intro-play-btn" :disabled="!hasName || busy" @click="playNow">

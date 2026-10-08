@@ -51,6 +51,53 @@ function writeStats(nk: nkruntime.Nakama, stats: AdminStats) {
   ]);
 }
 
+// Raw material for the "Ludo by the numbers" article: one
+// system-owned object per finished game in GAME_LOG_COLLECTION (no names or
+// user ids). Read it straight from Postgres on the droplet:
+//   SELECT value FROM storage WHERE collection = 'game_log' ORDER BY create_time;
+const GAME_LOG_COLLECTION = 'game_log';
+
+export interface GameLogSeat {
+  kind: 'human' | 'bot' | 'companion';
+  connected: boolean;
+  rolls: number;
+  sixes: number;
+  faces: number[];
+  moves: number;
+  captures: number;
+  captured: number;
+  finished: number;
+}
+
+export interface GameLogEntry {
+  at: number;
+  durationMs: number;
+  rounds: number;
+  gameMode: string;
+  room: string;
+  table: string;
+  firstSeat: number;
+  winnerSeat: number | null;
+  seats: (GameLogSeat | null)[];
+}
+
+export function recordGameLog(nk: nkruntime.Nakama, entry: GameLogEntry) {
+  try {
+    nk.storageWrite([
+      {
+        collection: GAME_LOG_COLLECTION,
+        key: entry.at + '-' + nk.uuidv4().slice(0, 8),
+        userId: undefined,
+        value: entry as any,
+        permissionRead: 0,
+        permissionWrite: 0,
+      },
+    ]);
+  } catch (error) {
+    // Best-effort only.
+  }
+}
+
 export function recordGameStarted(nk: nkruntime.Nakama) {
   try {
     const stats = readStats(nk);

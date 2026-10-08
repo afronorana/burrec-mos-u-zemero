@@ -51,6 +51,9 @@
           {{ t('win.playAgain') }}
         </app-button>
         <p v-if="replayFailed" class="win-error">{{ t('win.playAgainFailed') }}</p>
+        <app-button v-if="rows.length" blue class="menu-btn-full" :loading="sharing" :disabled="sharing" @click="shareWin">
+          <share-icon :size="16" class="win-share-icon" />{{ shareNote || t('win.share') }}
+        </app-button>
         <app-button red class="menu-btn-full" @click="backToMenu">
           {{ t('win.backToMenu') }}
         </app-button>
@@ -64,7 +67,8 @@ import { defineAsyncComponent } from 'vue';
 import ApplicationStore from '../utils/ApplicationStore';
 import MatchController from '../network/MatchController';
 import { t } from '../utils/i18n';
-import { Trophy } from '@lucide/vue';
+import { Share2, Trophy } from '@lucide/vue';
+import { shareImage } from '../utils/share';
 import confettiSrc from '../assets/lottie/Confetti.lottie?url';
 
 const CONFETTI_DURATION_MS = 10000;
@@ -83,7 +87,7 @@ const ConfettiPlayer = defineAsyncComponent(async () => {
 });
 
 export default {
-  components: { TrophyIcon: Trophy, ConfettiPlayer },
+  components: { TrophyIcon: Trophy, ShareIcon: Share2, ConfettiPlayer },
   data() {
     return {
       store: ApplicationStore,
@@ -92,6 +96,8 @@ export default {
       confettiTimeout: null,
       replaying: false,
       replayFailed: false,
+      sharing: false,
+      shareNote: '',
     };
   },
   computed: {
@@ -151,6 +157,7 @@ export default {
   beforeUnmount() {
     this.stopConfetti();
     clearTimeout(this.replayTimeout);
+    clearTimeout(this.shareNoteTimeout);
   },
   methods: {
     t,
@@ -169,6 +176,34 @@ export default {
       if (this.confettiTimeout) {
         clearTimeout(this.confettiTimeout);
         this.confettiTimeout = null;
+      }
+    },
+    // The end-of-game board as a picture with burrec.com on it. The drawing
+    // code loads only when someone actually shares.
+    async shareWin() {
+      const winner = this.store.winner;
+      if (!winner || this.sharing) return;
+      this.sharing = true;
+      try {
+        const { renderWinCard } = await import('../utils/winCard');
+        const mode = this.store.online.gameMode;
+        const blob = await renderWinCard({
+          rows: this.rows,
+          winner,
+          summary: this.summary,
+          modeLabel: mode ? t(`modes.${mode}`) : '',
+        });
+        const text = winner.self ? t('win.shareTextSelf') : t('win.shareText', { name: winner.name });
+        const result = await shareImage(blob, 'burrec-win.png', text);
+        if (result === 'downloaded') {
+          this.shareNote = t('win.shareDownloaded');
+          clearTimeout(this.shareNoteTimeout);
+          this.shareNoteTimeout = setTimeout(() => { this.shareNote = ''; }, 2000);
+        }
+      } catch (error) {
+        // Nothing to show: the board is still on screen.
+      } finally {
+        this.sharing = false;
       }
     },
     escapeHtml(text) {
@@ -337,6 +372,11 @@ export default {
 
 .win-actions .menu-btn-full {
   margin: 0;
+}
+
+.win-share-icon {
+  margin-right: 8px;
+  vertical-align: -3px;
 }
 
 .win-error {

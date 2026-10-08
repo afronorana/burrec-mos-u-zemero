@@ -24,8 +24,8 @@
             readonly
             class="lobby-code"
           />
-          <app-button small slate-blue class="lobby-copy-btn" @click="copyCode" :title="copied ? t('online.copied') : t('online.copy')">
-            <component :is="copied ? 'CheckIcon' : 'CopyIcon'" :size="14" />
+          <app-button small slate-blue class="lobby-copy-btn" @click="shareInvite" :title="copied ? t('online.linkCopied') : t('online.shareInvite')">
+            <component :is="copied ? 'CheckIcon' : 'ShareIcon'" :size="14" />
           </app-button>
         </div>
 
@@ -109,12 +109,13 @@ import ApplicationStore from '../utils/ApplicationStore';
 import MatchController from '../network/MatchController';
 import { PLAYER_COLORS } from '../utils/playerColors';
 import { t } from '../utils/i18n';
-import { Copy, Check, Settings, Plus, Crown, Hourglass } from '@lucide/vue';
+import { Share2, Check, Settings, Plus, Crown, Hourglass } from '@lucide/vue';
+import { shareRoomInvite } from '../utils/share';
 
 export default {
   components: {
     ChatDrawer,
-    CopyIcon: Copy,
+    ShareIcon: Share2,
     CheckIcon: Check,
     SettingsIcon: Settings,
     PlusIcon: Plus,
@@ -194,15 +195,14 @@ export default {
       this.confirmLeave = false;
       MatchController.leaveMatch();
     },
-    async copyCode() {
-      try {
-        await navigator.clipboard.writeText(this.store.online.joinCode);
+    // Phones: share sheet with an invite link; desktops: copy the link.
+    async shareInvite() {
+      const result = await shareRoomInvite(this.store.online.joinCode);
+      if (result === 'copied') {
         this.copied = true;
         setTimeout(() => {
           this.copied = false;
         }, 1500);
-      } catch (error) {
-        // Clipboard unavailable — the code is on screen anyway.
       }
     },
   },

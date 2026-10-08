@@ -201,6 +201,7 @@ import MatchController from '../network/MatchController';
 import { isClosedTable } from '../../shared/protocol';
 import { t } from '../utils/i18n';
 import { playTick } from '../utils/sound';
+import { shareRoomInvite } from '../utils/share';
 import EventBus from '../utils/eventhandler';
 import EventKeys from '../utils/EventKeys';
 import { Bot, Dices, Menu, Shirt, Volume2, VolumeX } from '@lucide/vue';
@@ -413,17 +414,14 @@ export default {
     toggleSound() {
       this.soundSetting = this.store.settings.soundEnabled ? 'off' : 'on';
     },
+    // Same as the lobby's invite: share sheet on phones, link copied on
+    // desktops (drop-in joiners take over Bots mid-game).
     async copyCode() {
-      const code = this.store.online.joinCode;
-      if (!code) return;
-      try {
-        await navigator.clipboard.writeText(code);
+      const result = await shareRoomInvite(this.store.online.joinCode);
+      if (result === 'copied') {
         this.codeCopied = true;
         clearTimeout(this.copiedTimeout);
         this.copiedTimeout = setTimeout(() => { this.codeCopied = false; }, 1500);
-      } catch (error) {
-        // Clipboard blocked (insecure origin / permissions): the code is
-        // still on screen to read out.
       }
     },
     // Tap another player's chip: Block / Report them (seat = turn - 1).
