@@ -88,6 +88,18 @@ jobs:
           rsync -av --delete -e "ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes" \
             docs/ "root@${{ secrets.DROPLET_HOST }}:/opt/burrec-nakama/site/"
 
+      # Tell Bing/Yandex/etc. (IndexNow) the sitemap's pages changed. The key
+      # file public/<key>.txt proves we own the host. Best effort: a failed
+      # ping must never fail the deploy.
+      - name: Ping IndexNow
+        continue-on-error: true
+        run: |
+          KEY=9f196721adaf05bd39263100735c1e25
+          URLS=$(grep -o '<loc>[^<]*</loc>' docs/sitemap.xml | sed 's#</\?loc>##g' | jq -R . | jq -sc .)
+          curl -sS -o /dev/null -w "IndexNow: %{http_code}\n" -X POST https://api.indexnow.org/indexnow \
+            -H 'Content-Type: application/json; charset=utf-8' \
+            -d "{\"host\":\"burrec.com\",\"key\":\"$KEY\",\"keyLocation\":\"https://burrec.com/$KEY.txt\",\"urlList\":$URLS}"
+
       # `up -d` only recreates containers whose compose config changed — the
       # runtime bundle (build/) and the Caddyfile are bind mounts, so on their
       # own they'd be ignored. Restart Nakama explicitly to load the new

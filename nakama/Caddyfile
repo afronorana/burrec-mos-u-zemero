@@ -10,9 +10,33 @@
 	# The built client (repo docs/, copied to the droplet as ./site)
 	handle {
 		root * /srv/site
+
+		# One URL per page: /privacy-policy/ -> /privacy-policy
+		@trailingSlash path_regexp slash ^(/.+)/$
+		redir @trailingSlash {re.slash.1} 301
+
+		# Vite's hashed bundles never change under the same name; HTML must
+		# revalidate so a deploy shows up at once.
+		@hashed path /assets/*
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
+		# (pages: dotless paths like / and /privacy-policy, or *.html)
+		@page not path *.*
+		header @page Cache-Control "no-cache"
+		@html path *.html
+		header @html Cache-Control "no-cache"
+
 		# {path}/index.html: static pages such as /privacy-policy live in
-		# folders (public/privacy-policy/index.html); everything else is the SPA.
-		try_files {path} {path}/index.html /index.html
+		# folders (public/privacy-policy/index.html). The game's screens are
+		# app state and #hash routes, so no other path exists — unknown paths
+		# are real 404s (never the SPA with 200, which search engines index
+		# as duplicate pages).
+		try_files {path} {path}/index.html
+		file_server
+	}
+
+	handle_errors 404 {
+		root * /srv/site
+		rewrite * /404.html
 		file_server
 	}
 }

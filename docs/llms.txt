@@ -1,0 +1,16 @@
+# Burrec mos u zemëro
+
+> Burrec mos u zemëro (burrec.com) is a free online 3D version of the classic race board game known in Albanian as "Burrec mos u zemëro", in German as "Mensch ärgere Dich nicht" and in English as a Ludo-style game. It runs in any browser on phones and computers, with no download and no sign-up.
+
+- Ways to play: against three Computer players ("Vs Computers"), with friends in a private room joined by a short code, quick match with other players online, or 2–4 people taking turns on one device ("Around the table"). All modes need an internet connection.
+- Game modes: Classic (bring all four pawns home), Quick (each player starts with one pawn on the board; the first pawn home wins) and First capture (the first capture wins).
+- Rules (Classic): a 40-field track plus a 4-field finish lane per player; roll a 6 to bring a pawn onto your start field, and a 6 lets you roll again; when all your pawns are at home you get up to three rolls; landing on an opponent's pawn sends it home; pawns in the finish lane are safe; moves past the end of the lane are not allowed.
+- Extras: physics-based 3D dice, pawn cosmetics (hats, country flags) and capture animations called Finishers; chat for registered players.
+- Languages: English and Albanian (shqip).
+- Price: free. Optional free account (email, Google or Apple).
+
+## Pages
+
+- [Play](https://burrec.com/): the game
+- [Privacy Policy](https://burrec.com/privacy-policy)
+- [Terms and Conditions](https://burrec.com/terms-and-conditions)

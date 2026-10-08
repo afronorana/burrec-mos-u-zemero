@@ -1,0 +1,6 @@
+# Everyone, AI answer engines included, may read the whole site.
+User-agent: *
+Allow: /
+Disallow: /google-callback.html
+
+Sitemap: https://burrec.com/sitemap.xml
