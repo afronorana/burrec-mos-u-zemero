@@ -1,7 +1,7 @@
 // Authoritative 'ludo' match handler. All timing lives in matchLoop ticks —
 // the goja runtime has no setTimeout.
 
-import { BOT_DISPLAY_NAME, DEFAULT_FINISHER, FINISHER_IDS, NO_FINISHER, OpCode, decodePayload, encodePayload, guestCosmetics, itemTier, sanitizeCosmetics, wearableCosmetics } from '../../shared/protocol.js';
+import { BOT_DISPLAY_NAME, DEFAULT_FINISHER, FINISHER_IDS, NO_FINISHER, OpCode, decodePayload, encodePayload, guestCosmetics, itemTier, sanitizeCosmetics, sanitizeGameMode, wearableCosmetics } from '../../shared/protocol.js';
 import { isMember } from './auth';
 import { recordGamesPlayed, touchLastSeen } from './moderation';
 import { ownedItems } from './store';
@@ -47,6 +47,9 @@ export interface LudoState {
   joinCode: string | null;
   // Chosen by the room creator; every client renders the match in it.
   environment: string;
+  // CONTEXT.md: Game mode — 'classic' | 'quick' | 'firstCapture', fixed at
+  // room creation (rules: ludo_logic initialPawns/applyMove).
+  gameMode: string;
   seats: (Seat | null)[];
   // userId -> displayName for everyone who ever joined (seated or not) —
   // broadcast so chat can name players who haven't picked a color yet.
@@ -98,6 +101,7 @@ interface StateWrapper {
 function makeLabel(state: LudoState): string {
   return JSON.stringify({
     mode: state.mode,
+    gameMode: state.gameMode,
     code: state.joinCode || '',
     open: state.labelOpen,
   });
@@ -163,6 +167,7 @@ function lobbyStatePayload(state: LudoState): object {
     displayNames: state.displayNames,
     cosmetics: state.cosmetics,
     environment: state.environment,
+    gameMode: state.gameMode,
   };
 }
 
@@ -185,6 +190,7 @@ function snapshotPayload(state: LudoState, tick: number): object {
     cosmetics: state.cosmetics,
     restyled: state.restyled,
     environment: state.environment,
+    gameMode: state.gameMode,
     turnSeat: state.turnSeat,
     round: state.round,
     dice: state.dice,
@@ -356,7 +362,7 @@ function repeatTurn(state: LudoState, dispatcher: nkruntime.MatchDispatcher, tic
 function doMove(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkruntime.MatchDispatcher, tick: number, pawnIndex: number) {
   const seat = state.turnSeat;
   const steps = state.dice as number;
-  const result = applyMove(state.pawns, seat, pawnIndex, steps);
+  const result = applyMove(state.pawns, seat, pawnIndex, steps, state.gameMode);
   const mover = state.seats[seat];
   const moverCosmetics = mover && !mover.bot ? state.cosmetics[mover.userId] : null;
   const moveMs = (result.fromPos === 0 ? 1 : steps) * BOT_STEP_MS + BOT_MOVE_EXTRA_MS +
@@ -521,7 +527,7 @@ function handleStart(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkrunti
   }
 
   state.phase = 'playing';
-  state.pawns = initialPawns();
+  state.pawns = initialPawns(state.gameMode);
   state.round = 1;
   state.winnerSeat = null;
   resetTurnState(state);
@@ -540,6 +546,9 @@ function handleStart(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkrunti
 
   broadcast(dispatcher, OpCode.GAME_START, {
     seats: state.seats,
+    gameMode: state.gameMode,
+    // Starting positions (Quick mode begins with a pawn out per seat).
+    pawns: state.pawns,
     turnSeat: state.turnSeat,
     round: state.round,
     turnMsLeft: turnMsLeft(state, tick),
@@ -559,12 +568,14 @@ const matchInit = function (
   const joinCode = params && params.code ? String(params.code) : null;
   const requestedEnv = params && params.environment ? String(params.environment) : 'day';
   const environment = ['day', 'night', 'dusk', 'dawn'].indexOf(requestedEnv) !== -1 ? requestedEnv : 'day';
+  const gameMode = sanitizeGameMode(params && params.gameMode ? String(params.gameMode) : '');
 
   const state: LudoState = {
     phase: 'lobby',
     mode,
     joinCode,
     environment,
+    gameMode,
     seats: [botSeat(0), botSeat(1), botSeat(2), botSeat(3)],
     displayNames: {},
     cosmetics: {},
@@ -576,7 +587,7 @@ const matchInit = function (
     awaitingMove: false,
     legalPawns: [],
     rollsThisTurn: 0,
-    pawns: initialPawns(),
+    pawns: initialPawns(gameMode),
     turnDeadlineTick: 0,
     botActTick: 0,
     savedTurnDeadline: null,

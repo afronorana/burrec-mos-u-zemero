@@ -97,7 +97,7 @@ class MatchControllerService {
   }
 
   async createPrivateRoom() {
-    const result = await NakamaClient.rpc('create_private_match', { environment: this.creationEnvironment() });
+    const result = await NakamaClient.rpc('create_private_match', { environment: this.creationEnvironment(), gameMode: ApplicationStore.settings.gameMode });
     if (!result.matchId) {
       throw new Error(result.error || 'create_failed');
     }
@@ -109,7 +109,7 @@ class MatchControllerService {
   }
 
   async createPublicRoom() {
-    const result = await NakamaClient.rpc('create_public_match', { environment: this.creationEnvironment() });
+    const result = await NakamaClient.rpc('create_public_match', { environment: this.creationEnvironment(), gameMode: ApplicationStore.settings.gameMode });
     if (!result.matchId) {
       throw new Error(result.error || 'create_failed');
     }
@@ -142,7 +142,7 @@ class MatchControllerService {
   async findQuickMatch() {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       // Environment only applies when quick_match has to create a fresh room.
-      const result = await NakamaClient.rpc('quick_match', { environment: this.creationEnvironment() });
+      const result = await NakamaClient.rpc('quick_match', { environment: this.creationEnvironment(), gameMode: ApplicationStore.settings.gameMode });
       if (!result.matchId) {
         throw new Error(result.error || 'join_failed');
       }
@@ -291,6 +291,7 @@ class MatchControllerService {
     online.restyled = {};
     online.restyleError = null;
     online.environment = null;
+    online.gameMode = null;
     online.seatToPlayerIndex = {};
     online.pendingDice = null;
     online.diceInFlight = false;
@@ -459,6 +460,7 @@ class MatchControllerService {
     online.displayNames = payload.displayNames || online.displayNames;
     online.cosmetics = payload.cosmetics || online.cosmetics;
     online.environment = payload.environment || online.environment;
+    online.gameMode = payload.gameMode || online.gameMode;
     // A code in the payload means this is a private room — infer it when we
     // resumed from a bare matchId and never learned the mode.
     if (online.joinCode && !online.mode) {
@@ -471,6 +473,7 @@ class MatchControllerService {
   handleGameStart(payload) {
     const online = this.online();
     online.seats = payload.seats || [];
+    online.gameMode = payload.gameMode || online.gameMode;
     online.mySeat = this.seatOfSelf(online.seats);
     online.pendingDice = null;
     online.diceInFlight = false;
@@ -568,6 +571,7 @@ class MatchControllerService {
     online.cosmetics = payload.cosmetics || online.cosmetics;
     online.restyled = payload.restyled || online.restyled;
     online.environment = payload.environment || online.environment;
+    online.gameMode = payload.gameMode || online.gameMode;
     if (online.joinCode && !online.mode) {
       online.mode = 'private';
     }

@@ -207,6 +207,15 @@ const translations = {
       dusk: 'Dusk',
       dawn: 'Dawn',
     },
+    modes: {
+      title: 'Game mode',
+      classic: 'Classic',
+      quick: 'Quick',
+      firstCapture: 'First capture',
+      classicInfo: 'The full game: roll a 6 to leave home and bring all four pawns into your finish.',
+      quickInfo: 'Starts with one pawn already out. First to get two pawns into the finish wins.',
+      firstCaptureInfo: 'Sudden death: the first player to capture another pawn wins.',
+    },
     hud: {
       menu: 'Menu',
       sound: 'Sound',
@@ -552,6 +561,15 @@ const translations = {
       night: 'Natë',
       dusk: 'Muzg',
       dawn: 'Agim',
+    },
+    modes: {
+      title: 'Mënyra e lojës',
+      classic: 'Klasike',
+      quick: 'E shpejtë',
+      firstCapture: 'Kapja e parë',
+      classicInfo: 'Loja e plotë: hidh 6 për të dalë nga shtëpia dhe çoji të katër pionët në fund.',
+      quickInfo: 'Fillon me një pion jashtë. Fiton kush çon i pari dy pionë në fund.',
+      firstCaptureInfo: 'Vdekje e menjëhershme: fiton i pari që kap një pion tjetër.',
     },
     hud: {
       menu: 'Menyja',

@@ -4111,9 +4111,40 @@ export default {
       });
 
       this.store.online.seatToPlayerIndex = seatToPlayerIndex;
+      // Starting positions (GAME_START carries them: Quick mode begins with
+      // a pawn out per seat) or a snapshot's (STATE_SYNC).
+      if (payload.pawns) {
+        this.placePawnsFromSnapshot(payload.seats, payload.pawns);
+      }
       this.store.currentScreen = 'game-screen';
       this.setTurnBySeat(payload.turnSeat, payload.round || 1, payload);
       this.applySeatPresence();
+    },
+
+    // Teleports every pawn to the server's positions (no hop tweens).
+    placePawnsFromSnapshot(seats, pawns) {
+      (seats || []).forEach((seat) => {
+        if (!seat) {
+          return;
+        }
+        const player = this.store.players[this.store.online.seatToPlayerIndex[seat.seat]];
+        const positions = (pawns && pawns[seat.seat]) || [];
+        player.pawns.forEach((pawn, pawnIndex) => {
+          const position = positions[pawnIndex] || 0;
+          pawn.position = position;
+          pawn.isInDestinationField = position > 40;
+          pawn.isActive = false;
+          pawn.isMoving = false;
+          if (position === 0) {
+            pawn.globalPosition = pawn.startingGlobalPosition;
+          } else if (position <= 40) {
+            pawn.globalPosition = (pawn.startingGlobalPosition + position - 1) % 40;
+          } else {
+            pawn.globalPosition = (pawn.startingGlobalPosition + 39) % 40;
+          }
+        });
+      });
+      this.pawnMotionStates = markRaw({});
     },
 
     // Online replacement for changePlayersTurn/repeatPlayersTurn: seats may be
@@ -4175,38 +4206,15 @@ export default {
         return;
       }
 
-      // Rebuild players from the snapshot, then teleport pawns into place.
+      // Rebuild players from the snapshot, pawns teleported into place.
       this.startOnlineGame({
         seats: payload.seats,
+        pawns: payload.pawns,
         turnSeat: payload.turnSeat,
         round: payload.round,
         turnMsLeft: payload.turnMsLeft,
         receivedAt: payload.receivedAt,
       });
-
-      (payload.seats || []).forEach((seat) => {
-        if (!seat) {
-          return;
-        }
-        const player = this.store.players[this.store.online.seatToPlayerIndex[seat.seat]];
-        const positions = (payload.pawns && payload.pawns[seat.seat]) || [];
-        player.pawns.forEach((pawn, pawnIndex) => {
-          const position = positions[pawnIndex] || 0;
-          pawn.position = position;
-          pawn.isInDestinationField = position > 40;
-          pawn.isActive = false;
-          pawn.isMoving = false;
-          if (position === 0) {
-            pawn.globalPosition = pawn.startingGlobalPosition;
-          } else if (position <= 40) {
-            pawn.globalPosition = (pawn.startingGlobalPosition + position - 1) % 40;
-          } else {
-            pawn.globalPosition = (pawn.startingGlobalPosition + 39) % 40;
-          }
-        });
-      });
-
-      this.pawnMotionStates = markRaw({});
 
       if (payload.awaitingMove && payload.dice != null) {
         this.store.lastRolledDice = payload.dice;

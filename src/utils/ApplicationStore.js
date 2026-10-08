@@ -1,6 +1,6 @@
 import { markRaw, reactive } from 'vue';
 import * as THREE from 'three';
-import { sanitizeCosmetics } from '../../shared/protocol';
+import { sanitizeCosmetics, sanitizeGameMode } from '../../shared/protocol';
 
 const vector = (x, y, z) => markRaw(new THREE.Vector3(x, y, z));
 
@@ -90,6 +90,9 @@ const ApplicationStore = reactive({
     }),
     // Off: captures skip the zoom + tool and just burst and fly home.
     finishersEnabled: window.localStorage.getItem('burrec.settings.finishers') !== '0',
+    // CONTEXT.md: Game mode for the next game this player starts or looks
+    // for (Home / Create room picker). A joined room brings its own.
+    gameMode: sanitizeGameMode(window.localStorage.getItem('burrec.settings.gameMode')),
   },
   fields: {
     home: [
@@ -188,6 +191,8 @@ const ApplicationStore = reactive({
     // The room creator's environment ('day'|'night'|'dusk'|'dawn'); overrides
     // settings.environment for everyone while in the match.
     environment: null,
+    // The room's Game mode (LOBBY_STATE / GAME_START / STATE_SYNC).
+    gameMode: null,
     // userId -> { prop, finisher } for everyone in the match, seated or not.
     cosmetics: {},
     // userId -> true once that player used their one mid-game restyle

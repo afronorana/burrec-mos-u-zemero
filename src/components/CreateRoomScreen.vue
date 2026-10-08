@@ -18,6 +18,11 @@
       </div>
 
       <div class="form-row">
+        <label class="select-label">{{ t('modes.title') }}</label>
+        <game-mode-picker v-model="gameMode" />
+      </div>
+
+      <div class="form-row">
         <label class="select-label">{{ t('environment') }}</label>
         <app-tabs
           v-model="store.settings.environment"
@@ -48,8 +53,10 @@
 import ApplicationStore from '../utils/ApplicationStore';
 import MatchController from '../network/MatchController';
 import { t } from '../utils/i18n';
+import GameModePicker from './GameModePicker.vue';
 
 export default {
+  components: { GameModePicker },
   data() {
     return {
       store: ApplicationStore,
@@ -58,6 +65,16 @@ export default {
     };
   },
   computed: {
+    // CONTEXT.md: Game mode — remembered for the next game.
+    gameMode: {
+      get() {
+        return this.store.settings.gameMode;
+      },
+      set(mode) {
+        this.store.settings.gameMode = mode;
+        window.localStorage.setItem('burrec.settings.gameMode', mode);
+      },
+    },
     hasName() {
       return (this.store.online.displayName || '').trim().length > 0;
     },

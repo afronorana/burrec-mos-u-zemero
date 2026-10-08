@@ -30,6 +30,12 @@
           <span class="hud-status-label">{{ t('online.roomCodeLabel') }}</span>
           <span class="hud-status-code">{{ codeCopied ? t('hud.copied') : store.online.joinCode }}</span>
         </button>
+        <!-- Non-classic Game modes stay visible: they change how you win. -->
+        <span
+          v-if="store.online.gameMode && store.online.gameMode !== 'classic'"
+          class="hud-status-pill hud-status-pill--mode"
+          :title="t(`modes.${store.online.gameMode}Info`)"
+        >{{ t(`modes.${store.online.gameMode}`) }}</span>
         <span v-if="store.demoMode" class="hud-status-pill hud-status-pill--demo">DEMO 1-6</span>
       </div>
 
@@ -533,6 +539,12 @@ export default {
   color: #ffffff;
   background: var(--agu-color-red, #e9576f);
   cursor: default;
+}
+
+.hud-status-pill--mode {
+  color: #ffffff;
+  background: var(--agu-color-slate-blue, #6a5acd);
+  cursor: help;
 }
 
 .hud-status-pill--demo {

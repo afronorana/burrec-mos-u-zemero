@@ -1,6 +1,12 @@
 <template>
   <div class="menu-center home-center">
     <div class="home-stack">
+      <!-- Game mode: applies to Play now and to a new room. -->
+      <app-panel class="menu-card">
+        <h2 class="panel-title">{{ t('modes.title') }}</h2>
+        <game-mode-picker v-model="gameMode" />
+      </app-panel>
+
       <!-- Quickplay -->
       <app-panel class="menu-card">
         <h2 class="panel-title">{{ t('online.quickPlayTitle') }}</h2>
@@ -54,8 +60,10 @@
 import ApplicationStore from '../utils/ApplicationStore';
 import MatchController from '../network/MatchController';
 import { t } from '../utils/i18n';
+import GameModePicker from './GameModePicker.vue';
 
 export default {
+  components: { GameModePicker },
   data() {
     return {
       store: ApplicationStore,
@@ -64,6 +72,16 @@ export default {
     };
   },
   computed: {
+    // CONTEXT.md: Game mode — remembered for the next game.
+    gameMode: {
+      get() {
+        return this.store.settings.gameMode;
+      },
+      set(mode) {
+        this.store.settings.gameMode = mode;
+        window.localStorage.setItem('burrec.settings.gameMode', mode);
+      },
+    },
     hasName() {
       return (this.store.online.displayName || '').trim().length > 0;
     },
@@ -106,6 +124,9 @@ export default {
 .home-center {
   align-items: flex-start;
   overflow-y: auto;
+  /* Clear the top-right Settings/Profile buttons. */
+  padding-top: calc(76px + env(safe-area-inset-top, 0px));
+  padding-bottom: 24px;
 }
 .home-stack {
   width: min(460px, 92vw);

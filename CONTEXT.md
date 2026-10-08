@@ -10,6 +10,12 @@ A 3D online take on "Mensch ärgere dich nicht" (Ludo): up to four players race 
 The rule event in which a pawn lands on an opponent's pawn on the main track and sends it back home.
 _Avoid_: kill, hit, knock out
 
+### Game modes
+
+**Game mode**:
+The rules variant a room is played in, chosen by whoever creates it (or looks for a Quick play game) and fixed for that room: **Classic** (all four pawns into the finish), **Quick** (every seat starts with one pawn on its start field; two pawns in the finish win) or **First capture** (the first **Capture** wins). Quick play only matches rooms of the same Game mode.
+_Avoid_: variant, ruleset, game type
+
 ### Seats
 
 **Bot**:

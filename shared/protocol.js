@@ -27,6 +27,18 @@ export var OpCode = {
   SET_COSMETICS: 16, // Cosmetics — lobby: answered with LOBBY_STATE; playing: once per player per match (Members only), answered with COSMETICS_CHANGED or REJECTED 'restyle_used' / 'members_only'
 };
 
+// Game modes (CONTEXT.md: Game mode), chosen when a room is created:
+// - classic: the full game — all four pawns into the finish.
+// - quick: every seat starts with one pawn on its start field; two pawns in
+//   the finish win.
+// - firstCapture: the first Capture wins.
+export var GAME_MODES = ['classic', 'quick', 'firstCapture'];
+export var DEFAULT_GAME_MODE = 'classic';
+
+export function sanitizeGameMode(mode) {
+  return GAME_MODES.indexOf(mode) !== -1 ? mode : DEFAULT_GAME_MODE;
+}
+
 // CONTEXT.md: Bot — every seat no human holds. Bots have no userId, wear no
 // Props (their Captures get a random free Finisher, stamped server-side) and
 // are shown under this name (clients may translate it).

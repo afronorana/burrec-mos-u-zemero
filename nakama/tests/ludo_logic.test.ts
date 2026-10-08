@@ -129,3 +129,38 @@ test('bot: otherwise advances the leading pawn', () => {
   pawns[0][1] = 20;
   assert.equal(chooseBotMove(pawns, 0, 2, legalPawns(pawns, 0, 2)), 1);
 });
+
+test('quick mode: every seat starts with one pawn on its start field', () => {
+  const pawns = initialPawns('quick');
+  for (let seat = 0; seat < 4; seat += 1) {
+    assert.deepEqual(pawns[seat], [1, 0, 0, 0]);
+  }
+  // The door is taken by our own pawn, so a 6 moves only that one.
+  assert.deepEqual(legalPawns(pawns, 0, 6), [0]);
+  assert.deepEqual(legalPawns(pawns, 0, 3), [0]);
+});
+
+test('quick mode: two pawns in the finish win', () => {
+  const pawns = initialPawns('quick');
+  pawns[0][0] = 43;
+  pawns[0][1] = 38;
+  assert.equal(applyMove(pawns, 0, 1, 4, 'quick').won, true); // 38 + 4 = 42
+  const classic = initialPawns();
+  classic[0][0] = 43;
+  classic[0][1] = 38;
+  assert.equal(applyMove(classic, 0, 1, 4).won, false);
+});
+
+test('first-capture mode: the first Capture wins', () => {
+  const pawns = initialPawns();
+  pawns[0][0] = 5;
+  pawns[1][0] = 33; // global (10 + 33 - 1) % 40 = 2 -> seat 0 position 3
+  const miss = applyMove(pawns, 0, 0, 1, 'firstCapture');
+  assert.equal(miss.won, false);
+  const pawnsHit = initialPawns();
+  pawnsHit[0][0] = 1;
+  pawnsHit[1][0] = 33;
+  const hit = applyMove(pawnsHit, 0, 0, 2, 'firstCapture');
+  assert.equal(hit.captures.length, 1);
+  assert.equal(hit.won, true);
+});

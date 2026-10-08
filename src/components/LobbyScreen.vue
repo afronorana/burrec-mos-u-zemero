@@ -3,6 +3,11 @@
     <!-- Top-center column: its own instruction panel, then (host only) the
          room code + start controls stacked beneath it. -->
     <div class="lobby-top">
+      <!-- The room's Game mode (set by its creator) and what it means. -->
+      <div v-if="roomMode" class="lobby-mode">
+        <span class="lobby-mode-name">{{ t('modes.title') }}: {{ t(`modes.${roomMode}`) }}</span>
+        <span class="lobby-mode-info">{{ t(`modes.${roomMode}Info`) }}</span>
+      </div>
       <!-- Unseated: say plainly what to do — the color seats are buttons. -->
       <app-panel v-if="!mySeatObject" class="lobby-card lobby-instruction-card lobby-instruction-card--pick">
         <h2 class="lobby-pick-title">{{ t('online.pickColorTitle') }}</h2>
@@ -129,6 +134,9 @@ export default {
     };
   },
   computed: {
+    roomMode() {
+      return this.store.online.gameMode;
+    },
     mySeatObject() {
       return (this.store.online.seats || []).find(
           (seat) => seat && seat.userId === this.store.online.selfUserId,
@@ -228,6 +236,33 @@ export default {
 .lobby-card {
   width: 100%;
   pointer-events: all;
+}
+
+.lobby-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 12px;
+  box-sizing: border-box;
+  text-align: center;
+  color: var(--agu-color-base, #263f2a);
+  background: rgba(255, 255, 255, 0.92);
+  border: 2px solid var(--agu-color-base, #263f2a);
+  border-radius: 10px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.18);
+}
+
+.lobby-mode-name {
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.lobby-mode-info {
+  font-size: 0.75rem;
+  line-height: 1.35;
 }
 
 .lobby-instruction-card {

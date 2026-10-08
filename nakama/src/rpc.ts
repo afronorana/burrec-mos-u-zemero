@@ -1,4 +1,4 @@
-import { MATCH_MODULE } from '../../shared/protocol.js';
+import { MATCH_MODULE, sanitizeGameMode } from '../../shared/protocol.js';
 
 // Letters only (same alphabet Shtet Qytet uses for room codes).
 const CODE_ALPHABET = 'ABDEFGHIJKLMNOPQRSTUVWZ';
@@ -36,6 +36,16 @@ function generateCode(): string {
 
 // The creator's chosen environment rides into matchInit params; the match
 // handler validates the value, so this just forwards the raw string.
+// CONTEXT.md: Game mode. Unknown or missing = classic.
+function gameModeFromPayload(payload: string): string {
+  try {
+    const request = payload ? JSON.parse(payload) : {};
+    return sanitizeGameMode(request && request.gameMode ? String(request.gameMode) : '');
+  } catch (error) {
+    return sanitizeGameMode('');
+  }
+}
+
 function environmentFromPayload(payload: string): string {
   try {
     const request = payload ? JSON.parse(payload) : {};
@@ -63,14 +73,14 @@ export const rpcCreatePrivateMatch: nkruntime.RpcFunction = function (ctx, logge
     throw new Error('code_generation_failed');
   }
 
-  const matchId = nk.matchCreate(MATCH_MODULE, { mode: 'private', code, environment: environmentFromPayload(payload) });
+  const matchId = nk.matchCreate(MATCH_MODULE, { mode: 'private', code, environment: environmentFromPayload(payload), gameMode: gameModeFromPayload(payload) });
   return JSON.stringify({ matchId, code });
 };
 
 // A public room is a codeless lobby anyone can find via Quick Match. Like
 // private rooms it lives entirely in the match label — no storage writes.
 export const rpcCreatePublicMatch: nkruntime.RpcFunction = function (ctx, logger, nk, payload) {
-  const matchId = nk.matchCreate(MATCH_MODULE, { mode: 'public', environment: environmentFromPayload(payload) });
+  const matchId = nk.matchCreate(MATCH_MODULE, { mode: 'public', environment: environmentFromPayload(payload), gameMode: gameModeFromPayload(payload) });
   return JSON.stringify({ matchId });
 };
 
@@ -80,8 +90,10 @@ export const rpcCreatePublicMatch: nkruntime.RpcFunction = function (ctx, logger
 export const rpcQuickMatch: nkruntime.RpcFunction = function (ctx, logger, nk, payload) {
   // open:1 means "a seat is claimable" — an open lobby, or a running game
   // with a free/abandoned slot (drop-in). The size ceiling (< MAX_SEATS
-  // presences) guards against piling everyone into one room.
-  const matches = nk.matchList(20, true, null, 1, MAX_SEATS - 1, '+label.mode:public +label.open:1');
+  // presences) guards against piling everyone into one room. Only rooms of
+  // the requested Game mode.
+  const gameMode = gameModeFromPayload(payload);
+  const matches = nk.matchList(20, true, null, 1, MAX_SEATS - 1, '+label.mode:public +label.open:1 +label.gameMode:' + gameMode);
 
   if (matches && matches.length > 0) {
     // Fill the fullest joinable room first so games start sooner.
@@ -94,7 +106,7 @@ export const rpcQuickMatch: nkruntime.RpcFunction = function (ctx, logger, nk, p
     return JSON.stringify({ matchId: best.matchId });
   }
 
-  const matchId = nk.matchCreate(MATCH_MODULE, { mode: 'public', environment: environmentFromPayload(payload) });
+  const matchId = nk.matchCreate(MATCH_MODULE, { mode: 'public', environment: environmentFromPayload(payload), gameMode });
   return JSON.stringify({ matchId, created: true });
 };
 

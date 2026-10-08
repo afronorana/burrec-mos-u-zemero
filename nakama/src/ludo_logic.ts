@@ -20,10 +20,20 @@ export interface MoveResult {
   won: boolean;
 }
 
-export function initialPawns(): number[][] {
+// 'classic' | 'quick' | 'firstCapture' (shared/protocol.js GAME_MODES).
+export type GameMode = string;
+
+// Pawns needed in the finish (positions 41-44) to win, per mode.
+function pawnsToWin(mode: GameMode): number {
+  return mode === 'quick' ? 2 : 4;
+}
+
+// Quick mode starts every seat with its first pawn already on the start
+// field (position 1).
+export function initialPawns(mode: GameMode = 'classic'): number[][] {
   const pawns: number[][] = [];
   for (let seat = 0; seat < 4; seat += 1) {
-    pawns.push([0, 0, 0, 0]);
+    pawns.push(mode === 'quick' ? [1, 0, 0, 0] : [0, 0, 0, 0]);
   }
   return pawns;
 }
@@ -81,7 +91,7 @@ export function legalPawns(pawns: number[][], seat: number, dice: number): numbe
 // Mutates `pawns`. Caller must have validated the move via legalPawns.
 // Captures: landing on a main-track tile sends every opponent pawn on the
 // same global tile home (pawns in home or a target lane are safe).
-export function applyMove(pawns: number[][], seat: number, pawnIndex: number, dice: number): MoveResult {
+export function applyMove(pawns: number[][], seat: number, pawnIndex: number, dice: number, mode: GameMode = 'classic'): MoveResult {
   const fromPos = pawns[seat][pawnIndex];
   const toPos = fromPos === 0 ? 1 : fromPos + dice;
   pawns[seat][pawnIndex] = toPos;
@@ -106,13 +116,14 @@ export function applyMove(pawns: number[][], seat: number, pawnIndex: number, di
     }
   }
 
-  let won = true;
+  // First capture: any Capture wins. Otherwise enough pawns in the finish.
+  let finished = 0;
   for (let j = 0; j < 4; j += 1) {
-    if (pawns[seat][j] <= 40) {
-      won = false;
-      break;
+    if (pawns[seat][j] > 40) {
+      finished += 1;
     }
   }
+  const won = mode === 'firstCapture' ? captures.length > 0 : finished >= pawnsToWin(mode);
 
   return {
     fromPos,
