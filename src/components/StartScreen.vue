@@ -7,7 +7,7 @@
            the email form. -->
       <div v-if="store.currentScreen === 'main-menu'" key="main-menu" class="menu-center intro-center">
         <div class="intro-stack">
-          <h1 class="game-title intro-title">{{ t('title') }}</h1>
+          <h1 class="intro-title"><img class="intro-logo" :src="logoSrc" :alt="t('title')"></h1>
 
           <auth-modal v-if="emailStep" inline initial-view="login" @close="emailStep = false" />
 
@@ -199,6 +199,7 @@ import MatchController from '../network/MatchController';
 import { clearMatchSession } from '../utils/matchSession';
 import { t } from '../utils/i18n';
 import { Settings, User } from '@lucide/vue';
+import logoSrc from '../assets/logo.png';
 
 export default {
   components: {
@@ -222,6 +223,7 @@ export default {
   },
   data() {
     return {
+      logoSrc,
       store: ApplicationStore,
       username: ApplicationStore.online.displayName || '',
       busy: false,
@@ -381,10 +383,12 @@ export default {
 /* Over the 3D scene, not a panel: white with a dark outline to stay legible. */
 .intro-title {
   margin: 0;
-  color: #ffffff;
-  text-shadow:
-    -2px -2px 0 #263f2a, 2px -2px 0 #263f2a, -2px 2px 0 #263f2a, 2px 2px 0 #263f2a,
-    0 4px 0 #263f2a;
+  line-height: 0;
+  text-align: center;
+}
+.intro-logo {
+  width: min(294px, 70vw);
+  height: auto;
 }
 .intro-card {
   text-align: center;

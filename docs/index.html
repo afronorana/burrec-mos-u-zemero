@@ -4,6 +4,30 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Burrec mos u zemero</title>
+  <link rel="icon" href="favicon.ico" sizes="48x48">
+  <link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="icon" href="icon-192.png" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+
+  <!-- Cookie consent defaults (Google Consent Mode v2): analytics stays off
+       until the visitor accepts in the banner (src/utils/consent.js), and a
+       stored choice applies before the tag loads. -->
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    (function () {
+      var consent = 'denied';
+      try {
+        if (window.localStorage.getItem('burrec.cookieConsent') === 'accepted') consent = 'granted';
+      } catch (e) {}
+      gtag('consent', 'default', {
+        ad_storage: 'denied',
+        ad_user_data: 'denied',
+        ad_personalization: 'denied',
+        analytics_storage: consent,
+      });
+    })();
+  </script>
 
   <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-57PQXLXMRV"></script>
@@ -14,11 +38,11 @@
 
     gtag('config', 'G-57PQXLXMRV');
   </script>
-  <script type="module" crossorigin src="./assets/index-DplPz0Lm.js"></script>
-  <link rel="modulepreload" crossorigin href="./assets/three-Bdk6l8er.js">
+  <script type="module" crossorigin src="./assets/index-BMkBSh9W.js"></script>
+  <link rel="modulepreload" crossorigin href="./assets/three-CzvjQiXo.js">
   <link rel="modulepreload" crossorigin href="./assets/physics-DNfpWuLv.js">
   <link rel="modulepreload" crossorigin href="./assets/nakama-Bs-yZLVg.js">
-  <link rel="stylesheet" crossorigin href="./assets/index-CFQlI5d2.css">
+  <link rel="stylesheet" crossorigin href="./assets/index-BLHePNYB.css">
 </head>
 <body>
   <div id="app"></div>
