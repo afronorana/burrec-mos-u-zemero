@@ -76,7 +76,9 @@ const ApplicationStore = reactive({
   settings: {
     quality: 2,
     outlineAppearance: 'classic',
-    locale: window.localStorage.getItem('burrec.settings.locale') || 'en',
+    // First visit: follow the browser (Albanian if it asks for sq).
+    locale: window.localStorage.getItem('burrec.settings.locale')
+      || ((navigator.language || '').toLowerCase().startsWith('sq') ? 'sq' : 'en'),
     environment: window.localStorage.getItem('burrec.settings.environment') || 'day',
     soundEnabled: window.localStorage.getItem('burrec.settings.sound') !== '0',
     // This player's Cosmetics (a Prop + flag per pawn, one Finisher), edited

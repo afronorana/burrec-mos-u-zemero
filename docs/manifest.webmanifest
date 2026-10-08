@@ -2,7 +2,7 @@
   "name": "Burrec mos u zemëro — 3D Ludo online",
   "short_name": "Burrec",
   "description": "Free 3D Ludo (Mensch ärgere dich nicht) in your browser: play with friends, against the Computer, or pass-and-play on one device.",
-  "start_url": "/?utm_source=pwa",
+  "start_url": "/?play&utm_source=pwa",
   "scope": "/",
   "display": "fullscreen",
   "orientation": "any",

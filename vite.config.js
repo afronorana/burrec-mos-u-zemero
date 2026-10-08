@@ -1,11 +1,12 @@
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
+import sitePages from './site/plugin.js';
 
 export default defineConfig({
   // Relative base: the same docs/ build works served from the droplet's domain
   // root (Caddy) and from the GitHub Pages /burrec-mos-u-zemero/ subpath.
   base: './',
-  plugins: [vue()],
+  plugins: [vue(), sitePages()],
   resolve: {
     alias: {
       '@': '/src',

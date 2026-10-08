@@ -11,6 +11,14 @@
 
 ## Pages
 
-- [Play](https://burrec.com/): the game
+- [Play](https://burrec.com/): the game and an overview
+- [Rules](https://burrec.com/rules): the complete rules ([Albanian](https://burrec.com/sq/rregullat))
+- [Game modes](https://burrec.com/modes): Classic, Quick and First capture
+- [Play with friends](https://burrec.com/play-with-friends): private rooms and invite links
+- [Play vs Computer](https://burrec.com/play-vs-computer)
+- [Pass and play](https://burrec.com/pass-and-play): 2–4 players on one device
+- [FAQ](https://burrec.com/faq)
+- [Names around the world](https://burrec.com/ludo-around-the-world): the game's names in 17 languages and its relatives
+- [Albanian home page](https://burrec.com/sq)
 - [Privacy Policy](https://burrec.com/privacy-policy)
 - [Terms and Conditions](https://burrec.com/terms-and-conditions)

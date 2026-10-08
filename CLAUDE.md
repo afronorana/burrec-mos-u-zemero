@@ -32,17 +32,22 @@ Production is `burrec.com`, served from a DigitalOcean droplet (Caddy TLS + reve
 
 ## Live code path vs legacy code
 
-Only files reachable from `index.html → src/main.js → src/App.vue` are live:
+Only files reachable from `index.html → src/boot.js → src/main.js → src/App.vue` are live:
 
 - `src/App.vue`
 - `src/components/`: `StartScreen.vue`, `HomeScreen.vue`, `PlayModeScreen.vue`, `SharedTableSetup.vue`, `GameModePicker.vue`, `GameInterface.vue`, `CreateRoomScreen.vue`, `JoinRoomScreen.vue`, `LobbyScreen.vue`, `ChatPanel.vue`, `ChatDrawer.vue`, `WinScreen.vue`, `AuthModal.vue`, `AdminScreen.vue`, `OutlineAppearanceSelect.vue`, `RenderQualitySlider.vue`, `WardrobeScreen.vue`, `PlayerActions.vue`, `ProfileSheet.vue`, `AuthProviders.vue`, `ProviderMark.vue`, `CookieConsent.vue`
 - `src/network/`: `NakamaClient.js`, `MatchController.js`, `ChatController.js`
 - `src/utils/`: `ApplicationStore.js`, `Pawn.js`, `Player.js`, `eventhandler.js`, `EventKeys.js`, `movementConstants.js`, `outlineAppearance.js`, `playerColors.js`, `renderQuality.js`, `cosmetics.js`, `finishers.js`, `sound.js`, `natureKit.js`, `authPrompt.js`, `socialAuth.js`, `consent.js`, `matchSession.js`, `share.js`, `winCard.js`
 - `src/styles/`
+- `site/` (the static website: `pages.js` content, `layout.js` shell + CSS, `board.js` SVG board, `plugin.js` Vite plugin)
 - `shared/protocol.js` (opcodes — imported by both the client and the Nakama server bundle)
 - `nakama/src/` (server runtime: `main.ts`, `match_handler.ts`, `ludo_logic.ts`, `rpc.ts`, `auth.ts`, `moderation.ts`, `store.ts`, `stats.ts`)
 
 The dead earlier implementation (vue-gl `vgl-*` templates, jQuery/Vuex/Pinia bootstrap: `src/core/`, `src/mixins/`, `src/store/`, `src/utils/app.js`, `src/utils/components.js`, `PawnFigure.vue`, `DiceFigure.vue`, `PawnGeometryMaterial.vue`) and its dependencies (`jquery`, `lodash`, `vuex`, `pinia`, `bootstrap-sass`, …) were deleted in July 2026 — don't resurrect patterns from git history.
+
+## Static site + landing page
+
+`index.html` is only a template: `site/plugin.js` renders the English landing page into it (`<!--site:head-->`/`<!--site:body-->`) and emits every other page (`/sq`, `/rules`, `/sq/rregullat`, `/modes`, `/faq`, `/play-with-friends`, `/play-vs-computer`, `/pass-and-play`, `/ludo-around-the-world`) as `<path>/index.html` plus `sitemap.xml` at build time (served by middleware in dev; restart dev after editing `site/`). Page content and its facts live in `site/pages.js` — keep them in sync with the rules in `ludo_logic.ts`/`match_handler.ts`, and never call a mode "offline". URLs are slashless (Caddy 301s trailing slashes). The landing page ships ~2 KB of JS: `src/boot.js` imports `main.js` (which exports `mountGame`) only when a `[data-play]` link is pressed, or at once when the inline head script marked `<html class="play">` — any hash (`#c=`/`#m=` invites, `#verify=`/`#reset=`, `#admin`), `?play` (`&hl=en|sq` presets the locale), or a stored `burrec.online.displayName` (returning players skip the landing). Before mounting it removes `#landing` and `style#site-css` (the landing's element rules would leak into the game) and swaps in the game's no-zoom viewport. First-visit locale follows `navigator.language` (sq → Albanian).
 
 ## Architecture
 
