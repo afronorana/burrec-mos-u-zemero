@@ -130,7 +130,10 @@
             {{ sharedTable ? t('hud.turnOf', { name: activePlayer.name }) : t('hud.yourTurn') }}
             <span v-if="turnPrompt() === 'pick'" class="hud-turnbar-sub">{{ t('hud.pickPawn') }}</span>
           </span>
-          <app-button v-if="turnPrompt() === 'roll'" orange class="hud-roll-btn" @click="roll">
+          <div v-if="turnPrompt() === 'roll' && store.demoMode" class="hud-demo-dice">
+            <app-button v-for="value in 6" :key="value" orange class="hud-demo-die" @click="roll(value)">{{ value }}</app-button>
+          </div>
+          <app-button v-else-if="turnPrompt() === 'roll'" orange class="hud-roll-btn" @click="roll">
             <dices-icon :size="20" class="hud-roll-icon" />{{ t('hud.roll') }}
           </app-button>
           <div
@@ -406,9 +409,10 @@ export default {
       this.progressOf(player).forEach((state) => { counts[state] += 1; });
       return `${counts.done} ${t('hud.finished')}, ${counts.track} ${t('hud.onTrack')}, ${counts.home} ${t('hud.atHome')}`;
     },
-    roll() {
+    // `value` (demo mode only): the dice face to demand from the server.
+    roll(value) {
       if (this.canRoll) {
-        EventBus.fire(EventKeys.rollDice);
+        EventBus.fire(EventKeys.rollDice, Number.isInteger(value) ? value : null);
       }
     },
     toggleSound() {
@@ -837,6 +841,21 @@ export default {
   flex-shrink: 0;
   min-height: 44px;
   padding: 10px 20px;
+  margin: 0;
+  font-size: 1rem;
+}
+
+/* Demo mode: one button per dice face instead of Roll. */
+.hud-demo-dice {
+  display: flex;
+  flex-shrink: 0;
+  gap: 4px;
+}
+
+.hud-demo-die {
+  min-width: 40px;
+  min-height: 44px;
+  padding: 10px 0;
   margin: 0;
   font-size: 1rem;
 }

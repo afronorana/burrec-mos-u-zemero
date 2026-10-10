@@ -112,9 +112,11 @@ export const rpcQuickMatch: nkruntime.RpcFunction = function (ctx, logger, nk, p
 
 // CONTEXT.md: Table — a Solo or Shared table: a closed match only the caller
 // may join, started by the server as soon as they do (adr/0002). Payload:
-// { table: 'solo' | 'shared', seats?: [{ kind: 'player' | 'computer', name } x4], environment }.
+// { table: 'solo' | 'shared', seats?: [{ kind: 'player' | 'computer', name } x4], environment, dev? }.
+// `dev: true` asks for a dev table (clustered pawns) — matchInit honors it
+// only when the server runs with DEMO_DICE=1.
 export const rpcCreateTable: nkruntime.RpcFunction = function (ctx, logger, nk, payload) {
-  let request: { table?: string; seats?: any } = {};
+  let request: { table?: string; seats?: any; dev?: boolean } = {};
   try {
     request = payload ? JSON.parse(payload) : {};
   } catch (error) {
@@ -125,6 +127,9 @@ export const rpcCreateTable: nkruntime.RpcFunction = function (ctx, logger, nk, 
     throw new Error('invalid_table');
   }
   const params: { [key: string]: string } = { table, owner: ctx.userId, environment: environmentFromPayload(payload) };
+  if (request.dev === true) {
+    params.dev = '1';
+  }
   if (table === 'shared') {
     const seats = Array.isArray(request.seats) ? request.seats.slice(0, MAX_SEATS) : [];
     const players = seats.filter(function (seat: any) { return seat && seat.kind === 'player'; }).length;

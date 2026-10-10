@@ -45,6 +45,16 @@
           >
             {{ t('play.shared') }}
           </app-button>
+          <!-- Dev builds only: a Solo table with every pawn clustered near
+               seat 0's, plus the 1-6 dice picker — for testing animations. -->
+          <app-button
+            v-if="isDev"
+            class="menu-btn-full play-option"
+            :disabled="busy || !hasName"
+            @click="playDev"
+          >
+            Dev table
+          </app-button>
           <button type="button" class="play-info-link" @click="info = 'device'">
             ⓘ {{ t('play.deviceInfoLink') }}
           </button>
@@ -110,6 +120,7 @@ export default {
       busy: false,
       info: null, // 'online' | 'device' | null — the ⓘ explanation open
       lastPlay: readLastPlay(),
+      isDev: import.meta.env.DEV,
     };
   },
   computed: {
@@ -152,6 +163,10 @@ export default {
     playSolo() {
       this.remember('solo');
       this.run(() => MatchController.startTable('solo', this.store.online.displayName));
+    },
+    playDev() {
+      this.store.demoMode = true;
+      this.run(() => MatchController.startTable('solo', this.store.online.displayName, undefined, { dev: true }));
     },
     openShared() {
       this.remember('shared');

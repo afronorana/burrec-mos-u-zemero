@@ -163,9 +163,10 @@ class MatchControllerService {
   // CONTEXT.md: Table — a Solo or Shared table: a closed match the server
   // starts as soon as we join (no lobby). `seats` (shared only):
   // [{ kind: 'player' | 'computer', name } x4], the first player being us.
-  startTable(table, displayName, seats) {
+  // `dev`: a dev table — clustered pawns, honored only by a DEMO_DICE=1 server.
+  startTable(table, displayName, seats, { dev = false } = {}) {
     return this.withMatchmaking('starting', displayName, async () => {
-      const result = await NakamaClient.rpc('create_table', { table, seats, environment: this.creationEnvironment() });
+      const result = await NakamaClient.rpc('create_table', { table, seats, dev, environment: this.creationEnvironment() });
       if (!result.matchId) {
         throw new Error(result.error || 'create_failed');
       }

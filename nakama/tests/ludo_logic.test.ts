@@ -5,6 +5,7 @@ import {
   applyMove,
   chooseBotMove,
   globalPosition,
+  devPawns,
   initialPawns,
   legalPawns,
 } from '../src/ludo_logic.ts';
@@ -21,6 +22,23 @@ test('leaving home requires a 6', () => {
   const pawns = initialPawns();
   assert.deepEqual(legalPawns(pawns, 0, 5), []);
   assert.deepEqual(legalPawns(pawns, 0, 6), [0, 1, 2, 3]);
+});
+
+test('dev layout: no two pawns share a main-track tile, seat 0 can always move', () => {
+  const pawns = devPawns();
+  const taken = new Set<number>();
+  for (let seat = 0; seat < 4; seat += 1) {
+    for (const position of pawns[seat]) {
+      if (position >= 1 && position <= 40) {
+        const tile = globalPosition(seat, position);
+        assert.ok(!taken.has(tile), `tile ${tile} doubled`);
+        taken.add(tile);
+      }
+    }
+  }
+  for (let dice = 1; dice <= 6; dice += 1) {
+    assert.ok(legalPawns(pawns, 0, dice).length > 0, `no move for ${dice}`);
+  }
 });
 
 test('own pawn on the start tile blocks the door', () => {

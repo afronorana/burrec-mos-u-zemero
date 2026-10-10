@@ -20,7 +20,8 @@ runtime:
     - "PUBLIC_URL=http://localhost:3000"
     - "EMAIL_DEV_ECHO=1"
     # Demo mode: lets clients force dice values via ROLL_REQUEST { demand }
-    # (typing TEST in the client toggles it). Dev only — never enable in prod.
+    # (typing TEST in the client toggles it) and create_table { dev: true } to
+    # start a Solo table with clustered pawns. Dev only — never enable in prod.
     - "DEMO_DICE=1"
     # Admins (#admin): comma-separated user ids of Members. The dev id is
     # the custom-auth user "burrec-e2e-admin" that nakama/tests/e2e_moderation.mjs

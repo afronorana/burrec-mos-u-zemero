@@ -9,6 +9,7 @@ import {
   allHome,
   applyMove,
   chooseBotMove,
+  devPawns,
   initialPawns,
   legalPawns,
   rollDie,
@@ -185,6 +186,9 @@ export interface LudoState {
   // DEMO_DICE=1 runtime env: ROLL_REQUEST may carry { demand: 1..6 } and the
   // server rolls exactly that value (testing shortcut — never enable in prod).
   demoDice: boolean;
+  // A dev table (create_table { dev: true }, honored only with DEMO_DICE=1):
+  // games start from ludo_logic devPawns instead of all-home.
+  devLayout: boolean;
 }
 
 // shared/protocol.js sanitizeCosmetics: Finisher per player, Prop per pawn
@@ -662,7 +666,7 @@ function handleStart(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkrunti
 
 function startGame(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkruntime.MatchDispatcher, tick: number) {
   state.phase = 'playing';
-  state.pawns = initialPawns(state.gameMode);
+  state.pawns = state.devLayout ? devPawns() : initialPawns(state.gameMode);
   state.round = 1;
   state.stats = emptyStats();
   state.startedAtMs = Date.now();
@@ -798,7 +802,9 @@ const matchInit = function (
     pendingDisplayNames: {},
     labelOpen: closed ? 0 : 1,
     demoDice: !!ctx.env && ctx.env['DEMO_DICE'] === '1',
+    devLayout: false,
   };
+  state.devLayout = state.demoDice && closed && params.dev === '1';
 
   return { state, tickRate: TICK_RATE, label: makeLabel(state) };
 };

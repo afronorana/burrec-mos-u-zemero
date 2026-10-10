@@ -38,6 +38,19 @@ export function initialPawns(mode: GameMode = 'classic'): number[][] {
   return pawns;
 }
 
+// Dev table (DEMO_DICE=1 only): every seat's pawns clustered on global
+// tiles 2-12, so any roll 1-6 of seat 0's two front pawns lands near or on
+// an opponent — for testing Captures/Finishers. Seat 0 also has a pawn
+// about to enter its lane (38) and one at home.
+export function devPawns(): number[][] {
+  return [
+    [3, 6, 38, 0], // global 2, 5, 37
+    [38, 40, 0, 0], // global 7, 9
+    [29, 32, 0, 0], // global 8, 11
+    [21, 23, 0, 0], // global 10, 12
+  ];
+}
+
 export function globalPosition(seat: number, position: number): number {
   return (seat * 10 + position - 1) % 40;
 }
