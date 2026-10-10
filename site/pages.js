@@ -54,7 +54,7 @@ const DOT = (c) => `<span class="dot" style="background:${c}" aria-hidden="true"
 
 const FAQ_EN = [
   ['Is Burrec mos u zemëro free?', 'Yes. The whole game is free and runs in your browser on a phone, tablet or computer. There is nothing to download.'],
-  ['Do I need an account?', 'No. Type a name and play as a guest. A free account (email, Google or Apple) adds chat, pawn Props and Finishers, and keeps your name on every device.'],
+  ['Do I need an account?', 'No. Type a name and play as a guest. Every game earns Points. A free account (email, Google or Apple) adds chat, four free pawn Props and Finishers, lets you spend your Points on the rest, and keeps your name on every device.'],
   ['How do I play with friends?', 'Create a private room and tap the invite button: your friends get a link (or the 4-letter room code) and join with one tap. Seats nobody takes are played by the Computer, so you can start straight away.'],
   ['Can we play on one phone or tablet?', 'Yes. Choose <b>Around the table</b>: 2 to 4 people take turns on the same device, with no turn timer. It still needs an internet connection.'],
   ['How do I get a pawn out of home?', 'Roll a 6. The pawn moves onto your start field and you roll again. While all four of your pawns are at home, you get up to three rolls per turn to get that 6.'],
@@ -130,7 +130,7 @@ ${ctaBand('en', 'Ready to roll? It takes ten seconds to start.')}
 
 const FAQ_SQ = [
   ['A është Burrec mos u zemëro falas?', 'Po. E gjithë loja është falas dhe luhet direkt në shfletues, në telefon, tablet ose kompjuter. Nuk ka asgjë për të shkarkuar.'],
-  ['A më duhet llogari?', 'Jo. Shkruaj një emër dhe luaj si mysafir. Me një llogari falas (email, Google ose Apple) mund të bisedosh, të veshësh pionët dhe ta ruash emrin në çdo pajisje.'],
+  ['A më duhet llogari?', 'Jo. Shkruaj një emër dhe luaj si mysafir. Çdo lojë të jep pikë. Me një llogari falas (email, Google ose Apple) mund të bisedosh, merr katër aksesorë e goditje falas, i shpenzon pikët për të tjerat dhe e ruan emrin në çdo pajisje.'],
   ['Si të luaj me shokët?', 'Krijo një dhomë private dhe shtyp butonin e ftesës: shokët marrin një link (ose kodin me 4 shkronja) dhe hyjnë me një prekje. Vendet e lira i luan Kompjuteri, kështu që mund të filloni menjëherë.'],
   ['A mund të luajmë në një telefon?', 'Po. Zgjidh <b>Rreth tavolinës</b>: 2 deri në 4 veta luajnë me radhë në të njëjtën pajisje, pa kohëmatës. Duhet vetëm lidhje me internetin.'],
   ['Si e nxjerr pionin nga shtëpia?', 'Duhet të hedhësh 6. Pioni del në fushën e nisjes dhe hedh sërish. Kur të katër pionët janë në shtëpi, ke deri në tri hedhje për ta nxjerrë gjashtën.'],

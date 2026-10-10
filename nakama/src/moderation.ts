@@ -23,6 +23,7 @@ import {
   sendEmail,
   writeSystemObject,
 } from './auth';
+import { addPoints, pointsBalance } from './progress';
 import { readStats } from './stats';
 
 const COLLECTION_META = 'user_meta';
@@ -552,7 +553,47 @@ export const rpcAdminUser: nkruntime.RpcFunction = function (ctx, logger, nk, pa
     gamesPlayed: meta.gamesPlayed,
     history: meta.history,
     reports: listReports(nk).filter((report) => report.targetId === userId),
+    points: pointsBalance(nk, userId),
+    ledger: recentLedger(nk, userId),
   });
+};
+
+// The latest Points changes (CONTEXT.md: Points; adr/0003), newest first.
+function recentLedger(nk: nkruntime.Nakama, userId: string): { at: number; amount: number; source: string; note: string }[] {
+  try {
+    const list = nk.walletLedgerList(userId, 20);
+    return (list.items || []).map((item) => ({
+      at: (Number(item.createTime) || 0) * 1000,
+      amount: Number(item.changeset && item.changeset.points) || 0,
+      source: String((item.metadata && item.metadata.source) || ''),
+      note: String((item.metadata && (item.metadata.note || item.metadata.item || item.metadata.table)) || ''),
+    })).sort((a, b) => b.at - a.at);
+  } catch (error) {
+    return [];
+  }
+}
+
+// Payload: { userId, amount, note } -> { ok, points }. Support grants and
+// corrections; the wallet refuses to go below zero.
+export const rpcAdminAdjustPoints: nkruntime.RpcFunction = function (ctx, logger, nk, payload) {
+  if (!isAdmin(ctx, nk)) {
+    return forbidden(ctx);
+  }
+  const request = parse(payload);
+  const userId = clip(request.userId, 64);
+  const amount = Math.trunc(Number(request.amount) || 0);
+  const note = clip(request.note, MAX_NOTE);
+  if (!userId || !amount || Math.abs(amount) > 100000 || !note) {
+    return JSON.stringify({ error: 'generic' });
+  }
+  try {
+    addPoints(nk, userId, amount, { source: 'admin', adminId: ctx.userId, note });
+  } catch (error) {
+    return JSON.stringify({ error: 'not_enough_points' });
+  }
+  const meta = addHistory(nk, ctx, userId, 'points', (amount > 0 ? '+' : '') + amount + ': ' + note);
+  writeMeta(nk, userId, meta);
+  return JSON.stringify({ ok: true, points: pointsBalance(nk, userId) });
 };
 
 // Payload: { userId, on, note? }

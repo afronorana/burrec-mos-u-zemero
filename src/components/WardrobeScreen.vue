@@ -2,6 +2,8 @@
   <div class="wardrobe" :class="{ 'wardrobe--in-game': inGame }">
     <app-panel class="wardrobe-options">
       <h2 class="panel-title">{{ t('cosmetics.title') }}</h2>
+      <!-- CONTEXT.md: Points — what earned items are bought with. -->
+      <p class="wardrobe-points">{{ t('store.balance', { n: store.online.store.points }) }}</p>
 
       <!-- Guests preview everything but wear nothing (CONTEXT.md: Guest). -->
       <div v-if="!isMember" class="wardrobe-guest-banner">
@@ -109,6 +111,9 @@
         <app-button v-if="lockedPick.claimable" small :loading="claiming" :disabled="claiming" @click="claim(lockedPick)">
           {{ t('store.claim') }}
         </app-button>
+        <app-button v-else-if="lockedPick.buyable" small :loading="claiming" :disabled="claiming" @click="buy(lockedPick)">
+          {{ t('store.buy', { n: lockedPick.price }) }}
+        </app-button>
       </div>
       <p v-if="claimError" class="wardrobe-store-error">{{ t(`errors.${claimError}`) }}</p>
 
@@ -147,7 +152,7 @@
 
 <script>
 import ApplicationStore from '../utils/ApplicationStore';
-import { PROP_OPTIONS, FINISHER_OPTIONS, flagOptions, flagName, flagUrl } from '../utils/cosmetics';
+import { PROP_OPTIONS, FINISHER_OPTIONS, flagOptions, flagName, flagUrl, saveCosmetics } from '../utils/cosmetics';
 import { canWear, itemTier, sanitizeCosmetics, specialOpen } from '../../shared/protocol';
 import { t } from '../utils/i18n';
 import { promptRegister } from '../utils/authPrompt';
@@ -211,6 +216,19 @@ export default {
         if (canWear(kind, id, this.owned)) continue;
         const entry = itemTier(kind, id);
         const name = t(labelPrefix + id);
+        if (entry.tier === 'earned') {
+          const points = this.store.online.store.points;
+          const enough = points >= entry.price;
+          return {
+            kind,
+            id,
+            price: entry.price,
+            buyable: enough,
+            message: enough
+              ? t('store.buyHint', { item: name, n: entry.price })
+              : t('store.needMore', { item: name, n: entry.price, missing: entry.price - points }),
+          };
+        }
         if (entry.tier === 'special' && specialOpen(entry, this.serverNow)) {
           return { kind, id, claimable: true, message: t('store.claimHint', { item: name, date: lastDay(entry.until, this.store.settings.locale) }) };
         }
@@ -306,13 +324,17 @@ export default {
         list.scrollTop = active.offsetTop - list.offsetTop - (list.clientHeight / 2) + (active.clientHeight / 2);
       }
     },
-    // Corner badge: Free / Special · until <last day> / Premium (+ owned ✓).
+    // Corner badge: Free / price in Points / Special · until <last day> /
+    // Premium (+ owned ✓).
     badge(kind, id) {
       const entry = itemTier(kind, id);
       if (entry.tier === 'free') {
         return { kind: 'free', text: t('store.free') };
       }
       const owned = this.owned.includes(`${kind}:${id}`);
+      if (entry.tier === 'earned') {
+        return owned ? { kind: 'owned', text: `${t('store.owned')} ✓` } : { kind: 'earned', text: `🔒 ${t('store.price', { n: entry.price })}` };
+      }
       if (entry.tier === 'special') {
         const text = owned || !specialOpen(entry, this.serverNow)
           ? t('store.special')
@@ -327,7 +349,18 @@ export default {
       try {
         await NakamaClient.claimItem(pick.kind, pick.id);
       } catch (error) {
-        this.claimError = error && error.message ? error.message : 'generic';
+        this.claimError = errorCode(error);
+      } finally {
+        this.claiming = false;
+      }
+    },
+    async buy(pick) {
+      this.claiming = true;
+      this.claimError = null;
+      try {
+        await NakamaClient.buyItem(pick.kind, pick.id);
+      } catch (error) {
+        this.claimError = errorCode(error);
       } finally {
         this.claiming = false;
       }
@@ -368,12 +401,7 @@ export default {
       this.store.wardrobe.dragging = false;
     },
     save() {
-      const picked = sanitizeCosmetics(this.draft);
-      Object.assign(this.store.settings.cosmetics, picked);
-      window.localStorage.setItem('burrec.settings.pawns', JSON.stringify(picked.pawns));
-      window.localStorage.setItem('burrec.settings.prop', picked.prop);
-      window.localStorage.setItem('burrec.settings.finisher', picked.finisher);
-      window.localStorage.setItem('burrec.settings.flag', picked.flag);
+      saveCosmetics(this.store.settings, sanitizeCosmetics(this.draft));
       this.close();
     },
     wearInGame() {
@@ -393,6 +421,12 @@ export default {
     },
   },
 };
+
+// A server error code (`not_enough_points`, …) or 'generic' for anything else.
+function errorCode(error) {
+  const message = error && error.message;
+  return message && /^[a-z_]+$/.test(message) ? message : 'generic';
+}
 
 // A special's `until` is exclusive; show the last day it can be claimed.
 function lastDay(until, locale) {
@@ -457,6 +491,14 @@ function normalize(text) {
   overflow-y: auto;
   margin: 0 -4px;
   padding: 0 4px;
+}
+
+.wardrobe-points {
+  margin: -6px 0 10px;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--agu-color-base, #263f2a);
 }
 
 .wardrobe-guest-banner {
@@ -561,6 +603,12 @@ function normalize(text) {
 .wardrobe-tier--special {
   background: #f4a261;
   color: #ffffff;
+  opacity: 1;
+}
+
+.wardrobe-tier--earned {
+  background: var(--agu-color-base, #263f2a);
+  color: #fdc25b;
   opacity: 1;
 }
 

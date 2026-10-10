@@ -25,6 +25,27 @@ export function roomInviteUrl(code) {
   return `${siteUrl()}#c=${encodeURIComponent(code)}`;
 }
 
+// #r=CODE is kept by StartScreen until the visitor registers (CONTEXT.md:
+// Referral).
+export function referralUrl(code) {
+  return `${siteUrl()}#r=${encodeURIComponent(code)}`;
+}
+
+export async function shareReferral(code) {
+  if (!code) return 'failed';
+  const url = referralUrl(code);
+  const text = t('profile.inviteText');
+  if (prefersShareSheet()) {
+    try {
+      await navigator.share({ title: t('title'), text, url });
+      return 'shared';
+    } catch (error) {
+      if (error && error.name === 'AbortError') return 'cancelled';
+    }
+  }
+  return copyText(`${text} ${url}`);
+}
+
 async function copyText(text) {
   try {
     await navigator.clipboard.writeText(text);

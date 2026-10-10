@@ -11,6 +11,8 @@
 // everyone else is a Guest. Registering from a Guest links the login onto the
 // same Nakama user (adr/0001), so the hooks below cover both link and create.
 
+import { grantWelcome } from './progress';
+
 // Owner id of system-owned storage objects (writes with userId undefined).
 export const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000';
 
@@ -378,6 +380,11 @@ export const rpcResetPassword: nkruntime.RpcFunction = function (ctx, logger, nk
   deleteSystemObject(nk, COLLECTION_RESET, token);
   // Completing a reset proves mailbox ownership as strongly as verification.
   markEmailVerified(nk, String(record.userId));
+  try {
+    grantWelcome(nk, String(record.userId));
+  } catch (error) {
+    logger.error('welcome bonus failed for %s: %s', String(record.userId), String(error));
+  }
   return JSON.stringify({ ok: true, email: record.email });
 };
 
@@ -405,6 +412,11 @@ export const rpcVerifyEmail: nkruntime.RpcFunction = function (ctx, logger, nk, 
 
   deleteSystemObject(nk, COLLECTION_VERIFY, token);
   markEmailVerified(nk, String(record.userId));
+  try {
+    grantWelcome(nk, String(record.userId));
+  } catch (error) {
+    logger.error('welcome bonus failed for %s: %s', String(record.userId), String(error));
+  }
   return JSON.stringify({ ok: true, email: record.email });
 };
 

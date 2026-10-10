@@ -1,7 +1,7 @@
 // Authoritative 'ludo' match handler. All timing lives in matchLoop ticks —
 // the goja runtime has no setTimeout.
 
-import { BOT_DISPLAY_NAME, DEFAULT_FINISHER, FINISHER_IDS, NO_FINISHER, OpCode, decodePayload, encodePayload, guestCosmetics, isClosedTable, itemTier, sanitizeCosmetics, sanitizeGameMode, sanitizeTable, wearableCosmetics } from '../../shared/protocol.js';
+import { BOT_DISPLAY_NAME, DEFAULT_FINISHER, FINISHER_IDS, OpCode, decodePayload, encodePayload, guestCosmetics, isClosedTable, sanitizeCosmetics, sanitizeGameMode, sanitizeTable, wearableCosmetics } from '../../shared/protocol.js';
 import { isMember } from './auth';
 import { recordGamesPlayed, touchLastSeen } from './moderation';
 import { ownedItems } from './store';
@@ -14,6 +14,9 @@ import {
   legalPawns,
   rollDie,
 } from './ludo_logic';
+import { payGame, readTitles } from './progress';
+import { noteGameStarted } from './referral';
+import { Earned } from './progress_logic';
 import { GameLogEntry, GameLogSeat, recordGameFinished, recordGameLog, recordGameStarted } from './stats';
 
 const TICK_RATE = 2; // ticks per second
@@ -85,9 +88,40 @@ function gameOverPayload(state: LudoState): object {
   return {
     winnerSeat: state.winnerSeat,
     stats,
+    earned: state.earned,
     durationMs: state.startedAtMs ? Date.now() - state.startedAtMs : 0,
     rounds: state.round,
   };
+}
+
+// Pays every seat a human still holds at game over (an Abandoned seat too;
+// a Leave already turned its seat into a Bot, so leaving forfeits).
+// Companions are the Shared table's owner playing for someone else.
+function payFinishedGame(nk: nkruntime.Nakama, state: LudoState) {
+  for (let i = 0; i < MAX_SEATS; i += 1) {
+    const seat = state.seats[i];
+    if (!seat || seat.bot || seat.companion || !seat.userId) {
+      state.earned[i] = null;
+      continue;
+    }
+    let finished = 0;
+    for (let j = 0; j < 4; j += 1) {
+      if (state.pawns[i][j] > 40) finished += 1;
+    }
+    const stats = state.stats[i];
+    state.earned[i] = payGame(nk, seat.userId, state.table, {
+      pawnsHome: finished,
+      captures: stats.captures,
+      sixes: stats.sixes,
+      captured: stats.captured,
+      won: i === state.winnerSeat,
+      gameMode: state.gameMode,
+    });
+    const earned = state.earned[i];
+    if (earned && earned.newTitles && earned.newTitles.length && !state.titles[seat.userId]) {
+      state.titles[seat.userId] = readTitles(nk, seat.userId).shownTitle;
+    }
+  }
 }
 
 // One finished game for the game log (stats.ts): per-seat counters plus who
@@ -158,6 +192,9 @@ export interface LudoState {
   // seat, so an unseated joiner's pick is known before they claim a color and
   // a disconnected seat keeps its owner's look.
   cosmetics: { [userId: string]: Cosmetics };
+  // userId -> the Title they show (CONTEXT.md: Title; '' = none), read at
+  // join. Bots and Shared-table companions never show one.
+  titles: { [userId: string]: string };
   // userId -> true once that player used their one mid-game Cosmetics change.
   restyled: { [userId: string]: boolean };
   hostUserId: string | null;
@@ -179,6 +216,11 @@ export interface LudoState {
   winnerSeat: number | null;
   // Per seat, for the end-of-game board (GAME_OVER / finished STATE_SYNC).
   stats: SeatStats[];
+  // Per seat, the Points the finished game paid its human (null: a Bot, a
+  // companion, or a table that pays nothing). CONTEXT.md: Points.
+  earned: (Earned | null)[];
+  // Per seat, the Finisher that colour's Bot plays this match.
+  botFinishers: string[];
   startedAtMs: number;
   presences: { [userId: string]: nkruntime.Presence };
   pendingDisplayNames: { [userId: string]: string };
@@ -285,6 +327,7 @@ function lobbyStatePayload(state: LudoState): object {
     joinCode: state.joinCode,
     displayNames: state.displayNames,
     cosmetics: state.cosmetics,
+    titles: state.titles,
     environment: state.environment,
     gameMode: state.gameMode,
     table: state.table,
@@ -308,6 +351,7 @@ function snapshotPayload(state: LudoState, tick: number): object {
     joinCode: state.joinCode,
     displayNames: state.displayNames,
     cosmetics: state.cosmetics,
+    titles: state.titles,
     restyled: state.restyled,
     gameOver: state.phase === 'finished' ? gameOverPayload(state) : null,
     environment: state.environment,
@@ -437,10 +481,14 @@ function turnDeadline(state: LudoState, tick: number): number {
   return tick + ticks;
 }
 
-// A random Finisher any Member gets for free (never a premium/special one).
-function botFinisher(): string {
-  const free = FINISHER_IDS.filter((id: string) => itemTier('finisher', id).tier === 'free');
-  return free.length ? free[Math.floor(Math.random() * free.length)] : DEFAULT_FINISHER;
+// Each colour's Bot Finisher for one match, drawn from the whole catalog
+// (CONTEXT.md: Bot) — a showcase of what Points buy.
+function drawBotFinishers(): string[] {
+  const picks: string[] = [];
+  for (let i = 0; i < MAX_SEATS; i += 1) {
+    picks.push(FINISHER_IDS[Math.floor(Math.random() * FINISHER_IDS.length)]);
+  }
+  return picks;
 }
 
 // Keeps a Bot from acting before `ticks` from now (never shortens a hold).
@@ -515,7 +563,7 @@ function doMove(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkruntime.Ma
     // mover changes cosmetics while this event is still queued client-side.
     // A Bot wears no Props but captures with a random free Finisher, so
     // games against Computers show the cinematics too.
-    finisher: mover && mover.bot ? botFinisher() : (moverCosmetics && mover && !mover.companion ? moverCosmetics.finisher : NO_FINISHER),
+    finisher: mover && mover.bot ? state.botFinishers[seat] : (moverCosmetics && mover && !mover.companion ? moverCosmetics.finisher : DEFAULT_FINISHER),
   });
 
   if (result.won) {
@@ -523,6 +571,7 @@ function doMove(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkruntime.Ma
     state.winnerSeat = seat;
     state.turnDeadlineTick = 0;
     resetTurnState(state);
+    payFinishedGame(nk, state);
     broadcast(dispatcher, OpCode.GAME_OVER, gameOverPayload(state));
     // A finished match takes no more joiners — close the label.
     refreshOpenLabel(state, dispatcher);
@@ -669,7 +718,20 @@ function startGame(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkruntime
   state.pawns = state.devLayout ? devPawns() : initialPawns(state.gameMode);
   state.round = 1;
   state.stats = emptyStats();
+  state.earned = [null, null, null, null];
+  state.botFinishers = drawBotFinishers();
   state.startedAtMs = Date.now();
+  // CONTEXT.md: Referral — starting a game is half of the payout condition.
+  for (let i = 0; i < MAX_SEATS; i += 1) {
+    const seat = state.seats[i];
+    if (seat && !seat.bot && !seat.companion && seat.userId) {
+      try {
+        noteGameStarted(nk, seat.userId);
+      } catch (error) {
+        // Never block a game start on bookkeeping.
+      }
+    }
+  }
   state.winnerSeat = null;
   resetTurnState(state);
 
@@ -782,6 +844,7 @@ const matchInit = function (
     seats: [botSeat(0), botSeat(1), botSeat(2), botSeat(3)],
     displayNames: {},
     cosmetics: {},
+    titles: {},
     restyled: {},
     hostUserId: null,
     turnSeat: -1,
@@ -797,6 +860,8 @@ const matchInit = function (
     emptyTicks: 0,
     winnerSeat: null,
     stats: emptyStats(),
+    earned: [null, null, null, null],
+    botFinishers: drawBotFinishers(),
     startedAtMs: 0,
     presences: {},
     pendingDisplayNames: {},
@@ -815,6 +880,11 @@ const matchInit = function (
 // Guests wear nothing whatever their client sends (CONTEXT.md: Guest), and
 // a Member only what is free or Entitled (CONTEXT.md: Price tier).
 function rememberCosmetics(nk: nkruntime.Nakama, state: LudoState, userId: string, metadata: { [key: string]: any }) {
+  try {
+    state.titles[userId] = readTitles(nk, userId).shownTitle;
+  } catch (error) {
+    state.titles[userId] = '';
+  }
   if (state.cosmetics[userId] && state.phase !== 'lobby') {
     return;
   }
@@ -993,6 +1063,7 @@ function handlePlayAgain(nk: nkruntime.Nakama, state: LudoState, dispatcher: nkr
   state.savedTurnDeadline = null;
   state.restyled = {};
   state.stats = emptyStats();
+  state.earned = [null, null, null, null];
   state.startedAtMs = 0;
   resetTurnState(state);
   refreshOpenLabel(state, dispatcher);

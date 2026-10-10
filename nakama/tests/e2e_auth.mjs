@@ -54,15 +54,15 @@ async function trySend(socket, channelId) {
 }
 
 async function main() {
-  const crown = { prop: 'crown', finisher: 'anvil', flag: 'al' };
+  const crown = { prop: 'crown', finisher: 'pan', flag: 'al' };
 
   // ── Guest ──────────────────────────────────────────────────────────
   const guest = await client.authenticateDevice(uid(), true);
   const created = await rpc(guest, 'create_private_match');
   const asGuest = await joinWithCosmetics(guest, created.matchId, crown);
-  assert(asGuest.cosmetics && asGuest.cosmetics.prop === 'none' && asGuest.cosmetics.finisher === 'none'
+  assert(asGuest.cosmetics && asGuest.cosmetics.prop === 'none' && asGuest.cosmetics.finisher === 'shove'
     && asGuest.cosmetics.pawns.every((p) => p.prop === 'none'),
-    `Guest wears nothing (got ${JSON.stringify(asGuest.cosmetics)})`);
+    `Guest wears no Prop and the default Finisher (got ${JSON.stringify(asGuest.cosmetics)})`);
   assert(!(await trySend(asGuest.socket, asGuest.channelId)), 'Guest chat message is rejected');
   asGuest.socket.disconnect(false);
 
@@ -86,7 +86,7 @@ async function main() {
   // ── Member: chat + cosmetics ───────────────────────────────────────
   const created2 = await rpc(linked, 'create_private_match');
   const asMember = await joinWithCosmetics(linked, created2.matchId, crown);
-  assert(asMember.cosmetics && asMember.cosmetics.prop === 'crown' && asMember.cosmetics.finisher === 'anvil',
+  assert(asMember.cosmetics && asMember.cosmetics.prop === 'crown' && asMember.cosmetics.finisher === 'pan',
     `Member wears their pick (got ${JSON.stringify(asMember.cosmetics)})`);
   assert(await trySend(asMember.socket, asMember.channelId), 'Member chat message is accepted');
   asMember.socket.disconnect(false);
@@ -94,12 +94,12 @@ async function main() {
   // Per-pawn Props ride join metadata as a JSON string.
   const created3 = await rpc(linked, 'create_private_match');
   const joined3 = await joinWithCosmetics(linked, created3.matchId, {
-    finisher: 'anvil',
-    pawns: JSON.stringify([{ prop: 'halo', flag: 'al' }, { prop: 'bandana', flag: 'al' }, { prop: 'flag', flag: 'xk' }, { prop: 'nonsense', flag: 'al' }]),
+    finisher: 'pan',
+    pawns: JSON.stringify([{ prop: 'crown', flag: 'al' }, { prop: 'partyHat', flag: 'al' }, { prop: 'flag', flag: 'xk' }, { prop: 'nonsense', flag: 'al' }]),
   });
   const perPawn = joined3.cosmetics;
-  assert(perPawn && perPawn.pawns && perPawn.pawns.map((p) => p.prop).join(',') === 'halo,bandana,flag,none'
-    && perPawn.pawns[2].flag === 'xk' && perPawn.prop === 'halo',
+  assert(perPawn && perPawn.pawns && perPawn.pawns.map((p) => p.prop).join(',') === 'crown,partyHat,flag,none'
+    && perPawn.pawns[2].flag === 'xk' && perPawn.prop === 'crown',
     `Member wears a Prop per pawn (got ${JSON.stringify(perPawn && perPawn.pawns)})`);
   joined3.socket.disconnect(false);
 

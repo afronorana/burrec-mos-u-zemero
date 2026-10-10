@@ -151,7 +151,7 @@ async function main() {
   send(host, shared.matchId, OpCode.MOVE_REQUEST, { pawnIndex: 0 });
   const companionMove = await playSeat(2);
   assert(companionMove && companionMove.p.seat === 2, 'the owner moves for a companion seat');
-  assert(companionMove && companionMove.p.finisher === 'none', 'a companion seat captures without a Finisher');
+  assert(companionMove && companionMove.p.finisher === 'shove', 'a companion seat captures with the default Finisher');
 
   send(host, shared.matchId, OpCode.LEAVE);
   host.socket.disconnect(false);

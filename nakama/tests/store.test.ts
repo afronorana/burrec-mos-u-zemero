@@ -6,15 +6,40 @@ import {
   ITEM_TIERS,
   DEFAULT_FINISHER,
   DEFAULT_PROP,
+  FINISHER_IDS,
+  PROP_IDS,
   canWear,
+  guestCosmetics,
   itemTier,
   specialOpen,
   sanitizeCosmetics,
   wearableCosmetics,
 } from '../../shared/protocol.js';
 
+// The shipped catalog, before the tests below swap in their own entries.
+const CATALOG = { ...ITEM_TIERS };
+
 afterEach(() => {
   for (const key of Object.keys(ITEM_TIERS)) delete ITEM_TIERS[key];
+});
+
+test('the shipped catalog: four free Props and four free Finishers, the rest earned or special', () => {
+  Object.assign(ITEM_TIERS, CATALOG);
+  const free = (kind, ids) => ids.filter((id) => id !== 'none' && itemTier(kind, id).tier === 'free');
+  assert.deepEqual(free('prop', PROP_IDS), ['crown', 'partyHat', 'sunglasses', 'flag']);
+  assert.deepEqual(free('finisher', FINISHER_IDS), ['shove', 'bat', 'pan', 'hammer']);
+  assert.ok(itemTier('finisher', DEFAULT_FINISHER).tier === 'free');
+  for (const id of ['pumpkin', 'ghost', 'santaHat']) assert.equal(itemTier('prop', id).tier, 'special', id);
+  assert.deepEqual(itemTier('prop', 'qeleshe'), { tier: 'earned', price: 300 });
+  assert.deepEqual(itemTier('finisher', 'ufo'), { tier: 'earned', price: 1000 });
+  assert.equal(canWear('prop', 'topHat', []), false);
+  assert.equal(canWear('prop', 'topHat', ['prop:topHat']), true);
+});
+
+test('a Guest wears no Prop and the default Finisher', () => {
+  const worn = guestCosmetics();
+  assert.equal(worn.finisher, DEFAULT_FINISHER);
+  assert.ok(worn.pawns.every((p) => p.prop === DEFAULT_PROP));
 });
 
 test('unlisted items are free and wearable by any Member', () => {

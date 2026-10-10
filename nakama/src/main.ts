@@ -27,6 +27,7 @@ import {
   rpcAdminReports,
   rpcAdminResolveReport,
   rpcAdminSendDigest,
+  rpcAdminAdjustPoints,
   rpcAdminSetBan,
   rpcAdminSetShadowban,
   rpcAdminUser,
@@ -35,7 +36,8 @@ import {
   rpcReportPlayer,
   rpcSetBlock,
 } from './moderation';
-import { rpcClaimItem, rpcStoreState } from './store';
+import { rpcReferralCode, rpcSetReferrer } from './referral';
+import { rpcBuyItem, rpcClaimItem, rpcCollectStreak, rpcSetTitle, rpcStoreState } from './store';
 
 function InitModule(
   ctx: nkruntime.Context,
@@ -60,6 +62,11 @@ function InitModule(
   initializer.registerRpc('delete_account', rpcDeleteAccount);
   initializer.registerRpc('store_state', rpcStoreState);
   initializer.registerRpc('claim_item', rpcClaimItem);
+  initializer.registerRpc('buy_item', rpcBuyItem);
+  initializer.registerRpc('collect_streak', rpcCollectStreak);
+  initializer.registerRpc('set_title', rpcSetTitle);
+  initializer.registerRpc('referral_code', rpcReferralCode);
+  initializer.registerRpc('set_referrer', rpcSetReferrer);
   initializer.registerRpc('block_list', rpcBlockList);
   initializer.registerRpc('set_block', rpcSetBlock);
   initializer.registerRpc('report_player', rpcReportPlayer);
@@ -70,6 +77,7 @@ function InitModule(
   initializer.registerRpc('admin_user', rpcAdminUser);
   initializer.registerRpc('admin_set_shadowban', rpcAdminSetShadowban);
   initializer.registerRpc('admin_set_ban', rpcAdminSetBan);
+  initializer.registerRpc('admin_adjust_points', rpcAdminAdjustPoints);
   initializer.registerRpc('admin_send_digest', rpcAdminSendDigest);
   // goja has no timers: a never-written leaderboard's daily reset is the
   // clock for the Report digest (moderation.ts).

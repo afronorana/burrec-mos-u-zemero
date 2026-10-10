@@ -21,6 +21,30 @@
 
       <app-button orange class="profile-btn" @click="openWardrobe">🎩 {{ t('cosmetics.title') }}</app-button>
 
+      <!-- CONTEXT.md: Title — earned by playing; at most one shown. -->
+      <span class="profile-label profile-label--titles">{{ t('profile.shownTitle') }}</span>
+      <div v-if="ownTitles.length" class="profile-titles">
+        <button
+          v-for="id in ['', ...ownTitles]"
+          :key="id || 'none'"
+          type="button"
+          class="profile-title-chip"
+          :class="{ 'profile-title-chip--active': store.online.store.shownTitle === id }"
+          :disabled="busy"
+          @click="pickTitle(id)"
+        >
+          {{ id ? t(`titles.${id}`) : t('profile.noTitle') }}
+        </button>
+      </div>
+      <p v-else class="profile-note">{{ t('profile.noTitlesYet') }}</p>
+
+      <!-- CONTEXT.md: Referral -->
+      <span class="profile-label profile-label--titles">{{ t('profile.invite') }}</span>
+      <p class="profile-note">{{ t('profile.inviteHint') }}</p>
+      <app-button blue class="profile-btn" :loading="inviting" :disabled="inviting" @click="invite">
+        {{ inviteNote || t('profile.inviteButton') }}
+      </app-button>
+
       <template v-if="isSignedIn">
         <div class="profile-divider"></div>
         <span class="profile-label">{{ t('profile.linkedTo') }}</span>
@@ -60,6 +84,7 @@ import AuthProviders from './AuthProviders.vue';
 import ProviderMark from './ProviderMark.vue';
 import { clearMatchSession } from '../utils/matchSession';
 import { t } from '../utils/i18n';
+import { shareReferral } from '../utils/share';
 
 export default {
   components: { AuthProviders, ProviderMark },
@@ -70,6 +95,8 @@ export default {
       busy: false,
       resent: false,
       error: null,
+      inviting: false,
+      inviteNote: '',
     };
   },
   computed: {
@@ -86,6 +113,9 @@ export default {
       if (!this.isSignedIn) return t('profile.guestTagline');
       if (!this.account.member) return t('profile.unverifiedTagline');
       return t('profile.memberTagline');
+    },
+    ownTitles() {
+      return this.store.online.store.titles;
     },
     nameChanged() {
       const name = this.name.trim();
@@ -108,6 +138,30 @@ export default {
       this.store.online.displayName = name;
       window.localStorage.setItem('burrec.online.displayName', name);
       this.name = name;
+    },
+    async invite() {
+      this.inviting = true;
+      try {
+        const result = await shareReferral(await NakamaClient.referralCode());
+        if (result === 'copied') this.inviteNote = t('profile.inviteCopied');
+        else if (result === 'failed') this.inviteNote = t('errors.generic');
+      } catch (error) {
+        this.inviteNote = t('errors.generic');
+      } finally {
+        this.inviting = false;
+        clearTimeout(this.inviteTimer);
+        this.inviteTimer = setTimeout(() => { this.inviteNote = ''; }, 2500);
+      }
+    },
+    async pickTitle(id) {
+      this.busy = true;
+      try {
+        await NakamaClient.setTitle(id);
+      } catch (error) {
+        // Nothing to show: the chips still mark what is shown.
+      } finally {
+        this.busy = false;
+      }
     },
     openWardrobe() {
       this.close();
@@ -151,6 +205,30 @@ export default {
 </script>
 
 <style scoped>
+.profile-label--titles {
+  margin-top: 14px;
+}
+.profile-titles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 4px;
+}
+.profile-title-chip {
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--agu-color-base, #263f2a);
+  background: #ffffff;
+  border: 2px solid var(--agu-color-base, #263f2a);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.profile-title-chip--active {
+  background: #fdc25b;
+  box-shadow: 0 0 0 2px #ff7700 inset;
+}
 .profile-backdrop {
   position: fixed;
   inset: 0;

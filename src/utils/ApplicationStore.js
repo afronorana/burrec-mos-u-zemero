@@ -203,6 +203,8 @@ const ApplicationStore = reactive({
     gameOver: null,
     // userId -> { prop, finisher } for everyone in the match, seated or not.
     cosmetics: {},
+    // userId -> shown Title id (LOBBY_STATE/STATE_SYNC `titles`).
+    titles: {},
     // userId -> true once that player used their one mid-game restyle
     // (SET_COSMETICS during play; the in-game Wardrobe).
     restyled: {},
@@ -226,7 +228,19 @@ const ApplicationStore = reactive({
     store: {
       owned: [],
       clockOffset: 0,
+      // CONTEXT.md: Points — the wallet balance, and the Welcome bonus paid
+      // on this sign-in (shown once on Home, then cleared).
+      points: 0,
+      welcome: 0,
+      // CONTEXT.md: Streak — { count, day, week, freeze, pending, longest }
+      // from store_state / collect_streak (null until loaded).
+      streak: null,
+      // Our own Titles (ids) and the one we show ('' = none).
+      titles: [],
+      shownTitle: '',
     },
+    // The Streak panel on Home.
+    streakOpen: false,
     // userIds this player Blocked (server-stored, loaded on sign-in); their
     // chat messages and speech bubbles never show (CONTEXT.md: Block).
     blockedIds: [],

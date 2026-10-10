@@ -10,7 +10,7 @@
 globalThis.window = globalThis;
 
 import { Client } from '@heroiclabs/nakama-js';
-import { ITEM_TIERS, OpCode, decodePayload, specialOpen } from '../../shared/protocol.js';
+import { ITEM_TIERS, OpCode, WELCOME_BONUS, decodePayload, specialOpen } from '../../shared/protocol.js';
 
 const client = new Client('burrec-dev-key', '127.0.0.1', '7350', false);
 const failures = [];
@@ -93,6 +93,21 @@ async function main() {
   } else {
     console.log('skip premium checks (none in ITEM_TIERS)');
   }
+
+  // Buy (CONTEXT.md: Buy; adr/0003): verifying the email paid the Welcome bonus.
+  assert(state.points === WELCOME_BONUS && state.welcome === 0, `the Welcome bonus was paid on verifying, once (${state.points}, ${state.welcome})`);
+  assert((await rpc(guest, 'buy_item', { kind: 'prop', id: 'topHat' })).error === 'member_required', 'Guests cannot buy');
+  assert((await rpc(alice, 'buy_item', { kind: 'prop', id: 'crown' })).error === 'not_buyable', 'free items are not for sale');
+  assert((await rpc(alice, 'buy_item', { kind: 'finisher', id: 'ufo' })).error === 'not_enough_points', 'a short balance cannot buy');
+  const unbought = await wornInMatch(alice, { prop: 'topHat', finisher: 'golf' });
+  assert(unbought && unbought.prop !== 'topHat' && unbought.finisher !== 'golf', 'unbought earned items are not worn');
+  const bought = await rpc(alice, 'buy_item', { kind: 'prop', id: 'topHat' });
+  assert(bought.ok && bought.owned.includes('prop:topHat') && bought.points === WELCOME_BONUS - ITEM_TIERS['prop:topHat'].price, `buying takes the price and grants the item (${JSON.stringify(bought)})`);
+  assert((await rpc(alice, 'buy_item', { kind: 'prop', id: 'topHat' })).error === 'already_owned', 'an owned item cannot be bought twice');
+  const wornBought = await wornInMatch(alice, { prop: 'topHat' });
+  assert(wornBought && wornBought.prop === 'topHat', 'a bought item is worn');
+  const guestLook = await wornInMatch(guest, { prop: 'crown', finisher: 'anvil' });
+  assert(guestLook && guestLook.prop === 'none' && guestLook.finisher === 'shove', `a Guest wears no Prop and the default Finisher (${JSON.stringify(guestLook)})`);
 
   if (failures.length) {
     console.error(`\n${failures.length} failure(s)`);

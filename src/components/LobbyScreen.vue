@@ -91,7 +91,10 @@
       >
         <template v-if="seatAt(index)">
           <span class="lobby-seat-avatar">{{ initialOf(seatAt(index)) }}</span>
-          <span class="lobby-seat-chip-name">{{ seatAt(index).displayName }}</span>
+          <span class="lobby-seat-chip-text">
+            <span class="lobby-seat-chip-name">{{ seatAt(index).displayName }}</span>
+            <span v-if="titleOf(seatAt(index))" class="lobby-seat-chip-title">{{ titleOf(seatAt(index)) }}</span>
+          </span>
           <crown-icon v-if="seatAt(index).userId === store.online.hostUserId" :size="16" class="lobby-seat-crown" />
         </template>
         <plus-icon v-else :size="26" :stroke-width="3" class="lobby-seat-plus" />
@@ -109,6 +112,7 @@ import ApplicationStore from '../utils/ApplicationStore';
 import MatchController from '../network/MatchController';
 import { PLAYER_COLORS } from '../utils/playerColors';
 import { t } from '../utils/i18n';
+import { seatTitleName } from '../utils/titles';
 import { Share2, Check, Settings, Plus, Crown, Hourglass } from '@lucide/vue';
 import { shareRoomInvite } from '../utils/share';
 
@@ -164,6 +168,7 @@ export default {
   },
   methods: {
     t,
+    titleOf: seatTitleName,
     // A human's seat, or null for a Bot's (CONTEXT.md: Bot), which any
     // player may take.
     seatAt(index) {
@@ -369,8 +374,24 @@ export default {
   text-shadow: none;
 }
 
-.lobby-seat-chip-name {
+.lobby-seat-chip-text {
+  display: flex;
   flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.lobby-seat-chip-title {
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1.2;
+  opacity: 0.8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lobby-seat-chip-name {
   min-width: 0;
   font-size: 0.9rem;
   font-weight: 700;

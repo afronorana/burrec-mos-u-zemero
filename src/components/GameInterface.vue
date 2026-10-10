@@ -84,6 +84,7 @@
           <span class="hud-player-name">
             {{ player.name }}<span v-if="isSelf(player)" class="hud-player-you">{{ t('hud.you') }}</span>
           </span>
+          <span v-if="titleOf(seatOf(player))" class="hud-player-title">{{ titleOf(seatOf(player)) }}</span>
           <span v-if="seatOf(player)?.connected === false" class="hud-player-sub">{{ t('hud.reconnecting') }}</span>
           <span v-else class="hud-player-pips" :aria-label="progressLabel(player)">
             <span
@@ -203,6 +204,7 @@ import ApplicationStore from '../utils/ApplicationStore';
 import MatchController from '../network/MatchController';
 import { isClosedTable } from '../../shared/protocol';
 import { t } from '../utils/i18n';
+import { seatTitleName } from '../utils/titles';
 import { playTick } from '../utils/sound';
 import { shareRoomInvite } from '../utils/share';
 import EventBus from '../utils/eventhandler';
@@ -367,6 +369,7 @@ export default {
     document.removeEventListener('visibilitychange', this.visibilityHandler);
   },
   methods: {
+    titleOf: seatTitleName,
     // Waiting on our pawn choice: the server's legal pawns are lit (isActive)
     // and nothing is in motion. gamePlayStatus.isMoving alone isn't enough —
     // it's cleared the moment we pick, while the move still animates.
@@ -679,6 +682,17 @@ export default {
   text-overflow: ellipsis;
 }
 
+.hud-player-title {
+  margin-top: -3px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.2;
+  opacity: 0.8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .hud-player-you {
   margin-left: 6px;
   padding: 1px 5px;
@@ -937,6 +951,11 @@ export default {
 
   /* Our own chip is already orange-filled; the pill doesn't fit here. */
   .hud-player-you {
+    display: none;
+  }
+
+  /* A quarter of the width has no room for a Title line. */
+  .hud-player-title {
     display: none;
   }
 

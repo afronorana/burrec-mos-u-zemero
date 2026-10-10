@@ -313,6 +313,7 @@ class MatchControllerService {
     online.seats = [];
     online.displayNames = {};
     online.cosmetics = {};
+    online.titles = {};
     online.restyled = {};
     online.restyleError = null;
     online.environment = null;
@@ -518,6 +519,7 @@ class MatchControllerService {
     online.joinCode = payload.joinCode || online.joinCode;
     online.displayNames = payload.displayNames || online.displayNames;
     online.cosmetics = payload.cosmetics || online.cosmetics;
+    online.titles = payload.titles || online.titles;
     online.environment = payload.environment || online.environment;
     online.gameMode = payload.gameMode || online.gameMode;
     online.table = payload.table || online.table;
@@ -648,6 +650,7 @@ class MatchControllerService {
     online.joinCode = payload.joinCode || online.joinCode;
     online.displayNames = payload.displayNames || online.displayNames;
     online.cosmetics = payload.cosmetics || online.cosmetics;
+    online.titles = payload.titles || online.titles;
     online.restyled = payload.restyled || online.restyled;
     online.environment = payload.environment || online.environment;
     online.gameMode = payload.gameMode || online.gameMode;

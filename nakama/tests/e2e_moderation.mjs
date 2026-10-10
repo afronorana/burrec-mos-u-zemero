@@ -171,6 +171,19 @@ async function main() {
     `history records every admin action (${actions.join(',')})`);
   assert(detail.history.every((h) => h.adminId === admin.user_id), 'history names the acting admin');
 
+  // ── Points (adr/0003) ─────────────────────────────────────────────
+  const bobId = bob.session.user_id;
+  assert((await rpc(alice.session, 'admin_adjust_points', { userId: bobId, amount: 500, note: 'self' })).error === 'forbidden', 'non-admins cannot adjust Points');
+  assert((await rpc(admin, 'admin_adjust_points', { userId: bobId, amount: 50 })).error === 'generic', 'a Points adjustment needs a reason');
+  const startPoints = (await rpc(admin, 'admin_user', { userId: bobId })).points; // the Welcome bonus
+  const granted = await rpc(admin, 'admin_adjust_points', { userId: bobId, amount: 120, note: 'lost a game to a bug' });
+  assert(granted.ok && granted.points === startPoints + 120, `an admin grants Points (${JSON.stringify(granted)})`);
+  assert((await rpc(admin, 'admin_adjust_points', { userId: bobId, amount: -(startPoints + 1000), note: 'too much' })).error === 'not_enough_points', 'a removal cannot go below zero');
+  const withPoints = await rpc(admin, 'admin_user', { userId: bobId });
+  assert(withPoints.points === startPoints + 120 && withPoints.ledger[0] && withPoints.ledger[0].amount === 120 && withPoints.ledger[0].source === 'admin'
+    && Math.abs(withPoints.ledger[0].at - Date.now()) < 120000, `admin_user shows the balance and ledger (${JSON.stringify(withPoints.ledger[0])})`);
+  assert(withPoints.history.some((h) => h.action === 'points' && h.note.startsWith('+120')), 'the adjustment is in the history');
+
   // ── digest ────────────────────────────────────────────────────────
   const digest = await rpc(admin, 'admin_send_digest');
   assert(digest.ok === true, 'digest runs');

@@ -77,8 +77,9 @@ export var FINISHER_IDS = ['shove', 'trapdoor', 'bat', 'pan', 'golf', 'racket', 
 export var DEFAULT_PROP = 'none';
 export var DEFAULT_FINISHER = 'shove';
 export var DEFAULT_FLAG = 'al';
-// A Guest's Capture plays no Finisher, only the lite presentation (burst +
-// flight home); 'none' is never offered in the Wardrobe.
+// The lite presentation (burst + flight home, no Finisher); never offered in
+// the Wardrobe. Guests and Bots play real Finishers, so this is only a
+// fallback for a Capture with no mover look.
 export var NO_FINISHER = 'none';
 
 // Lowercase ISO 3166 codes (+ Kosovo and the UK home nations), one SVG each
@@ -162,13 +163,54 @@ export function pawnLook(cosmetics, index) {
 // lasting Entitlement. A premium item is only worn through an Entitlement.
 //   e.g. 'prop:pumpkin': { tier: 'special', from: '2026-10-20', until: '2026-11-03' }
 //        'finisher:ufo': { tier: 'premium' }
-export var ITEM_TIERS = {};
+// An earned item ({ tier: 'earned', price }) is bought with Points (CONTEXT.md:
+// Buy; adr/0003). Members wear four Props and four Finishers for free:
+// crown, partyHat, sunglasses, flag / shove, pan, bat, hammer.
+export var ITEM_TIERS = {
+  'prop:pumpkin': { tier: 'special', from: '2026-10-24', until: '2026-11-03' },
+  'prop:ghost': { tier: 'special', from: '2026-10-24', until: '2026-11-03' },
+  'prop:santaHat': { tier: 'special', from: '2026-12-01', until: '2027-01-01' },
+};
+
+// Earned items by price band (cheap / mid / show piece), Points per kind.
+var EARNED_PRICES = { prop: [150, 300, 500], finisher: [300, 600, 1000] };
+var EARNED_BANDS = {
+  prop: [
+    ['topHat', 'catEars', 'rabbitEars', 'mustache', 'clownNose', 'scarf', 'bandana'],
+    ['qeleshe', 'wizardHat', 'armyHelmet', 'vampireEars'],
+    ['dinoSpikes', 'chicken', 'alienAntennae', 'halo', 'devilHorns'],
+  ],
+  finisher: [
+    ['golf', 'racket', 'glove'],
+    ['bowling', 'anvil', 'cannon'],
+    ['trapdoor', 'magician', 'vampire', 'ufo'],
+  ],
+};
+['prop', 'finisher'].forEach(function (kind) {
+  EARNED_BANDS[kind].forEach(function (ids, band) {
+    ids.forEach(function (id) {
+      ITEM_TIERS[kind + ':' + id] = { tier: 'earned', price: EARNED_PRICES[kind][band] };
+    });
+  });
+});
+
+// The Points a player receives once on becoming a Member: one cheap Prop.
+export var WELCOME_BONUS = 150;
+
+// CONTEXT.md: Referral — paid once the referred player is a Member who has
+// started a game: Points to the inviter (up to REFERRAL_CAP Referrals) and
+// to the newcomer. A referral link is only accepted from an account younger
+// than REFERRAL_WINDOW_DAYS.
+export var REFERRAL_INVITER_POINTS = 100;
+export var REFERRAL_JOINER_POINTS = 50;
+export var REFERRAL_CAP = 20;
+export var REFERRAL_WINDOW_DAYS = 7;
 
 export function itemKey(kind, id) {
   return kind + ':' + id;
 }
 
-// { tier: 'free'|'premium'|'special', from?, until? }
+// { tier: 'free'|'earned'|'premium'|'special', price?, from?, until? }
 export function itemTier(kind, id) {
   return ITEM_TIERS[itemKey(kind, id)] || { tier: 'free' };
 }
@@ -200,14 +242,62 @@ export function wearableCosmetics(input, ownedKeys) {
   return cosmetics;
 }
 
+// ── Points (CONTEXT.md: Points; adr/0003) ─────────────────────────────
+// What one finished game pays a seated human: per game, per pawn in the
+// finish, per Capture, and for the win. Open tables pay in full, Solo tables
+// at SOLO_RATE up to SOLO_DAILY_CAP per UTC day, Shared tables nothing.
+export var POINTS = { finished: 10, pawn: 3, capture: 2, win: 15 };
+export var SOLO_RATE = 0.5;
+export var SOLO_DAILY_CAP = 50;
+
+// CONTEXT.md: Streak — what each day of a 7-day week pays (days 1-6), and
+// the seventh-day bonus by week (week 4 and later pay the last one).
+export var STREAK_DAILY = [10, 10, 15, 15, 20, 20];
+export var STREAK_WEEKLY = [100, 150, 200, 250];
+
+// CONTEXT.md: Title — earned when a lifetime counter reaches `at`. Counters
+// count the games that pay Points (Open and Solo tables); `allModes` is a
+// win in every Game mode, `streak` the longest Streak. Names are per locale
+// (i18n `titles.<id>`).
+export var TITLES = [
+  { id: 'games1', counter: 'games', at: 1 },
+  { id: 'games10', counter: 'games', at: 10 },
+  { id: 'games50', counter: 'games', at: 50 },
+  { id: 'games100', counter: 'games', at: 100 },
+  { id: 'games500', counter: 'games', at: 500 },
+  { id: 'wins1', counter: 'wins', at: 1 },
+  { id: 'wins10', counter: 'wins', at: 10 },
+  { id: 'wins50', counter: 'wins', at: 50 },
+  { id: 'wins200', counter: 'wins', at: 200 },
+  { id: 'captures10', counter: 'captures', at: 10 },
+  { id: 'captures100', counter: 'captures', at: 100 },
+  { id: 'captures500', counter: 'captures', at: 500 },
+  { id: 'pawns100', counter: 'pawnsHome', at: 100 },
+  { id: 'pawns1000', counter: 'pawnsHome', at: 1000 },
+  { id: 'sixes100', counter: 'sixes', at: 100 },
+  { id: 'captured100', counter: 'captured', at: 100 },
+  { id: 'referrals1', counter: 'referrals', at: 1 },
+  { id: 'referrals10', counter: 'referrals', at: 10 },
+  { id: 'allModes', counter: 'allModes', at: 1 },
+  { id: 'streak7', counter: 'streak', at: 7 },
+  { id: 'streak30', counter: 'streak', at: 30 },
+  { id: 'streak100', counter: 'streak', at: 100 },
+];
+
+export function isTitle(id) {
+  for (var i = 0; i < TITLES.length; i += 1) {
+    if (TITLES[i].id === id) return true;
+  }
+  return false;
+}
+
 // Report reasons (CONTEXT.md: Report); 'other' expects the free-text note.
 export var REPORT_REASONS = ['harassment', 'hate', 'offensive_name', 'spam', 'cheating', 'other'];
 
-// What a Guest wears in a match, whatever its client sent.
+// What a Guest wears in a match, whatever its client sent: no Prop, the
+// default Finisher.
 export function guestCosmetics() {
-  var cosmetics = sanitizeCosmetics(null);
-  cosmetics.finisher = NO_FINISHER;
-  return cosmetics;
+  return sanitizeCosmetics(null);
 }
 
 export function encodePayload(payload) {

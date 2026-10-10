@@ -1,5 +1,7 @@
 import { Client, Session } from '@heroiclabs/nakama-js';
 import ApplicationStore from '../utils/ApplicationStore';
+import { saveCosmetics } from '../utils/cosmetics';
+import { sanitizeCosmetics, wearableCosmetics } from '../../shared/protocol';
 
 const HOST = import.meta.env.VITE_NAKAMA_HOST || '127.0.0.1';
 const PORT = String(import.meta.env.VITE_NAKAMA_PORT || '7350');
@@ -228,14 +230,36 @@ class NakamaClientService {
     return session;
   }
 
+  // Owned items, Points and the server clock. For a Member it also pays the
+  // Welcome bonus if they never had it, and drops saved picks they no longer
+  // own (adr/0003: locked items fall back to the defaults).
   async loadStore() {
+    this.storeLoading = true;
     try {
       const result = await this.rpc('store_state');
       const store = ApplicationStore.online.store;
       store.owned = result.owned || [];
       store.clockOffset = typeof result.now === 'number' ? result.now - Date.now() : 0;
+      store.points = result.points || 0;
+      store.streak = result.streak || null;
+      store.titles = result.titles || [];
+      store.shownTitle = result.shownTitle || '';
+      if (result.welcome) {
+        store.welcome = result.welcome;
+      }
+      this.storeLoadedAsMember = Boolean(result.member);
+      if (result.member) {
+        this.recordReferral();
+        const settings = ApplicationStore.settings;
+        const worn = wearableCosmetics(settings.cosmetics, store.owned);
+        if (JSON.stringify(worn) !== JSON.stringify(sanitizeCosmetics(settings.cosmetics))) {
+          saveCosmetics(settings, worn);
+        }
+      }
     } catch (error) {
       // Non-fatal: only free items look wearable until the next sign-in.
+    } finally {
+      this.storeLoading = false;
     }
   }
 
@@ -246,6 +270,90 @@ class NakamaClientService {
       throw new Error(result.error);
     }
     ApplicationStore.online.store.owned = result.owned || [];
+  }
+
+  // Home: loading the store records today's Streak day (CONTEXT.md: Streak).
+  // A returning Guest who hasn't played yet this visit has no session, so
+  // sign in quietly first (no socket; a lapsed Member session waits for the
+  // next real sign-in instead).
+  async refreshProgress(displayName) {
+    try {
+      if (this.session) {
+        await this.loadStore();
+        return;
+      }
+      let session = await this.restoreSession();
+      if (!session) {
+        if (this.getAuthMethod() !== 'guest') {
+          return;
+        }
+        session = await this.getClient().authenticateDevice(this.getDeviceId(), true);
+      }
+      await this.adoptSession(session, this.getAuthMethod(), displayName);
+    } catch (error) {
+      // Non-fatal: the Streak button stays hidden until the next sign-in.
+    }
+  }
+
+  // A Member who arrived through a referral link records it once; the server
+  // decides whether it still counts, so any answer clears the stored code.
+  async recordReferral() {
+    let code = null;
+    try {
+      code = window.localStorage.getItem('burrec.referral');
+    } catch (error) {
+      return;
+    }
+    if (!code) {
+      return;
+    }
+    try {
+      await this.rpc('set_referrer', { code });
+      window.localStorage.removeItem('burrec.referral');
+    } catch (error) {
+      // Network trouble: try again on the next store load.
+    }
+  }
+
+  // Our referral code (minted by the server on first ask).
+  async referralCode() {
+    const result = await this.rpc('referral_code');
+    if (!result.code) {
+      throw new Error(result.error || 'generic');
+    }
+    return result.code;
+  }
+
+  // Show one of our Titles, or none ('') — CONTEXT.md: Title.
+  async setTitle(id) {
+    const result = await this.rpc('set_title', { id });
+    if (result.error) {
+      throw new Error(result.error);
+    }
+    ApplicationStore.online.store.shownTitle = result.shownTitle || '';
+  }
+
+  // Collect the Streak rewards waiting -> Points paid.
+  async collectStreak() {
+    const result = await this.rpc('collect_streak');
+    if (result.error) {
+      throw new Error(result.error);
+    }
+    const store = ApplicationStore.online.store;
+    store.points = result.points || 0;
+    store.streak = result.streak || store.streak;
+    return result.paid || 0;
+  }
+
+  // Buy an earned item with Points (CONTEXT.md: Buy) -> owned list + balance.
+  async buyItem(kind, id) {
+    const result = await this.rpc('buy_item', { kind, id });
+    if (result.error) {
+      throw new Error(result.error);
+    }
+    const store = ApplicationStore.online.store;
+    store.owned = result.owned || [];
+    store.points = result.points || 0;
   }
 
   async loadBlocks() {
@@ -293,6 +401,11 @@ class NakamaClientService {
       account.email = status.email || null;
       account.emailVerified = !!status.emailVerified;
       account.member = !!status.member;
+      // Just became a Member (verified in another tab, linked Google/Apple):
+      // the store pays the Welcome bonus and unlocks the free items.
+      if (account.member && !this.storeLoadedAsMember && !this.storeLoading && this.session) {
+        this.loadStore();
+      }
     } catch (error) {
       // Non-fatal: the account chip stays generic; Google/Apple are Members
       // by definition, email waits for the next successful check.
@@ -327,6 +440,13 @@ class NakamaClientService {
     online.blockedIds = [];
     online.blockedPlayers = [];
     online.store.owned = [];
+    online.store.points = 0;
+    online.store.welcome = 0;
+    online.store.streak = null;
+    online.store.titles = [];
+    online.store.shownTitle = '';
+    online.streakOpen = false;
+    this.storeLoadedAsMember = false;
   }
 
   // Token RPCs (verify_email / reset_password / request_password_reset) need

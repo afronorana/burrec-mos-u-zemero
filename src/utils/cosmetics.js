@@ -9,6 +9,15 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { PROP_IDS, FINISHER_IDS, FLAG_CODES, DEFAULT_FLAG } from '../../shared/protocol';
 
 // Picker labels (i18n keys), in catalog order.
+// Commits picked Cosmetics to settings + localStorage (read back at boot).
+export function saveCosmetics(settings, picked) {
+  Object.assign(settings.cosmetics, picked);
+  window.localStorage.setItem('burrec.settings.pawns', JSON.stringify(picked.pawns));
+  window.localStorage.setItem('burrec.settings.prop', picked.prop);
+  window.localStorage.setItem('burrec.settings.finisher', picked.finisher);
+  window.localStorage.setItem('burrec.settings.flag', picked.flag);
+}
+
 export const PROP_OPTIONS = PROP_IDS.map((id) => ({ id, labelKey: `cosmetics.prop_${id}` }));
 
 export const FINISHER_OPTIONS = FINISHER_IDS.map((id) => ({ id, labelKey: `cosmetics.finisher_${id}` }));

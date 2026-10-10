@@ -1,6 +1,15 @@
 <template>
   <div class="menu-center home-center">
     <div class="home-stack">
+      <!-- The Welcome bonus paid on this sign-in (CONTEXT.md), shown once. -->
+      <app-panel v-if="store.online.store.welcome" class="menu-card home-welcome">
+        <p class="home-welcome-text">{{ t('online.welcomeBonus', { n: store.online.store.welcome }) }}</p>
+        <div class="menu-row">
+          <app-button small blue @click="dismissWelcome">{{ t('close') }}</app-button>
+          <app-button small @click="openWardrobe">{{ t('online.welcomeWardrobe') }}</app-button>
+        </div>
+      </app-panel>
+
       <!-- Quickplay: Play now opens the chooser (online Game modes, or a
            Table on this device). -->
       <app-panel class="menu-card">
@@ -42,6 +51,7 @@
 <script>
 import ApplicationStore from '../utils/ApplicationStore';
 import { t } from '../utils/i18n';
+import NakamaClient from '../network/NakamaClient';
 
 export default {
   data() {
@@ -59,8 +69,21 @@ export default {
       return error ? t(`errors.${error}`) : '';
     },
   },
+  mounted() {
+    // Opening Home counts today's Streak day (and loads the 🔥 button).
+    if (this.hasName) {
+      NakamaClient.refreshProgress(this.store.online.displayName);
+    }
+  },
   methods: {
     t,
+    dismissWelcome() {
+      this.store.online.store.welcome = 0;
+    },
+    openWardrobe() {
+      this.store.online.store.welcome = 0;
+      this.store.currentScreen = 'wardrobe';
+    },
     goPlay() {
       this.store.online.lastError = null;
       this.store.currentScreen = 'play-mode';
@@ -82,6 +105,14 @@ export default {
 </script>
 
 <style scoped>
+.home-welcome-text {
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+}
+
 .home-center {
   align-items: flex-start;
   overflow-y: auto;

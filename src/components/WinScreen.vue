@@ -1,5 +1,7 @@
 <template>
-  <div class="win-overlay" v-if="store.winner">
+  <!-- The sign-in modal lives in StartScreen's overlay (z 10), so while it
+       is open ("Register to spend them") the board steps behind it. -->
+  <div class="win-overlay" :class="{ 'win-overlay--behind': store.online.authOpen }" v-if="store.winner">
     <!-- Full-screen confetti burst (same dotlottie asset as Shtet Qytet),
          played once when the winner appears; pointer-events stay off so the
          button underneath keeps working. The player is an async component so
@@ -32,7 +34,10 @@
               <td class="win-col-player">
                 <span class="win-player">
                   <span class="win-dot" :style="{ background: row.color }"></span>
-                  <span class="win-name">{{ row.name }}</span>
+                  <span class="win-name-block">
+                    <span class="win-name">{{ row.name }}</span>
+                    <span v-if="row.title" class="win-title">{{ row.title }}</span>
+                  </span>
                   <trophy-icon v-if="row.winner" :size="14" class="win-row-trophy" />
                 </span>
               </td>
@@ -44,6 +49,23 @@
           </tbody>
         </table>
         <p v-if="summary" class="win-summary">{{ summary }}</p>
+      </div>
+
+      <!-- CONTEXT.md: Points — what this game paid us. -->
+      <div v-if="points" class="win-points">
+        <p class="win-points-total">{{ t('win.points', { n: points.total }) }}</p>
+        <p class="win-points-parts">
+          <span>{{ t('win.pointsGame', { n: points.finished }) }}</span>
+          <span v-if="points.pawns">{{ t('win.pointsPawns', { n: points.pawns }) }}</span>
+          <span v-if="points.captures">{{ t('win.pointsCaptures', { n: points.captures }) }}</span>
+          <span v-if="points.win">{{ t('win.pointsWin', { n: points.win }) }}</span>
+        </p>
+        <p v-for="id in points.newTitles || []" :key="id" class="win-points-title">{{ t('win.newTitle', { name: t(`titles.${id}`) }) }}</p>
+        <p v-if="points.capped" class="win-points-note">{{ t('win.pointsCapped') }}</p>
+        <p v-else-if="points.solo" class="win-points-note">{{ t('win.pointsSolo') }}</p>
+        <button v-if="!store.online.account.member" type="button" class="win-points-register" @click="registerToSpend">
+          {{ t('win.pointsRegister') }}
+        </button>
       </div>
 
       <div class="win-actions">
@@ -69,6 +91,8 @@ import MatchController from '../network/MatchController';
 import { t } from '../utils/i18n';
 import { Share2, Trophy } from '@lucide/vue';
 import { shareImage } from '../utils/share';
+import { promptRegister } from '../utils/authPrompt';
+import { seatTitleName } from '../utils/titles';
 import confettiSrc from '../assets/lottie/Confetti.lottie?url';
 
 const CONFETTI_DURATION_MS = 10000;
@@ -123,9 +147,19 @@ export default {
             captures: stats.captures || 0,
             captured: stats.captured || 0,
             sixes: stats.sixes || 0,
+            title: seatTitleName((this.store.online.seats || [])[seat]),
           };
         })
         .sort((a, b) => (b.winner - a.winner) || (b.finished - a.finished) || (b.captures - a.captures));
+    },
+    // Our own seat's GAME_OVER `earned` (null at a Shared table).
+    points() {
+      const over = this.store.online.gameOver;
+      if (!over || !over.earned) {
+        return null;
+      }
+      const self = this.rows.find((row) => row.self);
+      return self ? over.earned[self.seat] || null : null;
     },
     // "Game time 12:34 · 18 rounds"
     summary() {
@@ -206,6 +240,9 @@ export default {
         this.sharing = false;
       }
     },
+    registerToSpend() {
+      promptRegister('points');
+    },
     escapeHtml(text) {
       return String(text).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     },
@@ -251,6 +288,10 @@ export default {
   justify-content: center;
   background: rgba(0, 0, 0, 0.55);
   z-index: 40;
+}
+
+.win-overlay--behind {
+  z-index: 5;
 }
 
 .win-confetti-overlay {
@@ -361,6 +402,71 @@ export default {
   font-size: 0.75rem;
   font-weight: 600;
   opacity: 0.8;
+}
+
+.win-points {
+  margin: 10px 0 4px;
+  color: var(--agu-color-base, #263f2a);
+}
+
+.win-points-total {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.win-points-parts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 10px;
+  margin: 2px 0 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  opacity: 0.8;
+}
+
+.win-name-block {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.win-title {
+  font-size: 0.65rem;
+  font-weight: 700;
+  opacity: 0.75;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+
+.win-points-title {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.win-points-note {
+  margin: 4px 0 0;
+  font-size: 0.7rem;
+  font-weight: 600;
+  opacity: 0.75;
+}
+
+.win-points-register {
+  margin-top: 6px;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
 }
 
 .win-actions {

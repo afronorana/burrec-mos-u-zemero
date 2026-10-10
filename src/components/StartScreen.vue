@@ -72,6 +72,17 @@
     <!-- Top right on menu screens: Settings + Profile (the lobby carries its
          own gear). The Profile button wears the sign-in provider's mark. -->
     <div v-if="isMenuScreen" class="menu-corner">
+      <!-- CONTEXT.md: Streak — Home only; the dot means Points to collect. -->
+      <app-button
+        v-if="store.currentScreen === 'home' && store.online.store.streak"
+        orange
+        class="hud-icon-btn menu-streak-btn"
+        :title="t('streak.title')"
+        @click="store.online.streakOpen = true"
+      >
+        <span class="menu-streak-count">🔥{{ store.online.store.streak.count }}</span>
+        <span v-if="store.online.store.streak.pending" class="menu-streak-dot"></span>
+      </app-button>
       <app-button orange class="hud-icon-btn" :title="t('settings.title')" @click="openSettings">
         <settings-icon :size="20" />
       </app-button>
@@ -84,6 +95,7 @@
     </div>
 
     <profile-sheet v-if="store.online.profileOpen" />
+    <streak-panel v-if="store.online.streakOpen" />
     <!-- Menus only: in a lobby/game it would cover the chat and turn bar. -->
     <cookie-consent v-if="!['lobby', 'game-screen'].includes(store.currentScreen)" />
 
@@ -193,6 +205,7 @@ import AuthModal from './AuthModal.vue';
 import AuthProviders from './AuthProviders.vue';
 import CookieConsent from './CookieConsent.vue';
 import ProfileSheet from './ProfileSheet.vue';
+import StreakPanel from './StreakPanel.vue';
 import ProviderMark from './ProviderMark.vue';
 import NakamaClient from '../network/NakamaClient';
 import PlayerActions from './PlayerActions.vue';
@@ -219,6 +232,7 @@ export default {
     CookieConsent,
     PlayerActions,
     ProfileSheet,
+    StreakPanel,
     ProviderMark,
     SettingsIcon: Settings,
     UserIcon: User,
@@ -297,6 +311,18 @@ export default {
     if (hash === '#admin') {
       this.store.currentScreen = 'admin';
       return;
+    }
+
+    // A referral link (CONTEXT.md: Referral): kept until the visitor becomes
+    // a Member, then recorded once (NakamaClient.loadStore).
+    const referral = hash.match(/^#r=([A-Za-z0-9]{4,12})$/);
+    if (referral) {
+      try {
+        window.localStorage.setItem('burrec.referral', referral[1].toUpperCase());
+      } catch (error) {
+        // Storage blocked: the link just doesn't count.
+      }
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
     }
 
     const verify = hash.match(/^#verify=([A-Za-z0-9]+)$/);
@@ -435,6 +461,27 @@ export default {
   display: flex;
   gap: 8px;
   pointer-events: all;
+}
+.menu-streak-btn {
+  position: relative;
+  overflow: visible;
+  width: auto;
+  padding: 0 10px;
+}
+.menu-streak-count {
+  font-size: 0.95rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.menu-streak-dot {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 12px;
+  height: 12px;
+  background: var(--agu-color-red, #e9576f);
+  border: 2px solid #263f2a;
+  border-radius: 50%;
 }
 .menu-profile-btn {
   position: relative;

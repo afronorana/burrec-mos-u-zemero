@@ -81,9 +81,9 @@ async function main() {
 
   const seenByGuest = g.next(OpCode.COSMETICS_CHANGED);
   const changed = a.next(OpCode.COSMETICS_CHANGED);
-  a.send(OpCode.SET_COSMETICS, { prop: 'topHat', finisher: 'pan', flag: 'al' });
+  a.send(OpCode.SET_COSMETICS, { prop: 'partyHat', finisher: 'pan', flag: 'al' });
   const first = await changed;
-  assert(first && first.userId === alice.user_id && first.cosmetics.prop === 'topHat' && first.cosmetics.finisher === 'pan', 'first mid-game restyle is applied');
+  assert(first && first.userId === alice.user_id && first.cosmetics.prop === 'partyHat' && first.cosmetics.finisher === 'pan', 'first mid-game restyle is applied');
   assert(Boolean(await seenByGuest), 'other players receive COSMETICS_CHANGED');
 
   const rejected = a.next(OpCode.REJECTED);
@@ -100,7 +100,7 @@ async function main() {
   a.send(OpCode.SYNC_REQUEST, {});
   const snapshot = await synced;
   assert(snapshot && snapshot.restyled && snapshot.restyled[alice.user_id] === true, 'STATE_SYNC reports the spent restyle');
-  assert(snapshot && snapshot.cosmetics[alice.user_id].prop === 'topHat', 'STATE_SYNC carries the restyled Cosmetics, not the second try');
+  assert(snapshot && snapshot.cosmetics[alice.user_id].prop === 'partyHat', 'STATE_SYNC carries the restyled Cosmetics, not the second try');
 
   a.close();
   g.close();

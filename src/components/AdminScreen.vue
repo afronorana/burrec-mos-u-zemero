@@ -47,6 +47,21 @@
           </app-button>
         </div>
 
+        <!-- CONTEXT.md: Points — support grants/corrections; the note above
+             is the required reason. -->
+        <h3 class="admin-section-title">Points: {{ user.points || 0 }}</h3>
+        <div class="menu-row admin-actions">
+          <app-input v-model="pointsAmount" label="Amount (+ or −)" :required="false" />
+          <app-button small :disabled="busy || !validAdjustment" @click="adjustPoints">Adjust</app-button>
+        </div>
+        <app-scrollable max-height="160px" class="admin-list">
+          <p v-if="!(user.ledger || []).length" class="admin-empty">No Points yet.</p>
+          <div v-for="(entry, idx) in user.ledger || []" :key="idx" class="admin-row">
+            <span class="admin-row-main"><strong>{{ entry.amount > 0 ? '+' : '' }}{{ entry.amount }}</strong> {{ entry.source }}<span v-if="entry.note"> — {{ entry.note }}</span></span>
+            <span class="admin-muted">{{ formatDate(entry.at) }}</span>
+          </div>
+        </app-scrollable>
+
         <h3 class="admin-section-title">Reports against them ({{ user.reports.length }})</h3>
         <app-scrollable max-height="200px" class="admin-list">
           <p v-if="!user.reports.length" class="admin-empty">None.</p>
@@ -194,11 +209,17 @@ export default {
       usersHasMore: false,
       user: null,
       actionNote: '',
+      pointsAmount: '',
       busy: false,
       error: '',
     };
   },
   computed: {
+    // A whole, non-zero amount and a reason (the history note).
+    validAdjustment() {
+      const amount = Number(this.pointsAmount);
+      return Number.isInteger(amount) && amount !== 0 && this.actionNote.trim().length > 0;
+    },
     tabOptions() {
       const open = this.overview ? this.overview.openReports : 0;
       return [
@@ -301,6 +322,17 @@ export default {
     async refreshUser() {
       this.user = await this.call('admin_user', { userId: this.user.id });
       this.actionNote = '';
+    },
+    adjustPoints() {
+      const amount = Math.trunc(Number(this.pointsAmount));
+      if (amount < 0 && !window.confirm(`Remove ${-amount} Points from ${this.user.name}?`)) {
+        return null;
+      }
+      return this.run(async () => {
+        await this.call('admin_adjust_points', { userId: this.user.id, amount, note: this.actionNote });
+        this.pointsAmount = '';
+        await this.refreshUser();
+      });
     },
     setShadowban(on) {
       return this.run(async () => {

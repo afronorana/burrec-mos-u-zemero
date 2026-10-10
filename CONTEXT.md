@@ -47,7 +47,7 @@ _Avoid_: kill animation, capture animation
 ### Identity
 
 **Guest**:
-A player without a verified identity: either no login at all (device only), or an email login whose address is not yet verified. A Guest plays, watches others' **Cosmetics** and reads chat, but cannot wear **Cosmetics**, send chat messages or own **Entitlements**.
+A player without a verified identity: either no login at all (device only), or an email login whose address is not yet verified. A Guest plays, watches others' **Cosmetics**, reads chat and earns **Points**, but wears only the default **Finisher** and no **Prop**, cannot send chat messages, spend **Points** or own **Entitlements**.
 _Avoid_: anonymous, visitor
 
 **Member**:
@@ -79,16 +79,46 @@ _Avoid_: block, kick
 ### Store
 
 **Price tier**:
-How an item in the **Cosmetics** catalog can be obtained: **free** (every **Member** has it), **premium** (only through an **Entitlement**), or **special** (seasonal, e.g. Halloween or Christmas: claimable at no cost by any **Member** during its window, which grants a lasting **Entitlement**; unobtainable once the window closes).
+How an item in the **Cosmetics** catalog can be obtained: **free** (every **Member** has it), **earned** (bought with **Points**), **premium** (only through an **Entitlement**), or **special** (seasonal, e.g. Halloween or Christmas: claimable at no cost by any **Member** during its window, which grants a lasting **Entitlement**; unobtainable once the window closes).
 _Avoid_: rarity, level
 
 **Entitlement**:
 A **Member**'s lasting right to wear a specific premium or special **Cosmetics** item. Granted by the server, never by the client; outlives the item's **Price tier** window.
 _Avoid_: purchase, unlock, inventory
 
+**Buy**:
+A **Member** spending **Points** on an earned item, which grants the **Entitlement**.
+_Avoid_: unlock, purchase (reserved for real money), redeem
+
 **Claim**:
 A **Member** taking a special item at no cost while its window is open, which grants the **Entitlement**. Deliberate: wearing or previewing an item never claims it.
 _Avoid_: redeem, collect, unlock
+
+### Progression
+
+**Points**:
+A player's spendable balance, earned by playing (finishing a game, each pawn into the finish lane, each **Capture**, a win), by **Referrals**, and later by ads and payments. Spent on items in the **Cosmetics** catalog. Earned as a **Guest** too, but spendable only by a **Member**.
+_Avoid_: coins, credits, XP, score
+
+**Welcome bonus**:
+The **Points** a player receives on becoming a **Member**: enough to buy one **Prop**.
+_Avoid_: signup bonus, starter pack
+
+**Referral**:
+A **Member** who joined through another player's referral link and has since started a game. Earns **Points** for both players.
+_Avoid_: invite (a room invite is a different thing), affiliate
+
+**Streak**:
+The number of consecutive UTC days on which a player has opened the game. Each day of it pays **Points**, collected by a deliberate tap, with a larger bonus every seventh day that grows with each completed week. Guests have one too.
+_Avoid_: login bonus, daily reward (as the term), chain
+
+**Streak freeze**:
+A protection that covers one missed day so the **Streak** survives it instead of starting over.
+_Avoid_: shield, save, skip
+
+**Title**:
+A name earned by reaching a play milestone (games played, **Captures**, wins, …), shown under the player's name. A player earns many but shows at most one, chosen in their profile.
+_Avoid_: award, badge, achievement, rank
 
 ## Relationships
 
@@ -97,7 +127,11 @@ _Avoid_: redeem, collect, unlock
 - A single move may **Capture** several pawns; they share one **Finisher**
 - A seat's **Cosmetics** stay with the seat when its owner disconnects, even while it is an **Abandoned seat**
 - **Cosmetics** are chosen in the Wardrobe (main menu) only and are locked once a match has started
-- A **Guest** may preview every item in the Wardrobe but wears none; in a match a Guest's **Capture** plays the lite presentation, never a **Finisher**
+- A **Guest** may preview every item in the Wardrobe but wears only the default **Finisher** and no **Prop**
+- **Titles** are never bought; they come only from play, and appear in each viewer's own language
+- **Points** are paid out only to a player still holding their seat when the game ends; Open tables pay in full, Solo tables at a reduced, daily-capped rate, Shared tables nothing
+- Each completed week of a **Streak** earns one **Streak freeze** (at most one held); a missed day uses it automatically, a missed day without one starts the **Streak** over from its first week
+- Becoming a **Member** keeps the **Points** earned as a **Guest** and adds the **Welcome bonus**
 - A **Member** may wear an item if its **Price tier** is free or they hold an **Entitlement** for it — a special item needs a **Claim** even while its window is open
 - Every item in the Wardrobe is previewable by everyone; tier only decides what can be worn
 - Every game is played with four seats: each is a human's, an **Abandoned seat**, or a **Bot**
@@ -105,7 +139,7 @@ _Avoid_: redeem, collect, unlock
 - A **Solo table** or **Shared table** never has an **Abandoned seat**: when its device drops, the game waits for it instead of playing on, and ends if it doesn't return
 - At a **Shared table** every human seat belongs to the one device's player; only that player's own seat wears their **Cosmetics**, the others play as **Guests** would
 - Chat, **Reports** and **Blocks** exist only at **Open tables**
-- A **Bot** wears no **Cosmetics**, so its **Capture** plays the lite presentation; it never chats and cannot be **Reported** or **Blocked**
+- A **Bot** wears no **Prop**, but its **Captures** play a **Finisher** from the whole catalog, the same one for every Bot of a given colour for the whole match; it never chats and cannot be **Reported** or **Blocked**
 - Every **Report** implies a **Block**; a **Block** never implies a **Report**
 - A **Block** and a **Shadowban** both touch chat only; neither removes anyone from a match or from matchmaking
 - Deleting a **Member** removes their **Entitlements** and **Blocks**, but **Reports** against them remain
