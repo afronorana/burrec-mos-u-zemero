@@ -8,18 +8,8 @@
 
 globalThis.window = globalThis;
 
-import { Client } from '@heroiclabs/nakama-js';
 import { OpCode, decodePayload, encodePayload } from '../../shared/protocol.js';
-
-const client = new Client('burrec-dev-key', '127.0.0.1', '7350', false);
-const failures = [];
-const stamp = Date.now();
-const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-function assert(condition, label) {
-  console.log(`${condition ? 'ok  ' : 'FAIL'} ${label}`);
-  if (!condition) failures.push(label);
-}
+import { assert, client, delay, failures, run, stamp } from './harness.mjs';
 
 async function player(name, matchId) {
   const session = await client.authenticateDevice(`e2e-leave-${name}-${stamp}`, true);
@@ -108,12 +98,4 @@ async function main() {
   alice.socket.disconnect(false);
 }
 
-main()
-  .catch((error) => {
-    failures.push(String(error && error.stack || error));
-    console.error(error);
-  })
-  .finally(() => {
-    console.log(failures.length ? `\n${failures.length} failure(s)` : '\nall passed');
-    process.exit(failures.length ? 1 : 0);
-  });
+run(main);

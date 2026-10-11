@@ -31,6 +31,7 @@
 import ChatPanel from './ChatPanel.vue';
 import ApplicationStore from '../utils/ApplicationStore';
 import ChatController from '../network/ChatController';
+import { playerAt } from '../utils/roster';
 import { t } from '../utils/i18n';
 import { MessageSquare, X } from '@lucide/vue';
 
@@ -73,7 +74,7 @@ export default {
       return this.isOnlineMatch ? this.store.online.selfUserId : 'local-self';
     },
     isMyRollTurn() {
-      const player = this.store.players[this.store.currentPlayerId];
+      const player = playerAt(this.store.players, this.store.turnSeat);
       return Boolean(player && player.controller === 'local' && this.store.gamePlayStatus.isRolling);
     },
   },
@@ -106,7 +107,7 @@ export default {
       }
 
       // Offline: keep local chat in the same queue so bubbles/history work.
-      const currentPlayer = this.store.players[this.store.currentPlayerId] || null;
+      const currentPlayer = playerAt(this.store.players, this.store.turnSeat);
       this.store.online.chat.push({
         id: Math.random().toString(36).substring(2, 9),
         senderId: 'local-self',

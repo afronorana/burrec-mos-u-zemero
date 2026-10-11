@@ -3,19 +3,25 @@
 // intents into match messages.
 //
 // Ordering: DICE_RESULT (when something is still animating) / MOVE_APPLIED /
-// TURN_CHANGE / GAME_OVER go through a FIFO queue
-// that pauses while dice physics (store.online.diceInFlight), a pawn move
-// animation (this.moveInFlight) or a capture Finisher
-// (store.online.finisherInFlight) is playing, so server events never interrupt
-// a running animation.
+// TURN_CHANGE / GAME_OVER go through a FIFO queue that waits while the
+// presentation lock is held — dice physics, a pawn move or a capture
+// Finisher (see presentationLock.js) — so server events never interrupt a
+// running animation.
+//
+// Moves are the server's: MOVE_APPLIED's fromPos/toPos/captures are played
+// as given (Pawn.play). A board that doesn't match where the move starts
+// means we drifted, and asks for a STATE_SYNC.
 
-import { OpCode, encodePayload, decodePayload, isClosedTable } from '../../shared/protocol';
+import { OpCode, encodePayload, decodePayload, tablePolicy } from '../../shared/protocol';
 import NakamaClient from './NakamaClient';
 import ChatController from './ChatController';
 import ApplicationStore from '../utils/ApplicationStore';
 import EventBus from '../utils/eventhandler';
 import EventKeys from '../utils/EventKeys';
 import { t } from '../utils/i18n';
+import { isSelfSeat, playerAt, selfSeat } from '../utils/roster';
+import PresentationLock from './presentationLock';
+import { PAWN_STEP_DURATION_MS } from '../utils/movementConstants';
 import {
   saveActiveMatch,
   writeMatchUrl,
@@ -27,6 +33,14 @@ const LEAVE_ACK_TIMEOUT_MS = 1500; // max wait for the server to hand our seat t
 // The winner's pawns jump this long before the end-of-game board appears.
 export const CELEBRATION_MS = 2600;
 const REJOIN_ATTEMPTS = 5;
+// A move that hasn't finished showing this long after its hops would end
+// has stalled (presentation lock watchdog → resync).
+const MOVE_STALL_SLACK_MS = 4000;
+
+// Every room field a LOBBY_STATE / GAME_START / STATE_SYNC may carry. A
+// payload without a field (or with null — except the host, which may be
+// nobody) leaves it as it was. Add new room payload fields here only.
+const ROOM_FIELDS = ['seats', 'hostUserId', 'joinCode', 'displayNames', 'cosmetics', 'titles', 'restyled', 'environment', 'gameMode', 'table'];
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -42,15 +56,11 @@ class MatchControllerService {
   constructor() {
     this.socket = null;
     this.opQueue = [];
-    this.moveInFlight = false;
     this.rejoining = false;
 
-    EventBus.listen(EventKeys.pawn.moveComplete, () => {
-      this.moveInFlight = false;
-      this.pumpQueue();
-    });
-    EventBus.listen(EventKeys.net.diceResolved, () => this.pumpQueue());
-    EventBus.listen(EventKeys.finisher.done, () => this.pumpQueue());
+    PresentationLock.onRelease(() => this.pumpQueue());
+    // An animation that never finished: rebuild the board from a snapshot.
+    PresentationLock.setDefaultStall(() => this.requestSync());
   }
 
   online() {
@@ -175,8 +185,9 @@ class MatchControllerService {
     });
   }
 
-  isClosedTable() {
-    return isClosedTable(this.online().table);
+  // What the current Table does differently (shared/protocol.js).
+  policy() {
+    return tablePolicy(this.online().table);
   }
 
   // Join metadata: the name plus this player's Cosmetics (the server
@@ -198,13 +209,13 @@ class MatchControllerService {
     // Joining an ongoing match: the server's STATE_SYNC (sent during the
     // join) may already have routed us to the game screen — don't stomp it.
     // A Solo/Shared table has no lobby: GAME_START takes us to the board.
-    if (ApplicationStore.currentScreen !== 'game-screen' && !this.isClosedTable()) {
+    if (ApplicationStore.currentScreen !== 'game-screen' && this.policy().lobby) {
       ApplicationStore.currentScreen = 'lobby';
     }
 
     this.persistSession();
 
-    if (this.isClosedTable()) {
+    if (!this.policy().chat) {
       return; // no chat at a Solo/Shared table
     }
     try {
@@ -289,7 +300,7 @@ class MatchControllerService {
     const matchId = online.matchId;
 
     this.opQueue = [];
-    this.moveInFlight = false;
+    PresentationLock.reset();
 
     await ChatController.leave();
     if (matchId && this.socket) {
@@ -308,7 +319,6 @@ class MatchControllerService {
     online.matchId = null;
     online.mode = null;
     online.joinCode = null;
-    online.mySeat = -1;
     online.hostUserId = null;
     online.seats = [];
     online.displayNames = {};
@@ -321,10 +331,7 @@ class MatchControllerService {
     online.table = null;
     online.gameOver = null;
     clearTimeout(this.celebrationTimer);
-    online.seatToPlayerIndex = {};
     online.pendingDice = null;
-    online.diceInFlight = false;
-    online.finisherInFlight = false;
     online.moveFinisher = null;
     online.autoMovePawn = null;
     online.enabled = false;
@@ -343,11 +350,11 @@ class MatchControllerService {
   // short timeout, e.g. we had no seat or the socket is already gone).
   announceLeave(matchId) {
     const selfUserId = this.online().selfUserId;
-    if (this.seatOfSelf(this.online().seats) < 0) {
+    if (selfSeat(this.online()) < 0) {
       return Promise.resolve();
     }
     // A Solo/Shared table just ends — nothing to wait for.
-    if (this.isClosedTable()) {
+    if (this.policy().leaveEnds) {
       try {
         this.socket.sendMatchState(matchId, OpCode.LEAVE, encodePayload({}));
       } catch (error) {
@@ -444,7 +451,7 @@ class MatchControllerService {
       case OpCode.DICE_RESULT:
         // Bots roll on the server's clock: a roll may arrive while earlier
         // events are still animating, so it waits its turn in the FIFO.
-        if (this.opQueue.length || this.queueBlocked()) {
+        if (this.opQueue.length || PresentationLock.held()) {
           this.opQueue.push({ opCode: matchData.op_code, payload });
         } else {
           this.applyDiceResult(payload);
@@ -485,87 +492,72 @@ class MatchControllerService {
     }
   }
 
-  // Our own seat — at a Shared table never a companion seat we play for
-  // someone else.
-  seatOfSelf(seats) {
-    const selfUserId = this.online().selfUserId;
-    for (const seat of seats || []) {
-      if (seat && !seat.companion && seat.userId === selfUserId) {
-        return seat.seat;
+  // Applies any room payload (LOBBY_STATE, GAME_START, STATE_SYNC) to
+  // store.online — the one place payload fields are copied.
+  applyRoomSnapshot(payload) {
+    const online = this.online();
+    ROOM_FIELDS.forEach((key) => {
+      const value = payload[key];
+      if (value !== undefined && (value !== null || key === 'hostUserId')) {
+        online[key] = value;
       }
+    });
+    // A code in the payload means this is a private room — infer it when we
+    // resumed from a bare matchId and never learned the mode.
+    if (online.joinCode && !online.mode) {
+      online.mode = 'private';
     }
-    return -1;
+  }
+
+  // WinScreen's winner, from the winning seat.
+  winnerFrom(seat) {
+    const player = playerAt(ApplicationStore.players, seat);
+    return {
+      name: player ? player.name : 'Player',
+      color: player ? player.color : '#ffffff',
+      self: isSelfSeat(this.online(), seat),
+      seat,
+    };
   }
 
   applyLobbyState(payload) {
     const online = this.online();
     // Someone pressed Play again: the finished room is a lobby again —
     // everyone still in it goes back to the lobby together.
-    // At a Solo table there's no lobby: the server's GAME_START follows at
-    // once and rebuilds the board where we are.
+    // A table without a lobby (Solo/Shared) gets the server's GAME_START at
+    // once, which rebuilds the board where we are.
     if (payload.phase === 'lobby' && ApplicationStore.currentScreen === 'game-screen') {
       clearTimeout(this.celebrationTimer);
       online.gameOver = null;
       online.restyled = {};
       ApplicationStore.winner = null;
-      if (!isClosedTable(payload.table)) {
+      if (tablePolicy(payload.table).lobby) {
         online.enabled = false;
         ApplicationStore.currentScreen = 'lobby';
       }
       this.persistSession(); // resumable again after a reload
     }
-    online.seats = payload.seats || [];
-    online.hostUserId = payload.hostUserId || null;
-    online.joinCode = payload.joinCode || online.joinCode;
-    online.displayNames = payload.displayNames || online.displayNames;
-    online.cosmetics = payload.cosmetics || online.cosmetics;
-    online.titles = payload.titles || online.titles;
-    online.environment = payload.environment || online.environment;
-    online.gameMode = payload.gameMode || online.gameMode;
-    online.table = payload.table || online.table;
-    // A code in the payload means this is a private room — infer it when we
-    // resumed from a bare matchId and never learned the mode.
-    if (online.joinCode && !online.mode) {
-      online.mode = 'private';
-    }
-    online.mySeat = this.seatOfSelf(online.seats);
+    this.applyRoomSnapshot(payload);
     EventBus.fire(EventKeys.net.lobbyUpdated);
   }
 
   handleGameStart(payload) {
-    const online = this.online();
-    online.seats = payload.seats || [];
-    online.gameMode = payload.gameMode || online.gameMode;
-    online.table = payload.table || online.table;
-    online.mySeat = this.seatOfSelf(online.seats);
-    online.pendingDice = null;
-    online.diceInFlight = false;
+    this.applyRoomSnapshot(payload);
+    this.online().pendingDice = null;
     this.opQueue = [];
-    this.moveInFlight = false;
+    PresentationLock.reset();
     EventBus.fire(EventKeys.game.startOnline, payload);
   }
 
-  // Is this seat "you"? At a Shared table nobody is singled out: everyone
-  // at the device is playing.
-  isSelfSeat(seat) {
-    const online = this.online();
-    return online.table !== 'shared' && seat === online.mySeat && seat >= 0;
-  }
-
-  queueBlocked() {
-    const online = this.online();
-    return online.diceInFlight || this.moveInFlight || online.finisherInFlight;
-  }
-
   applyDiceResult(payload) {
+    // App.vue's dice presentation holds the lock until the face is shown.
     this.online().pendingDice = payload;
-    this.online().diceInFlight = true;
     EventBus.fire(EventKeys.net.diceResult, payload);
   }
 
   pumpQueue() {
     while (this.opQueue.length) {
-      if (this.queueBlocked()) {
+      if (PresentationLock.held()) {
         return;
       }
 
@@ -582,54 +574,69 @@ class MatchControllerService {
     }
   }
 
+  // Plays the server's move as given. The board must be where the move
+  // starts — the mover on fromPos, and the victims exactly the opponents on
+  // the landing field — or we drifted and resync instead.
   applyMove(payload) {
     const online = this.online();
-    const playerIndex = online.seatToPlayerIndex[payload.seat];
-    const player = ApplicationStore.players[playerIndex];
-    const pawn = player ? player.pawns[payload.pawnIndex] : null;
-    if (!pawn) {
+    const players = ApplicationStore.players;
+    const mover = playerAt(players, payload.seat);
+    const pawn = mover ? mover.pawns[payload.pawnIndex] : null;
+    const victims = (payload.captures || []).map((capture) => {
+      const owner = playerAt(players, capture.seat);
+      return owner ? owner.pawns[capture.pawnIndex] : null;
+    });
+    if (!pawn || pawn.position !== payload.fromPos || !this.victimsMatchBoard(pawn, payload.toPos, victims)) {
       this.requestSync();
       return;
     }
 
-    // Replay the server move through the existing animation path: Pawn.move()
-    // reads lastRolledDice for the step count and handles captures itself.
     ApplicationStore.lastRolledDice = payload.steps;
-    ApplicationStore.playingPlayerIndex = playerIndex;
-    ApplicationStore.gamePlayStatus.isMoving = true;
+    ApplicationStore.gamePlayStatus.isMoving = false;
+    mover.deactivatePawns();
     online.moveFinisher = payload.finisher || null;
-    pawn.isActive = true;
-    this.moveInFlight = true;
-    pawn.move();
+    const hops = payload.fromPos === 0 ? 1 : payload.toPos - payload.fromPos;
+    const release = PresentationLock.acquire('move', { timeoutMs: (hops * PAWN_STEP_DURATION_MS) + MOVE_STALL_SLACK_MS });
+    pawn.play(payload.toPos, victims, release);
+  }
 
-    if (!pawn.isMoving) {
-      // The move did not start (client out of sync) — recover.
-      this.moveInFlight = false;
-      this.requestSync();
+  // The server's victims are exactly the opponent pawns standing on the
+  // landing field of the main track (a lane or home is safe).
+  victimsMatchBoard(pawn, toPos, victims) {
+    if (victims.some((victim) => !victim)) {
+      return false;
     }
+    const landing = toPos <= 40 ? pawn.positionToGlobalPosition(toPos) : null;
+    const onBoard = [];
+    if (landing !== null) {
+      ApplicationStore.players.forEach((player) => {
+        if (player.seat === pawn.seat) {
+          return;
+        }
+        player.pawns.forEach((other) => {
+          if (other.position >= 1 && other.position <= 40 && other.globalPosition === landing) {
+            onBoard.push(other);
+          }
+        });
+      });
+    }
+    return onBoard.length === victims.length && onBoard.every((other) => victims.indexOf(other) !== -1);
   }
 
   applyGameOver(payload) {
     const online = this.online();
-    const playerIndex = online.seatToPlayerIndex[payload.winnerSeat];
-    const player = ApplicationStore.players[playerIndex];
     online.gameOver = payload;
     ApplicationStore.gamePlayStatus.isRolling = false;
     ApplicationStore.gamePlayStatus.isMoving = false;
     // First the winner's pawns jump on the board, then the board of stats.
-    EventBus.fire(EventKeys.game.celebrate, { playerIndex });
+    EventBus.fire(EventKeys.game.celebrate, { seat: payload.winnerSeat });
     clearTimeout(this.celebrationTimer);
     const matchId = online.matchId;
     this.celebrationTimer = setTimeout(() => {
       if (online.matchId !== matchId || !online.gameOver) {
         return; // left or already back in the lobby
       }
-      ApplicationStore.winner = {
-        name: player ? player.name : 'Player',
-        color: player ? player.color : '#ffffff',
-        self: this.isSelfSeat(payload.winnerSeat),
-        seat: payload.winnerSeat,
-      };
+      ApplicationStore.winner = this.winnerFrom(payload.winnerSeat);
     }, CELEBRATION_MS);
     // The match is over — don't offer to resume a finished game.
     clearMatchSession();
@@ -643,22 +650,8 @@ class MatchControllerService {
       online.connectionState = 'connected';
     }
     this.opQueue = [];
-    this.moveInFlight = false;
-    online.diceInFlight = false;
-    online.seats = payload.seats || [];
-    online.hostUserId = payload.hostUserId || null;
-    online.joinCode = payload.joinCode || online.joinCode;
-    online.displayNames = payload.displayNames || online.displayNames;
-    online.cosmetics = payload.cosmetics || online.cosmetics;
-    online.titles = payload.titles || online.titles;
-    online.restyled = payload.restyled || online.restyled;
-    online.environment = payload.environment || online.environment;
-    online.gameMode = payload.gameMode || online.gameMode;
-    online.table = payload.table || online.table;
-    if (online.joinCode && !online.mode) {
-      online.mode = 'private';
-    }
-    online.mySeat = this.seatOfSelf(online.seats);
+    PresentationLock.reset();
+    this.applyRoomSnapshot(payload);
     // Keep the URL/record current — a resume from a bare matchId only learns
     // the private join code here.
     if (online.matchId) {
@@ -675,7 +668,7 @@ class MatchControllerService {
       : null;
 
     if (payload.phase === 'lobby') {
-      if (!isClosedTable(online.table)) {
+      if (this.policy().lobby) {
         ApplicationStore.currentScreen = 'lobby';
       }
       return;

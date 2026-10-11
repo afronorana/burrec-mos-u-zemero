@@ -54,9 +54,42 @@ export function sanitizeTable(table) {
   return TABLES.indexOf(table) !== -1 ? table : DEFAULT_TABLE;
 }
 
-export function isClosedTable(table) {
-  return table === 'solo' || table === 'shared';
+// What each Table does differently, as named flags — call sites ask one
+// specific question (policy.turnTimer) instead of re-deriving it from the
+// Table kind. A new Table kind is one new record here.
+// - joinable: others may join (Quick play, a room code, CLAIM_SEAT).
+// - lobby: seats are picked in a lobby before START (else the game starts
+//   as soon as the owner joins, and Play again restarts at once).
+// - turnTimer: turns time out (the autopilot plays an idle turn).
+// - pauseWhileAway: Bots and the autopilot wait while the owner is away.
+// - leaveEnds: the owner's LEAVE ends the match (else the seat goes to a Bot).
+// - chat: match chat, Block/Report on players.
+// - gameModes: any Game mode (else Classic only).
+// - selfIsSeat: one seat is "you" (at a Shared table everyone at the device
+//   is playing, so nobody is singled out).
+// - playerStats: per-player stats/Titles count this game.
+// - setup: the players are picked on a setup screen before the match, and
+//   Play again goes back there.
+var TABLE_POLICIES = {
+  open: { joinable: true, lobby: true, turnTimer: true, pauseWhileAway: false, leaveEnds: false, chat: true, gameModes: true, selfIsSeat: true, playerStats: true, setup: false },
+  solo: { joinable: false, lobby: false, turnTimer: false, pauseWhileAway: true, leaveEnds: true, chat: false, gameModes: false, selfIsSeat: true, playerStats: true, setup: false },
+  shared: { joinable: false, lobby: false, turnTimer: false, pauseWhileAway: true, leaveEnds: true, chat: false, gameModes: false, selfIsSeat: false, playerStats: false, setup: true },
+};
+
+export function tablePolicy(table) {
+  return TABLE_POLICIES[sanitizeTable(table)];
 }
+
+// ── Animation budget ──────────────────────────────────────────────────
+// How long clients take to show a move, so the server's Bot pacing never
+// acts while the board is still animating. The client animates with these
+// (PAWN_STEP_DURATION_MS) and every Finisher must end within `capture`
+// (tests/finisher_timing.test.mjs).
+export var ANIMATION_MS = {
+  pawnStep: 220, // one hop of a pawn
+  moveSettle: 600, // after the last hop, before the next action reads well
+  capture: 3200, // the longest Finisher (or the lite burst + flight home)
+};
 
 // CONTEXT.md: Bot — every seat no human holds. Bots have no userId, wear no
 // Props (their Captures get a random free Finisher, stamped server-side) and
@@ -298,6 +331,33 @@ export var REPORT_REASONS = ['harassment', 'hate', 'offensive_name', 'spam', 'ch
 // default Finisher.
 export function guestCosmetics() {
   return sanitizeCosmetics(null);
+}
+
+// The Cosmetics stored for a user when they join or restyle: a Member wears
+// what is free or Entitled, a Guest nothing (CONTEXT.md: Guest).
+export function memberCosmetics(input, member, ownedKeys) {
+  return member ? wearableCosmetics(input, ownedKeys) : guestCosmetics();
+}
+
+// What the pawns of one seat wear — the one rule both sides use. Cosmetics
+// are stored per userId (`cosmeticsByUser`, already through memberCosmetics)
+// but worn per seat: a Bot wears no Props and captures with its colour's
+// Bot Finisher (`botFinisher`, known server-side; MOVE_APPLIED stamps it), a
+// Shared table's companion seat only borrows the owner's device and wears
+// nothing.
+export function seatLook(seat, cosmeticsByUser, botFinisher) {
+  if (!seat) {
+    return null;
+  }
+  if (seat.bot) {
+    var look = guestCosmetics();
+    look.finisher = botFinisher || DEFAULT_FINISHER;
+    return look;
+  }
+  if (seat.companion) {
+    return guestCosmetics();
+  }
+  return (cosmeticsByUser && cosmeticsByUser[seat.userId]) || guestCosmetics();
 }
 
 export function encodePayload(payload) {

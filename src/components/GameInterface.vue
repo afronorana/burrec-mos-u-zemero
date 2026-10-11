@@ -54,7 +54,7 @@
         >
           <shirt-icon :size="20" />
         </app-button>
-        <chat-drawer v-if="!closedTable" embedded />
+        <chat-drawer v-if="policy.chat" embedded />
       </div>
     </div>
 
@@ -62,7 +62,7 @@
     <div class="hud-players">
       <div
         v-for="(player, index) in orderedPlayers"
-        :key="player.turn"
+        :key="player.seat"
         class="hud-player"
         :class="[
           `hud-player--slot-${index}`,
@@ -109,8 +109,8 @@
         </div>
 
         <transition name="speech-fade">
-          <div v-if="speechBubbles[player.turn]" class="hud-speech-bubble">
-            {{ speechBubbles[player.turn] }}
+          <div v-if="speechBubbles[player.seat]" class="hud-speech-bubble">
+            {{ speechBubbles[player.seat] }}
           </div>
         </transition>
       </div>
@@ -128,7 +128,7 @@
         <template v-else>
           <span class="hud-turnbar-dot"></span>
           <span class="hud-turnbar-text">
-            {{ sharedTable ? t('hud.turnOf', { name: activePlayer.name }) : t('hud.yourTurn') }}
+            {{ policy.selfIsSeat ? t('hud.yourTurn') : t('hud.turnOf', { name: activePlayer.name }) }}
             <span v-if="turnPrompt() === 'pick'" class="hud-turnbar-sub">{{ t('hud.pickPawn') }}</span>
           </span>
           <div v-if="turnPrompt() === 'roll' && store.demoMode" class="hud-demo-dice">
@@ -187,7 +187,7 @@
     <div v-if="confirmLeave" class="global-settings-modal-backdrop" @click.self="confirmLeave = false">
       <app-panel class="global-settings-card" style="text-align: center;">
         <h3 class="panel-title" style="margin-bottom: 12px;">{{ t('online.leaveConfirmTitle') }}</h3>
-        <p class="panel-desc">{{ closedTable ? t('online.leaveTableBody') : t('online.leaveConfirmBody') }}</p>
+        <p class="panel-desc">{{ policy.leaveEnds ? t('online.leaveTableBody') : t('online.leaveConfirmBody') }}</p>
         <div class="menu-row" style="margin-top: 20px;">
           <app-button @click="confirmLeave = false">{{ t('online.leaveConfirmNo') }}</app-button>
           <app-button red @click="doLeave">{{ t('online.leaveConfirmYes') }}</app-button>
@@ -202,7 +202,8 @@ import ChatDrawer from './ChatDrawer.vue';
 import { openPlayerActions } from '../utils/authPrompt';
 import ApplicationStore from '../utils/ApplicationStore';
 import MatchController from '../network/MatchController';
-import { isClosedTable } from '../../shared/protocol';
+import { tablePolicy } from '../../shared/protocol';
+import { isSeated, isSelfSeat, playerAt, playersBySeat, seatAt } from '../utils/roster';
 import { t } from '../utils/i18n';
 import { seatTitleName } from '../utils/titles';
 import { playTick } from '../utils/sound';
@@ -231,22 +232,22 @@ export default {
       settingsOpen: false,
       confirmLeave: false,
       codeCopied: false,
-      speechBubbles: {}, // { [player.turn]: 'message' }
+      speechBubbles: {}, // { [seat]: 'message' }
       timerLow: false, // last 10s of the turn: red pulsing bar
     };
   },
   computed: {
     // Turn order is seat order (seats can be non-contiguous online).
     orderedPlayers() {
-      return this.store.players.slice().sort((a, b) => a.turn - b.turn);
+      return playersBySeat(this.store.players);
     },
     // Players (and their pawns) are markRaw — their fields never notify
-    // Vue, so turn state keys off the reactive currentPlayerId, and anything
+    // Vue, so turn state keys off the reactive turnSeat, and anything
     // reading raw pawn flags is a method (re-run on every render), not a
     // cached computed.
     activePlayer() {
       if (this.store.currentScreen !== 'game-screen') return null;
-      return this.store.players[this.store.currentPlayerId] || null;
+      return playerAt(this.store.players, this.store.turnSeat);
     },
     isMyTurn() {
       return Boolean(this.activePlayer && this.activePlayer.controller === 'local');
@@ -258,19 +259,16 @@ export default {
 
     // CONTEXT.md: Table — Solo/Shared tables have no chat and no Player
     // actions; at a Shared table the turn bar names whose turn it is.
-    closedTable() {
-      return isClosedTable(this.store.online.table);
-    },
-    sharedTable() {
-      return this.store.online.table === 'shared';
+    policy() {
+      return tablePolicy(this.store.online.table);
     },
     needsSeat() {
-      return this.store.online.enabled && this.store.online.mySeat < 0 && !this.store.winner;
+      return this.store.online.enabled && !isSeated(this.store.online) && !this.store.winner;
     },
     // Seated, game still running, and the one restyle not spent yet.
     canRestyle() {
       const online = this.store.online;
-      return online.enabled && online.mySeat >= 0 && !this.store.winner && !online.restyled[online.selfUserId];
+      return online.enabled && isSeated(online) && !this.store.winner && !online.restyled[online.selfUserId];
     },
     connectionMessage() {
       if (!this.store.online.enabled) return '';
@@ -325,30 +323,19 @@ export default {
       const lastMsg = this.store.online.chat[newLength - 1];
       if (!lastMsg) return;
 
-      let player = null;
-      if (this.store.online.enabled) {
-        const seatObj = (this.store.online.seats || []).find(
-          (s) => s && !s.bot && s.userId === lastMsg.senderId
-        );
-        if (!seatObj) return;
-        const playerIndex = this.store.online.seatToPlayerIndex[seatObj.seat];
-        player = this.store.players[playerIndex];
-      } else {
-        player = this.store.players.find(p => p && p.name === lastMsg.username);
-      }
-      if (!player) return;
+      // Chat is only at Open tables, where a userId holds one seat.
+      const seatObj = (this.store.online.seats || []).find(
+        (s) => s && !s.bot && s.userId === lastMsg.senderId
+      );
+      if (!seatObj || !playerAt(this.store.players, seatObj.seat)) return;
 
-      this.speechBubbles = {
-        ...this.speechBubbles,
-        [player.turn]: lastMsg.message
-      };
-
-      const turn = player.turn;
+      const seat = seatObj.seat;
       const msgText = lastMsg.message;
+      this.speechBubbles = { ...this.speechBubbles, [seat]: msgText };
       setTimeout(() => {
-        if (this.speechBubbles[turn] === msgText) {
+        if (this.speechBubbles[seat] === msgText) {
           const nextBubbles = { ...this.speechBubbles };
-          delete nextBubbles[turn];
+          delete nextBubbles[seat];
           this.speechBubbles = nextBubbles;
         }
       }, 4000);
@@ -393,10 +380,10 @@ export default {
       this.store.wardrobe.inGame = true;
     },
     seatOf(player) {
-      return (this.store.online.seats || [])[player.turn - 1] || null;
+      return seatAt(this.store.online, player.seat);
     },
     isSelf(player) {
-      return MatchController.isSelfSeat(player.turn - 1);
+      return isSelfSeat(this.store.online, player.seat);
     },
     initialOf(player) {
       return (player.name || '?').trim().charAt(0).toUpperCase() || '?';
@@ -431,10 +418,10 @@ export default {
         this.copiedTimeout = setTimeout(() => { this.codeCopied = false; }, 1500);
       }
     },
-    // Tap another player's chip: Block / Report them (seat = turn - 1).
+    // Tap another player's chip: Block / Report them.
     openSeatActions(player) {
-      const seat = (this.store.online.seats || [])[player.turn - 1];
-      if (seat && !seat.bot && !this.closedTable) {
+      const seat = seatAt(this.store.online, player.seat);
+      if (seat && !seat.bot && this.policy.chat) {
         openPlayerActions({ userId: seat.userId, name: seat.displayName || player.name });
       }
     },

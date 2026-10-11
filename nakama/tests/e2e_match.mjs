@@ -14,13 +14,13 @@ globalThis.window = globalThis;
 
 import { Client } from '@heroiclabs/nakama-js';
 import { OpCode, encodePayload, decodePayload } from '../../shared/protocol.js';
+import { delay, failures } from './harness.mjs';
 
 const HOST = '127.0.0.1';
 const PORT = '7350';
 const SERVER_KEY = 'burrec-dev-key';
 const GAME_TIMEOUT_MS = 9 * 60 * 1000;
 
-const failures = [];
 let capturesSeen = 0;
 let repeatsSeen = 0;
 let rejectionsSeen = 0;
@@ -41,8 +41,6 @@ function assert(condition, label) {
 function log(label) {
   console.log(`[e2e] ${label}`);
 }
-
-const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 class TestPlayer {
   constructor(name) {

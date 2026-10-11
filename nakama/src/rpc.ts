@@ -1,4 +1,4 @@
-import { MATCH_MODULE, isClosedTable, sanitizeGameMode, sanitizeTable } from '../../shared/protocol.js';
+import { MATCH_MODULE, sanitizeGameMode, sanitizeTable, tablePolicy } from '../../shared/protocol.js';
 
 // Letters only (same alphabet Shtet Qytet uses for room codes).
 const CODE_ALPHABET = 'ABDEFGHIJKLMNOPQRSTUVWZ';
@@ -123,7 +123,8 @@ export const rpcCreateTable: nkruntime.RpcFunction = function (ctx, logger, nk, 
     throw new Error('invalid_table');
   }
   const table = sanitizeTable(String(request.table || ''));
-  if (!isClosedTable(table) || !ctx.userId) {
+  // create_table makes only tables nobody else can join (Solo, Shared).
+  if (tablePolicy(table).joinable || !ctx.userId) {
     throw new Error('invalid_table');
   }
   const params: { [key: string]: string } = { table, owner: ctx.userId, environment: environmentFromPayload(payload) };

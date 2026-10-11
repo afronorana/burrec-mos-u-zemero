@@ -88,6 +88,8 @@
 import { defineAsyncComponent } from 'vue';
 import ApplicationStore from '../utils/ApplicationStore';
 import MatchController from '../network/MatchController';
+import { tablePolicy } from '../../shared/protocol';
+import { isSelfSeat, playersBySeat, seatAt } from '../utils/roster';
 import { t } from '../utils/i18n';
 import { Share2, Trophy } from '@lucide/vue';
 import { shareImage } from '../utils/share';
@@ -133,21 +135,21 @@ export default {
         return [];
       }
       const winnerSeat = this.store.winner ? this.store.winner.seat : over.winnerSeat;
-      return this.store.players
+      return playersBySeat(this.store.players)
         .map((player) => {
-          const seat = player.turn - 1;
+          const seat = player.seat;
           const stats = over.stats[seat] || {};
           return {
             seat,
             name: player.name,
             color: player.color,
-            self: MatchController.isSelfSeat(seat),
+            self: isSelfSeat(this.store.online, seat),
             winner: seat === winnerSeat,
             finished: stats.finished || 0,
             captures: stats.captures || 0,
             captured: stats.captured || 0,
             sixes: stats.sixes || 0,
-            title: seatTitleName((this.store.online.seats || [])[seat]),
+            title: seatTitleName(seatAt(this.store.online, seat)),
           };
         })
         .sort((a, b) => (b.winner - a.winner) || (b.finished - a.finished) || (b.captures - a.captures));
@@ -251,7 +253,7 @@ export default {
     // A Shared table goes back to its setup instead (names kept there); a
     // Solo table restarts straight away.
     async playAgain() {
-      if (this.store.online.table === 'shared') {
+      if (tablePolicy(this.store.online.table).setup) {
         await MatchController.leaveMatch();
         this.store.currentScreen = 'shared-setup';
         return;

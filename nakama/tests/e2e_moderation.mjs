@@ -10,22 +10,7 @@
 
 globalThis.window = globalThis;
 
-import { Client } from '@heroiclabs/nakama-js';
-
-const client = new Client('burrec-dev-key', '127.0.0.1', '7350', false);
-const failures = [];
-const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-const stamp = Date.now();
-
-function assert(condition, label) {
-  console.log(`${condition ? 'ok  ' : 'FAIL'} ${label}`);
-  if (!condition) failures.push(label);
-}
-
-async function rpc(session, id, input) {
-  const response = await client.rpc(session, id, input || {});
-  return typeof response.payload === 'string' ? JSON.parse(response.payload) : (response.payload || {});
-}
+import { assert, client, delay, failures, rpc, stamp } from './harness.mjs';
 
 async function makeMember(session, email) {
   const status = await rpc(session, 'auth_status');

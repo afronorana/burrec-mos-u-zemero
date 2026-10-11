@@ -155,9 +155,12 @@ const ApplicationStore = reactive({
     ],
     path: buildPathFields(),
   },
+  // Player per seat, in no particular order — look them up by seat
+  // (utils/roster.js playerAt), never by array index.
   players: [],
-  currentPlayerId: -1,
-  playingPlayerIndex: null,
+  // The seat whose turn it is (-1: none). The reactive turn pointer — UI
+  // keys turn state off it (Player/Pawn instances are markRaw).
+  turnSeat: -1,
   lastRolledDice: 'Start',
   currentRound: 0,
   gamePlayStatus: {
@@ -165,11 +168,10 @@ const ApplicationStore = reactive({
     isMoving: false,
     isDiceRolling: false,
   },
-  // { name, color, self } — set in both local and online mode, shown by WinScreen.
+  // { name, color, self, seat } — MatchController.winnerFrom, shown by WinScreen.
   winner: null,
   // Per-turn countdown: restarted on every turn change; the HUD drains a
-  // progress bar from it. Local games enforce expiry in App.vue; online the
-  // server's own turn timeout is authoritative.
+  // progress bar from it. The server's own turn timeout is authoritative.
   turnTimer: {
     startedAt: 0,
     duration: 60000,
@@ -184,7 +186,6 @@ const ApplicationStore = reactive({
     matchId: null,
     mode: null, // 'private' | 'public'
     joinCode: null,
-    mySeat: -1,
     hostUserId: null,
     seats: [], // (seat|null)[4] as broadcast by the server
     // userId -> displayName for everyone in the match, seated or not — lets
@@ -195,9 +196,9 @@ const ApplicationStore = reactive({
     environment: null,
     // The room's Game mode (LOBBY_STATE / GAME_START / STATE_SYNC).
     gameMode: null,
-    // CONTEXT.md: Table — 'open' | 'solo' | 'shared' (same payloads). At a
-    // shared table every human seat is played from this device; mySeat is
-    // the owner's own one.
+    // CONTEXT.md: Table — 'open' | 'solo' | 'shared' (same payloads); what
+    // each does differently is shared/protocol.js tablePolicy. Seat
+    // questions ("which one is me?") go through utils/roster.js.
     table: null,
     // The end-of-game board (GAME_OVER payload: stats, durationMs, rounds).
     gameOver: null,
@@ -212,14 +213,11 @@ const ApplicationStore = reactive({
     // 'finding' | 'creating' | 'joining' (MatchController.withMatchmaking).
     matchmaking: null,
     restyleError: null, // REJECTED reason for our last in-game restyle, if any
-    seatToPlayerIndex: {}, // seat number -> index into store.players (seats can be non-contiguous)
     // Resume-after-reload plumbing (see utils/matchSession.js):
     resuming: false, // rejoining a match from the URL/record — show the overlay
     resumePrompt: null, // { matchId, mode, joinCode } offered on the root URL ("continue?")
     pendingResume: null, // { matchId, code } deferred until the visitor sets a name
     pendingDice: null, // last DICE_RESULT payload, consumed when the dice settles
-    diceInFlight: false, // gates MOVE_APPLIED/TURN_CHANGE replay while dice physics run
-    finisherInFlight: false, // same gate while a capture's Finisher plays
     autoMovePawn: null, // pawn id about to be played for us (single option)
     moveFinisher: null, // Finisher stamped on the MOVE_APPLIED being replayed
     chat: [],

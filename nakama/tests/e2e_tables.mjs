@@ -9,39 +9,8 @@
 
 globalThis.window = globalThis;
 
-import { Client } from '@heroiclabs/nakama-js';
+import { assert, client, delay, failures, rpc, rpcError, run, stamp, until } from './harness.mjs';
 import { OpCode, decodePayload, encodePayload } from '../../shared/protocol.js';
-
-const client = new Client('burrec-dev-key', '127.0.0.1', '7350', false);
-const failures = [];
-const stamp = Date.now();
-const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-function assert(condition, label) {
-  console.log(`${condition ? 'ok  ' : 'FAIL'} ${label}`);
-  if (!condition) failures.push(label);
-}
-
-async function rpc(session, id, input) {
-  const response = await client.rpc(session, id, input || {});
-  return typeof response.payload === 'string' ? JSON.parse(response.payload) : (response.payload || {});
-}
-
-async function rpcError(session, id, input) {
-  try {
-    await rpc(session, id, input);
-    return null;
-  } catch (error) {
-    const body = error && typeof error.json === 'function' ? await error.json().catch(() => ({})) : {};
-    return body.message || String(error);
-  }
-}
-
-async function until(check, ms = 5000) {
-  const t0 = Date.now();
-  while (!check() && Date.now() - t0 < ms) await delay(100);
-  return check();
-}
 
 // A connected socket that records every match message.
 async function connect(name) {
@@ -159,12 +128,4 @@ async function main() {
   other.socket.disconnect(false);
 }
 
-main()
-  .catch((error) => {
-    failures.push(String(error && error.stack || error));
-    console.error(error);
-  })
-  .finally(() => {
-    console.log(failures.length ? `\n${failures.length} failure(s)` : '\nall passed');
-    process.exit(failures.length ? 1 : 0);
-  });
+run(main);

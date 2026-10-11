@@ -158,6 +158,7 @@ import { t } from '../utils/i18n';
 import { promptRegister } from '../utils/authPrompt';
 import NakamaClient from '../network/NakamaClient';
 import MatchController from '../network/MatchController';
+import { playerAt } from '../utils/roster';
 
 // Cosmetics editor. Edits a draft (store.wardrobe.draft) that the preview
 // pawn wears live; Save commits it to settings + localStorage, Back discards
@@ -245,9 +246,9 @@ export default {
     restyleUsed() {
       return Boolean(this.store.online.restyled[this.store.online.selfUserId]);
     },
-    // currentPlayerId, not player.isPlaying: players are markRaw (no reactivity).
+    // store.turnSeat, not a player flag: players are markRaw (no reactivity).
     isMyTurn() {
-      const player = this.store.players[this.store.currentPlayerId];
+      const player = playerAt(this.store.players, this.store.turnSeat);
       return Boolean(player && player.controller === 'local');
     },
     finisherLabelKey() {

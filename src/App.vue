@@ -26,6 +26,8 @@ import { getRenderQualityPreset, RENDER_QUALITY_MIN } from './utils/renderQualit
 import { PLAYER_COLORS } from './utils/playerColors';
 import Player from './utils/Player';
 import MatchController, { seatPlayerName } from './network/MatchController';
+import PresentationLock from './network/presentationLock';
+import { controllerFor, isSeated, playerAt, selfSeat } from './utils/roster';
 import { readMatchUrl, loadActiveMatch } from './utils/matchSession';
 import {
   loadNatureKit,
@@ -67,7 +69,7 @@ import {
   poseDustPuff,
 } from './utils/finishers';
 import { playFinisherImpact, playFinisherWindup } from './utils/sound';
-import { DEFAULT_FINISHER, DEFAULT_FLAG, NO_FINISHER, guestCosmetics, isClosedTable, pawnLook, wearableCosmetics } from '../shared/protocol';
+import { DEFAULT_FINISHER, DEFAULT_FLAG, NO_FINISHER, pawnLook, seatLook, tablePolicy } from '../shared/protocol';
 
 const OUTLINE_COLOR = '#1b1411';
 const BOARD_CENTER = { x: 5, z: 5 };
@@ -85,6 +87,9 @@ const BOARD_TOP_CORNER_RADIUS = 0.55;
 // hides the cut edges). Invisible walls (an octagon of static physics boxes)
 // keep the dice inside without caging it visually.
 const DICE_PIT_NEUTRAL_COLOR = '#e8d8a9';
+// A shown roll that hasn't settled by now has stalled (presentation lock
+// watchdog → forceSettleDice): physics settles in ~3s, nudges included.
+const DICE_STALL_MS = 9000;
 const DICE_PIT = {
   center: { x: 5, z: 5 },
   holeRadius: 1.42, // slab cutout — also the outer edge of the beveled rim
@@ -550,7 +555,7 @@ export default {
     pendingDiceRoll(val) {
       this.store.gamePlayStatus.isDiceRolling = Boolean(val);
     },
-    'store.currentPlayerId'() {
+    'store.turnSeat'() {
       this.applyPitRimColor();
     },
     'store.currentScreen'(newScreen, oldScreen) {
@@ -608,6 +613,8 @@ export default {
       physicsLastTime: null,
       pendingDiceRoll: null,
       onlineDice: null,
+      // Release of the dice's presentation-lock hold (handleNetDiceResult).
+      diceLockRelease: null,
       diceSnapTween: null,
       // Mesh-local rotation that remaps the pips so a rigged online roll
       // lands on the server value (identity in local games). Applied on top
@@ -662,7 +669,7 @@ export default {
     this.menuOrbitLastAt = 0;
     this.hoveredTarget = null;
     this.hoverNeedsUpdate = false;
-    // Game over: { playerIndex, start } while the winner's pawns jump.
+    // Game over: { seat, start } while the winner's pawns jump.
     this.celebration = null;
     // false, or the hovered target the 2D outline was last drawn for.
     this.overlayHasContent = false;
@@ -785,11 +792,8 @@ export default {
   methods: {
     addEventListeners() {
       this.eventUnsubscribers = [
-        EventBus.listen(EventKeys.turns.endTurn, this.changePlayersTurn),
-        EventBus.listen(EventKeys.turns.repeatTurn, this.repeatPlayersTurn),
         EventBus.listen(EventKeys.rollDice, this.rollDice),
         EventBus.listen(EventKeys.game.startOnline, this.startOnlineGame),
-        EventBus.listen(EventKeys.game.won, this.handleGameWon),
         EventBus.listen(EventKeys.net.diceResult, this.handleNetDiceResult),
         EventBus.listen(EventKeys.net.turnChange, this.handleNetTurnChange),
         EventBus.listen(EventKeys.net.stateSync, this.handleNetStateSync),
@@ -1180,7 +1184,7 @@ export default {
       if (!this.dicePitRimMaterial) {
         return;
       }
-      const player = this.store.players[this.store.currentPlayerId];
+      const player = this.currentPlayer();
       const useColor = this.store.currentScreen === 'game-screen' && player;
       this.dicePitRimMaterial.color.set(useColor ? player.color : DICE_PIT_NEUTRAL_COLOR);
       this.requestRender();
@@ -1266,7 +1270,7 @@ export default {
       }
 
       const inGame = this.store.currentScreen === 'game-screen';
-      const selfSeated = this.store.online.mySeat >= 0;
+      const selfSeated = isSeated(this.store.online);
       this.homeBaseHelpers.forEach((group, baseIdx) => {
         const claimable = this.isSeatClaimable(baseIdx);
         // Mid-game the helpers only mark claimable bases; in the lobby
@@ -1400,7 +1404,6 @@ export default {
         this.stepPhysicsWorld();
         this.syncDice();
         this.syncPawns();
-        this.enforceTurnTimer();
         if (this.hoverNeedsUpdate) {
           this.refreshHoveredTarget();
         }
@@ -1706,11 +1709,11 @@ export default {
     },
 
     // ── Game-over celebration ──────────────────────────────────────────
-    startCelebration({ playerIndex }) {
-      if (playerIndex == null || !this.store.players[playerIndex]) {
+    startCelebration({ seat }) {
+      if (!playerAt(this.store.players, seat)) {
         return;
       }
-      this.celebration = markRaw({ playerIndex, start: performance.now() });
+      this.celebration = markRaw({ seat, start: performance.now() });
       this.stopTurnTimer(); // the game is over — no turn is running
     },
 
@@ -1727,7 +1730,7 @@ export default {
         this.requestShadowUpdate(); // settle the final resting frame
         return 0;
       }
-      if (pawn.playerIndex !== this.store.players[c.playerIndex]?.turn - 1) {
+      if (pawn.seat !== c.seat) {
         return 0;
       }
       const t = elapsed - ((pawn.startingPlace - 1) * CELEBRATION_STAGGER_MS);
@@ -1879,19 +1882,19 @@ export default {
       if (!pawn.landingOnCapture || !this.store.settings.finishersEnabled) {
         return null;
       }
-      if ((this.store.online.moveFinisher || this.finisherForSeat(pawn.playerIndex)) === NO_FINISHER) {
+      if ((this.store.online.moveFinisher || this.finisherForSeat(pawn.seat)) === NO_FINISHER) {
         return null;
       }
       for (const player of this.store.players) {
         const victim = player.pawns.find((other) => (
-          other.playerIndex !== pawn.playerIndex
+          other.seat !== pawn.seat
           && other.position !== 0
           && !other.isInDestinationField
           && other.globalPosition === pawn.globalPosition
         ));
         if (victim) {
           const square = victim.getCoordinates();
-          const home = this.store.fields.home[victim.playerIndex].fields[victim.startingPlace - 1];
+          const home = this.store.fields.home[victim.seat].fields[victim.startingPlace - 1];
           const dirX = home.x - square.x;
           const dirZ = home.z - square.z;
           const length = Math.hypot(dirX, dirZ) || 1;
@@ -1906,10 +1909,10 @@ export default {
         return;
       }
 
-      const group = this.buildPawnGroup(pawn.playerIndex, pawn.color);
+      const group = this.buildPawnGroup(pawn.seat, pawn.color);
       group.name = `cube-${pawn.id}`;
-      const look = this.lookForPawn(pawn.playerIndex, pawn.startingPlace - 1);
-      this.applyPropToPawnGroup(group, pawn.playerIndex, look.prop, look.flag);
+      const look = this.lookForPawn(pawn.seat, pawn.startingPlace - 1);
+      this.applyPropToPawnGroup(group, pawn.seat, look.prop, look.flag);
 
       this.pawnMeshes[pawn.id] = group;
       this.scene.add(group);
@@ -1967,24 +1970,12 @@ export default {
     },
 
     // ── Cosmetics ──────────────────────────────────────────────────────
-    // A seat's Cosmetics: our own seat reads the local pick (instant
-    // feedback) when we're a Member, everyone else — and a Guest's own seat,
-    // which wears nothing — the match's cosmetics map.
+    // A seat's Cosmetics, as everyone in the match sees them: the server's
+    // broadcast copy worn through the shared seatLook rule — our own seat
+    // too, so we never show something the others don't see.
     cosmeticsForSeat(seat) {
       const online = this.store.online;
-      const seatInfo = (online.seats || [])[seat];
-      if (!seatInfo) {
-        return null;
-      }
-      // A Bot wears nothing (CONTEXT.md: Bot); nor does a Shared table's
-      // companion seat, which only borrows the owner's device.
-      if (seatInfo.bot || seatInfo.companion) {
-        return guestCosmetics();
-      }
-      if (seatInfo.userId === online.selfUserId && online.account.member) {
-        return wearableCosmetics(this.store.settings.cosmetics, online.store.owned);
-      }
-      return online.cosmetics[seatInfo.userId] || null;
+      return seatLook((online.seats || [])[seat], online.cosmetics);
     },
 
     // One pawn's { prop, flag } (index 0-3 = startingPlace - 1).
@@ -2047,7 +2038,7 @@ export default {
 
     applyPawnProps() {
       this.store.players.forEach((player) => {
-        const seat = player.turn - 1;
+        const seat = player.seat;
         const cosmetics = this.cosmeticsForSeat(seat);
         player.pawns.forEach((pawn) => {
           const group = this.pawnMeshes[pawn.id];
@@ -2128,15 +2119,15 @@ export default {
 
     // ── Finishers ──────────────────────────────────────────────────────
     // A Capture is logically instant (the victims are already home); the
-    // Finisher only delays the victims' meshes. While it runs,
-    // store.online.finisherInFlight holds MatchController's event queue, and
-    // finisher.done releases it.
+    // Finisher only delays the victims' meshes. While it runs it holds the
+    // presentation lock (MatchController's event queue waits); endFinisher
+    // releases it.
     handleCaptured(data) {
       const attacker = this.findPawnById(data.attackerId);
       if (!attacker || !data.victims?.length) {
         return;
       }
-      const seat = attacker.playerIndex;
+      const seat = attacker.seat;
       const finisherId = this.store.online.moveFinisher || this.finisherForSeat(seat);
       this.store.online.moveFinisher = null;
 
@@ -2278,7 +2269,8 @@ export default {
         camera: null,
         windupPlayed: false,
         impactDone: false,
-        fallbackTimer: null,
+        // The presentation lock's release (a real capture only).
+        release: null,
       };
 
       if (!lite) {
@@ -2351,20 +2343,22 @@ export default {
         }
       });
 
-      // Safety net: a hidden tab stops rAF, and the queue must never stall.
-      f.fallbackTimer = window.setTimeout(() => {
-        if (this.finisher === f) {
-          this.endFinisher();
-        }
-      }, f.timing.total + 1500);
-
       // From here the Finisher places the attacker (f.attackerOffset).
       if (attackerId && this.pawnMotionStates[attackerId]) {
         this.pawnMotionStates[attackerId].landOffset = null;
       }
       this.finisher = markRaw(f);
       if (!wardrobe) {
-        this.store.online.finisherInFlight = true;
+        // A hidden tab stops rAF: the lock's watchdog ends a Finisher that
+        // outlives its timeline, so the queue never stalls.
+        f.release = PresentationLock.acquire('finisher', {
+          timeoutMs: f.timing.total + 1500,
+          onStall: () => {
+            if (this.finisher === f) {
+              this.endFinisher();
+            }
+          },
+        });
       }
       this.requestShadowUpdate();
     },
@@ -2752,7 +2746,7 @@ export default {
     // close-up and the wide Finisher framing.
     wardrobePawnColor() {
       if (this.store.wardrobe.inGame) {
-        const own = this.store.players.find((player) => player.turn - 1 === this.store.online.mySeat);
+        const own = playerAt(this.store.players, selfSeat(this.store.online));
         if (own) {
           return own.color;
         }
@@ -2844,7 +2838,6 @@ export default {
         return;
       }
       this.finisher = null;
-      window.clearTimeout(f.fallbackTimer);
 
       f.stages.forEach(({ stage }) => f.scene.remove(stage));
       f.tempMeshes.forEach((mesh) => f.scene.remove(mesh));
@@ -2907,14 +2900,13 @@ export default {
       }
 
       this.requestShadowUpdate();
-      // A Wardrobe preview never held MatchController's queue, so it must not
-      // release it (in-game, a real capture may be preempting it right now).
+      // A Wardrobe preview never held MatchController's queue (in-game, a
+      // real capture may be preempting it right now).
       if (f.wardrobe) {
         this.store.wardrobe.play = null;
         return;
       }
-      this.store.online.finisherInFlight = false;
-      EventBus.fire(EventKeys.finisher.done);
+      f.release();
     },
 
     // Called every rAF frame; the stroke is only redrawn when the 3D scene
@@ -3511,8 +3503,13 @@ export default {
 
     isHumanTurn() {
       // "This human, on this client" — remote players are not interactive here.
-      const currentPlayer = this.store.players[this.store.currentPlayerId];
+      const currentPlayer = this.currentPlayer();
       return Boolean(currentPlayer && currentPlayer.controller === 'local');
+    },
+
+    // The player whose turn it is (store.turnSeat), or null.
+    currentPlayer() {
+      return playerAt(this.store.players, this.store.turnSeat);
     },
 
     setPointerFromEvent(event) {
@@ -3748,19 +3745,11 @@ export default {
 
     movePawnAsCurrentPlayer(pawn) {
       this.store.online.autoMovePawn = null;
-      if (this.store.online.enabled) {
-        // The server validates and echoes the move back as MOVE_APPLIED;
-        // deactivate locally so it cannot be sent twice.
-        const player = this.store.players[this.store.currentPlayerId];
-        player?.pawns.forEach((ownPawn) => {
-          ownPawn.isActive = false;
-        });
-        this.store.gamePlayStatus.isMoving = false;
-        MatchController.requestMove(pawn.startingPlace - 1);
-        return;
-      }
-
-      pawn.move();
+      // The server validates and echoes the move back as MOVE_APPLIED;
+      // deactivate locally so it cannot be sent twice.
+      this.currentPlayer()?.deactivatePawns();
+      this.store.gamePlayStatus.isMoving = false;
+      MatchController.requestMove(pawn.startingPlace - 1);
     },
 
     findPawnByMeshName(meshName) {
@@ -3773,9 +3762,8 @@ export default {
     resetGameState() {
       this.endFinisher();
       this.store.players.splice(0, this.store.players.length);
-      this.store.currentPlayerId = -1;
+      this.store.turnSeat = -1;
       this.store.currentRound = 0;
-      this.store.playingPlayerIndex = null;
       this.store.lastRolledDice = 'Start';
       this.store.gamePlayStatus.isRolling = false;
       this.store.gamePlayStatus.isMoving = false;
@@ -3791,9 +3779,9 @@ export default {
       this.pendingDiceRoll = null;
       this.onlineDice = null;
       this.diceSnapTween = null;
+      this.releaseDiceLock();
       this.store.winner = null;
       this.store.online.pendingDice = null;
-      this.store.online.diceInFlight = false;
       this.stopTurnTimer();
       this.freezeDiceBody();
       this.syncDice();
@@ -3853,11 +3841,8 @@ export default {
       // color (a Bot's, until someone claims it); Bots' pawns arrive at Start.
       seats.forEach((seat) => {
         if (seat && !seat.bot) {
-          const isMe = !seat.bot && seat.userId === this.store.online.selfUserId;
-          const controller = isMe ? 'local' : 'remote';
-          const name = seatPlayerName(seat);
-          const player = markRaw(new Player(name, PLAYER_COLORS[seat.seat], seat.seat + 1, controller));
-          this.store.players.push(player);
+          const controller = controllerFor(this.store.online, seat.seat);
+          this.store.players.push(markRaw(new Player(seatPlayerName(seat), PLAYER_COLORS[seat.seat], seat.seat, controller)));
         }
       });
       this.hoverNeedsUpdate = true;
@@ -3871,7 +3856,7 @@ export default {
       }
       return this.store.currentScreen === 'game-screen' &&
         this.store.online.enabled &&
-        this.store.online.mySeat < 0 &&
+        !isSeated(this.store.online) &&
         !this.store.winner;
     },
 
@@ -4180,26 +4165,18 @@ export default {
       this.store.online.enabled = true;
       this.store.online.resuming = false;
 
-      const seatToPlayerIndex = {};
       (payload.seats || []).forEach((seat) => {
         if (!seat) {
           return;
         }
-        // Player turn = seat + 1 so pawn colors/offsets/home fields stay tied
-        // to the seat; the array index can differ when seats are sparse.
-        seatToPlayerIndex[seat.seat] = this.store.players.length;
-        this.store.players.push(
-            markRaw(new Player(
-                seatPlayerName(seat),
-                PLAYER_COLORS[seat.seat],
-                seat.seat + 1,
-                // Our seat — or, at a Shared table, any seat this device plays.
-                !seat.bot && seat.userId === this.store.online.selfUserId ? 'local' : 'remote',
-            )),
-        );
+        // Our seat — or, at a Shared table, any seat this device plays.
+        this.store.players.push(markRaw(new Player(
+            seatPlayerName(seat),
+            PLAYER_COLORS[seat.seat],
+            seat.seat,
+            controllerFor(this.store.online, seat.seat),
+        )));
       });
-
-      this.store.online.seatToPlayerIndex = seatToPlayerIndex;
       // Starting positions (GAME_START carries them: Quick mode begins with
       // a pawn out per seat) or a snapshot's (STATE_SYNC).
       if (payload.pawns) {
@@ -4213,52 +4190,25 @@ export default {
     // Teleports every pawn to the server's positions (no hop tweens).
     placePawnsFromSnapshot(seats, pawns) {
       (seats || []).forEach((seat) => {
-        if (!seat) {
+        const player = seat ? playerAt(this.store.players, seat.seat) : null;
+        if (!player) {
           return;
         }
-        const player = this.store.players[this.store.online.seatToPlayerIndex[seat.seat]];
         const positions = (pawns && pawns[seat.seat]) || [];
-        player.pawns.forEach((pawn, pawnIndex) => {
-          const position = positions[pawnIndex] || 0;
-          pawn.position = position;
-          pawn.isInDestinationField = position > 40;
-          pawn.isActive = false;
-          pawn.isMoving = false;
-          if (position === 0) {
-            pawn.globalPosition = pawn.startingGlobalPosition;
-          } else if (position <= 40) {
-            pawn.globalPosition = (pawn.startingGlobalPosition + position - 1) % 40;
-          } else {
-            pawn.globalPosition = (pawn.startingGlobalPosition + 39) % 40;
-          }
-        });
+        player.pawns.forEach((pawn, pawnIndex) => pawn.placeAt(positions[pawnIndex] || 0));
       });
       this.pawnMotionStates = markRaw({});
     },
 
-    // Online replacement for changePlayersTurn/repeatPlayersTurn: seats may be
-    // non-contiguous, so the turn is addressed by seat, not by array rotation.
+    // The server's turn (GAME_START / TURN_CHANGE / STATE_SYNC), by seat.
     // `timing`: the server payload (turnMsLeft + receivedAt) for the timer.
     setTurnBySeat(seat, round, timing) {
-      const playerIndex = this.store.online.seatToPlayerIndex[seat];
-      const player = this.store.players[playerIndex];
-      if (!player) {
+      if (!playerAt(this.store.players, seat)) {
         return;
       }
-
-      const previous = this.store.players[this.store.currentPlayerId];
-      if (previous && previous !== player) {
-        previous.endTurn();
-      }
-
-      player.pawns.forEach((pawn) => {
-        pawn.isActive = false;
-      });
-
-      this.store.currentPlayerId = playerIndex;
+      this.store.players.forEach((player) => player.deactivatePawns());
+      this.store.turnSeat = seat;
       this.store.currentRound = round;
-      this.store.playingPlayerIndex = playerIndex;
-      player.isPlaying = true;
       this.store.online.pendingDice = null;
       this.store.online.autoMovePawn = null;
       this.store.gamePlayStatus.isRolling = true;
@@ -4274,21 +4224,6 @@ export default {
       this.setTurnBySeat(payload.turnSeat, payload.round, payload);
     },
 
-    handleGameWon(payload) {
-      const player = this.store.players[payload.playerIndex];
-      if (!player) {
-        return;
-      }
-      this.store.winner = {
-        name: player.name,
-        color: player.color,
-        self: MatchController.isSelfSeat(player.turn - 1),
-      };
-      this.store.gamePlayStatus.isRolling = false;
-      this.store.gamePlayStatus.isMoving = false;
-      this.stopTurnTimer();
-      this.hoverNeedsUpdate = true;
-    },
 
     handleNetStateSync(payload) {
       if (!payload || !payload.seats) {
@@ -4309,62 +4244,21 @@ export default {
         this.store.lastRolledDice = payload.dice;
         this.store.gamePlayStatus.isRolling = false;
         this.store.gamePlayStatus.isMoving = true;
-        const mover = this.store.players[this.store.online.seatToPlayerIndex[payload.turnSeat]];
+        const mover = playerAt(this.store.players, payload.turnSeat);
         mover?.pawns.forEach((pawn, pawnIndex) => {
           pawn.isActive = (payload.legalPawns || []).indexOf(pawnIndex) !== -1;
         });
       }
 
       if (payload.phase === 'finished' && payload.winnerSeat != null) {
-        const winner = this.store.players[this.store.online.seatToPlayerIndex[payload.winnerSeat]];
         this.store.online.gameOver = payload.gameOver || null;
-        this.store.winner = {
-          name: winner ? winner.name : 'Player',
-          color: winner ? winner.color : '#ffffff',
-          self: MatchController.isSelfSeat(payload.winnerSeat),
-          seat: payload.winnerSeat,
-        };
+        this.store.winner = MatchController.winnerFrom(payload.winnerSeat);
       }
 
       this.hoverNeedsUpdate = true;
     },
 
-    changePlayersTurn() {
-      if (!this.store.players.length) {
-        return;
-      }
 
-      ApplicationStore.gamePlayStatus.isMoving = false;
-
-      const currentPlayer = this.store.players[this.store.currentPlayerId];
-      if (currentPlayer) {
-        currentPlayer.endTurn();
-      }
-
-      if (this.store.currentPlayerId === this.store.players.length - 1) {
-        this.store.currentPlayerId = 0;
-        this.store.currentRound += 1;
-      } else {
-        this.store.currentPlayerId += 1;
-      }
-
-      this.store.players[this.store.currentPlayerId].startTurn();
-      this.startTurnTimer();
-      this.hoverNeedsUpdate = true;
-    },
-
-    repeatPlayersTurn() {
-      const currentPlayer = this.store.players[this.store.currentPlayerId];
-      if (!currentPlayer) {
-        return;
-      }
-
-      ApplicationStore.gamePlayStatus.isMoving = false;
-      currentPlayer.endTurn();
-      currentPlayer.startTurn();
-      this.startTurnTimer();
-      this.hoverNeedsUpdate = true;
-    },
 
     // `timing` is a server payload carrying turnMsLeft (+ the receivedAt
     // MatchController stamps): back-date startedAt so the bar shows the real
@@ -4373,7 +4267,7 @@ export default {
     startTurnTimer(timing) {
       const timer = this.store.turnTimer;
       // CONTEXT.md: Table — no turn timer at a Solo/Shared table.
-      if (isClosedTable(this.store.online.table)) {
+      if (!tablePolicy(this.store.online.table).turnTimer) {
         timer.running = false;
         return;
       }
@@ -4391,39 +4285,6 @@ export default {
       this.store.turnTimer.running = false;
     },
 
-    // Local games only: force the turn over once its 60 seconds run out.
-    // Online the server's own turn timeout is authoritative — the bar just
-    // sits empty until TURN_CHANGE arrives.
-    enforceTurnTimer() {
-      const timer = this.store.turnTimer;
-      if (
-        !timer.running ||
-        this.store.online.enabled ||
-        this.store.currentScreen !== 'game-screen' ||
-        performance.now() - timer.startedAt < timer.duration
-      ) {
-        return;
-      }
-
-      if (this.store.winner || !this.store.players[this.store.currentPlayerId]) {
-        this.stopTurnTimer();
-        return;
-      }
-
-      // Let dice physics or a pawn move finish — their end-of-turn events
-      // land right after and restart the timer anyway.
-      if (this.pendingDiceRoll) {
-        return;
-      }
-
-      const currentPlayer = this.store.players[this.store.currentPlayerId];
-      if (currentPlayer.pawns.some((pawn) => pawn.isMoving)) {
-        return;
-      }
-
-      this.stopTurnTimer();
-      EventBus.fire(EventKeys.turns.endTurn);
-    },
 
     resetDiceBody() {
       if (!this.dicePhysicsBody) {
@@ -4656,26 +4517,19 @@ export default {
       return true;
     },
 
-    // The physical dice came to rest. Local mode resolves with the physical
-    // face; online mode waits for the server's DICE_RESULT value instead —
-    // the physical face (including the fell-off-table fallback) must never
-    // feed game logic online.
+    // The physical dice came to rest. The roll is cosmetic: it waits for the
+    // server's DICE_RESULT value — the physical face (including the
+    // fell-off-table fallback) never feeds the game.
     finishDiceSettle(faceData) {
       if (faceData) {
         this.snapDiceToFaceUp(faceData);
       }
-
-      if (this.store.online.enabled) {
-        if (this.onlineDice) {
-          this.onlineDice.settled = true;
-          this.tryResolveOnlineDice();
-        } else {
-          this.pendingDiceRoll = null;
-        }
-        return;
+      if (this.onlineDice) {
+        this.onlineDice.settled = true;
+        this.tryResolveOnlineDice();
+      } else {
+        this.pendingDiceRoll = null;
       }
-
-      this.completeDiceRoll(faceData ? faceData.value : 1);
     },
 
     handleNetDiceResult(payload) {
@@ -4690,6 +4544,13 @@ export default {
           this.startDiceRoll();
         }
       }
+      // Hold the replay queue until the server's face is showing. A dice that
+      // never settles (rAF stops in a hidden tab) is forced to its value.
+      this.releaseDiceLock();
+      this.diceLockRelease = PresentationLock.acquire('dice', {
+        timeoutMs: DICE_STALL_MS,
+        onStall: () => this.forceSettleDice(),
+      });
 
       // A roll that leaves the turn open restarts the server's deadline.
       if (typeof payload.turnMsLeft === 'number') {
@@ -4714,16 +4575,37 @@ export default {
       this.onlineDice = null;
       this.snapDiceToValue(onlineDice.serverValue);
 
-      // Only feed game logic if the turn has not moved on (e.g. server timeout).
-      const currentSeat = this.seatOfPlayerIndex(this.store.currentPlayerId);
-      if (payload && payload.seat === currentSeat) {
+      // Only show the result if the turn has not moved on (e.g. server timeout).
+      if (payload && payload.seat === this.store.turnSeat) {
         this.completeDiceRoll(onlineDice.serverValue);
       } else {
         this.pendingDiceRoll = null;
       }
 
-      this.store.online.diceInFlight = false;
-      EventBus.fire(EventKeys.net.diceResolved);
+      this.releaseDiceLock();
+    },
+
+    releaseDiceLock() {
+      const release = this.diceLockRelease;
+      this.diceLockRelease = null;
+      release?.();
+    },
+
+    // The dice lock's watchdog: show the server value now, settled or not.
+    forceSettleDice() {
+      this.diceLockRelease = null; // the lock already dropped this hold
+      if (!this.onlineDice) {
+        return;
+      }
+      if (this.onlineDice.serverValue == null) {
+        this.onlineDice = null;
+        this.pendingDiceRoll = null;
+        MatchController.requestSync();
+        return;
+      }
+      this.freezeDiceBody();
+      this.onlineDice.settled = true;
+      this.tryResolveOnlineDice();
     },
 
     // Fallback for a missed rig: rotates the settled dice so `value` faces
@@ -4781,17 +4663,8 @@ export default {
       });
     },
 
-    seatOfPlayerIndex(playerIndex) {
-      const map = this.store.online.seatToPlayerIndex;
-      for (const seat in map) {
-        if (map[seat] === playerIndex) {
-          return Number(seat);
-        }
-      }
-      return -1;
-    },
 
-    completeDiceRoll(diceResult = this.getDiceResultFromBody()) {
+    completeDiceRoll(diceResult) {
       if (!this.pendingDiceRoll) {
         return;
       }
@@ -4799,7 +4672,7 @@ export default {
       this.pendingDiceRoll = null;
       this.store.lastRolledDice = diceResult;
       this.hoverNeedsUpdate = true;
-      this.store.players[this.store.currentPlayerId]?.rollDice(diceResult);
+      this.currentPlayer()?.applyServerDiceResult(diceResult);
     },
 
     getDiceTopFaceData() {
@@ -4838,10 +4711,6 @@ export default {
         worldNormal: _diceBestNormal.copy(DICE_FACE_NORMALS[bestFace]).applyQuaternion(_diceFaceQuaternion),
         quaternion: _diceFaceQuaternion,
       };
-    },
-
-    getDiceResultFromBody() {
-      return this.getDiceTopFaceData().value;
     },
 
     snapDiceToFaceUp(faceData = this.getDiceTopFaceData()) {
@@ -4926,7 +4795,7 @@ export default {
     },
 
     rollDice(amount) {
-      if (!this.store.gamePlayStatus.isRolling || this.store.currentPlayerId < 0 || this.pendingDiceRoll) {
+      if (!this.store.gamePlayStatus.isRolling || this.store.turnSeat < 0 || this.pendingDiceRoll) {
         return;
       }
 
@@ -4936,23 +4805,15 @@ export default {
         ? amount
         : null;
 
-      if (this.store.online.enabled) {
-        const currentPlayer = this.store.players[this.store.currentPlayerId];
-        if (currentPlayer?.controller !== 'local') {
-          return;
-        }
-        // Throw the physical dice immediately to hide latency; the result is
-        // resolved with the server value in tryResolveOnlineDice.
-        this.store.gamePlayStatus.isRolling = false;
-        this.hoverNeedsUpdate = true;
-        this.onlineDice = { settled: false, serverValue: null, payload: null };
-        MatchController.requestRoll(demand);
-        this.startDiceRoll();
+      if (!this.store.online.enabled || this.currentPlayer()?.controller !== 'local') {
         return;
       }
-
+      // Throw the physical dice immediately to hide latency; the result is
+      // resolved with the server value in tryResolveOnlineDice.
       this.store.gamePlayStatus.isRolling = false;
       this.hoverNeedsUpdate = true;
+      this.onlineDice = { settled: false, serverValue: null, payload: null };
+      MatchController.requestRoll(demand);
       this.startDiceRoll();
     },
 

@@ -78,7 +78,7 @@
           `lobby-seat-chip--corner-${index}`,
           seatAt(index) ? 'lobby-seat-chip--taken' : 'lobby-seat-chip--free',
           {
-            'lobby-seat-chip--offer': !seatAt(index) && !mySeatObject,
+            'lobby-seat-chip--offer': !seatAt(index) && !seated,
             'lobby-seat-chip--mine': seatAt(index) && seatAt(index).userId === store.online.selfUserId,
             'lobby-seat-chip--offline': seatAt(index) && !seatAt(index).connected,
             'lobby-seat-chip--dark-text': index === 1 || index === 3,
@@ -110,6 +110,7 @@ import ChatDrawer from './ChatDrawer.vue';
 import { openPlayerActions } from '../utils/authPrompt';
 import ApplicationStore from '../utils/ApplicationStore';
 import MatchController from '../network/MatchController';
+import { isSeated } from '../utils/roster';
 import { PLAYER_COLORS } from '../utils/playerColors';
 import { t } from '../utils/i18n';
 import { seatTitleName } from '../utils/titles';
@@ -141,17 +142,15 @@ export default {
     roomMode() {
       return this.store.online.gameMode;
     },
-    mySeatObject() {
-      return (this.store.online.seats || []).find(
-          (seat) => seat && seat.userId === this.store.online.selfUserId,
-      ) || null;
+    seated() {
+      return isSeated(this.store.online);
     },
     isHost() {
       return this.store.online.hostUserId === this.store.online.selfUserId;
     },
     // Bots hold every other seat, so the host can start once seated.
     canStart() {
-      return Boolean(this.mySeatObject);
+      return this.seated;
     },
     // Display name of the admin (host), resolved from their seat.
     adminName() {
@@ -162,7 +161,7 @@ export default {
     },
     // A seated non-host waits on the host to start: their name, or ''.
     waitingOn() {
-      if (!this.mySeatObject || this.isHost) return '';
+      if (!this.seated || this.isHost) return '';
       return this.adminName;
     },
   },

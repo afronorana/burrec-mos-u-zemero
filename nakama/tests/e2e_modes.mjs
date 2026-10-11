@@ -9,23 +9,8 @@
 
 globalThis.window = globalThis;
 
-import { Client } from '@heroiclabs/nakama-js';
+import { assert, client, delay, failures, rpc, run, stamp } from './harness.mjs';
 import { OpCode, decodePayload, encodePayload } from '../../shared/protocol.js';
-
-const client = new Client('burrec-dev-key', '127.0.0.1', '7350', false);
-const failures = [];
-const stamp = Date.now();
-const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-function assert(condition, label) {
-  console.log(`${condition ? 'ok  ' : 'FAIL'} ${label}`);
-  if (!condition) failures.push(label);
-}
-
-async function rpc(session, id, input) {
-  const response = await client.rpc(session, id, input || {});
-  return typeof response.payload === 'string' ? JSON.parse(response.payload) : (response.payload || {});
-}
 
 const toGlobal = (seat, pos) => ((seat * 10) + pos - 1) % 40;
 
@@ -160,12 +145,4 @@ async function main() {
     'the player keeps their seat and the room keeps its Game mode');
 }
 
-main()
-  .catch((error) => {
-    failures.push(String(error && error.stack || error));
-    console.error(error);
-  })
-  .finally(() => {
-    console.log(failures.length ? `\n${failures.length} failure(s)` : '\nall passed');
-    process.exit(failures.length ? 1 : 0);
-  });
+run(main);

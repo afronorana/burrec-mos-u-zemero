@@ -3,112 +3,122 @@ import EventBus from './eventhandler';
 import EventKeys from './EventKeys';
 import { PAWN_STEP_DURATION_MS } from './movementConstants';
 
+// A pawn on the board, and the presenter of its moves. The rules live only
+// on the server (nakama/src/ludo_logic.ts): MOVE_APPLIED says where a pawn
+// goes and whom it captures, and play() shows it — one hop per field on
+// PAWN_STEP_DURATION_MS timers, then the victims go home. The render loop
+// (App.vue syncPawns) tweens meshes toward getCoordinates() each frame.
+//
+// Position model (seat-relative, as on the server): 0 home, 1-40 the main
+// track (global field (seat * 10 + position - 1) % 40), 41-44 the seat's
+// target lane.
 class Pawn {
-
-  constructor(_startingPlace, _color, _globalPosition = 0, _playerIndex) {
-    this.id = 'id-' + _startingPlace + _playerIndex;
+  constructor(startingPlace, color, seat) {
+    this.id = 'id-' + startingPlace + seat;
+    this.seat = seat;
+    this.startingPlace = startingPlace;
+    this.color = color;
+    this.startingGlobalPosition = seat * 10;
     this.position = 0;
-    this.playerIndex = _playerIndex;
-    this.globalPosition = _globalPosition;
-    this.startingGlobalPosition = _globalPosition;
-    this.color = _color;
-    this.isActive = false;
+    this.globalPosition = this.startingGlobalPosition;
     this.isInDestinationField = false;
-    this.isSkipping = false;
-    this.isSkippingTo = 0;
-    this.startingPlace = _startingPlace;
+    // Clickable this turn (a legal pawn from DICE_RESULT).
+    this.isActive = false;
     this.isMoving = false;
     this.activeMoveTimeout = null;
+    // Presentation hints for App.vue: this hop lands on a Capture (the mesh
+    // stops beside the victim), or isn't the move's last, so another pawn on
+    // the field is being passed (hop onto it instead of through).
     this.landingOnCapture = false;
-    // Presentation hint: this hop isn't the move's last, so another pawn on
-    // the field is being passed — App.vue hops onto it instead of through.
     this.passingStep = false;
   }
 
-  /**
-   * Attempt to move pawn
-   */
-  move() {
-    if (!this.isActive || this.isMoving) {
+  positionToGlobalPosition(position) {
+    if (!position) {
+      return this.startingGlobalPosition;
+    }
+    // The target lane hangs off the last track field.
+    return (this.startingGlobalPosition + Math.min(position, 40) - 1) % 40;
+  }
+
+  // Teleports to `position` (snapshots, no tween).
+  placeAt(position) {
+    this.stopMove();
+    this.position = position;
+    this.globalPosition = this.positionToGlobalPosition(position);
+    this.isInDestinationField = position > 40;
+    this.isActive = false;
+  }
+
+  // Sent home by a Capture.
+  returnHome() {
+    this.placeAt(0);
+  }
+
+  stopMove() {
+    if (this.activeMoveTimeout) {
+      clearTimeout(this.activeMoveTimeout);
+      this.activeMoveTimeout = null;
+    }
+    this.isMoving = false;
+    this.landingOnCapture = false;
+    this.passingStep = false;
+  }
+
+  // Plays the server's move from the current position to `toPos`: leaving
+  // home is one hop onto the start field, anything else one hop per field.
+  // `victims` (Pawns) are sent home once the last hop lands, as one
+  // pawn.captured event so App.vue plays a single Finisher for them all.
+  // `onDone` runs when the move has finished showing.
+  play(toPos, victims = [], onDone = () => {}) {
+    this.stopMove();
+    const hops = [];
+    for (let position = this.position === 0 ? 1 : this.position + 1; position <= toPos; position += 1) {
+      hops.push(position);
+    }
+    if (!hops.length) {
+      onDone();
       return;
     }
-
-    this.lockMoveSelection();
     this.isMoving = true;
-    this.position ? this.moveToPosition() : this.getOutOfHome();
+
+    const hop = (index) => {
+      this.landingOnCapture = victims.length > 0 && index === hops.length - 1;
+      this.passingStep = index < hops.length - 1;
+      const position = hops[index];
+      this.position = position;
+      this.globalPosition = this.positionToGlobalPosition(position);
+      this.isInDestinationField = position > 40;
+
+      this.activeMoveTimeout = window.setTimeout(() => {
+        if (index < hops.length - 1) {
+          hop(index + 1);
+          return;
+        }
+        this.activeMoveTimeout = null;
+        this.landingOnCapture = false;
+        this.sendHome(victims);
+        this.isMoving = false;
+        this.passingStep = false;
+        onDone();
+      }, PAWN_STEP_DURATION_MS);
+    };
+    hop(0);
   }
 
-  getOutOfHome() {
-    this.runMoveSequence(
-        [{
-          position: 1,
-          globalPosition: this.startingGlobalPosition,
-          isInDestinationField: false,
-        }],
-        {
-          captureField: this.startingGlobalPosition,
-        },
-    );
-  }
-
-  endOfMove() {
-    this.isMoving = false;
-    this.activeMoveTimeout = null;
-    this.landingOnCapture = false;
-    this.passingStep = false;
-
-    if (ApplicationStore.online.enabled) {
-      // Online, turn advancement comes only from the server's TURN_CHANGE.
-      EventBus.fire(EventKeys.pawn.moveComplete, { pawnId: this.id });
+  // A Capture is logically instant: the victims are home at once and only
+  // their meshes wait for the Finisher (App.vue handleCaptured).
+  sendHome(victims) {
+    if (!victims.length) {
       return;
     }
-
-    const owner = ApplicationStore.players[this.playerIndex];
-    if (owner && owner.wonGame()) {
-      EventBus.fire(EventKeys.game.won, { playerIndex: this.playerIndex });
-      return;
-    }
-
-    if (ApplicationStore.lastRolledDice === 6)
-      EventBus.fire(EventKeys.turns.repeatTurn);
-    else
-      EventBus.fire(EventKeys.turns.endTurn);
-  }
-
-  moveToPosition() {
-    const steps = ApplicationStore.lastRolledDice;
-    const states = [];
-
-    for (let index = 1; index <= steps; index += 1) {
-      const nextPosition = this.position + index;
-      const isInDestinationField = nextPosition > 40;
-
-      states.push({
-        position: nextPosition,
-        globalPosition: isInDestinationField
-          ? this.positionToGlobalPosition(40)
-          : this.positionToGlobalPosition(nextPosition),
-        isInDestinationField,
-      });
-    }
-
-    const finalState = states[states.length - 1];
-
-    this.runMoveSequence(states, {
-      captureField: finalState.position <= 40 ? finalState.globalPosition : null,
+    const sent = victims.map((victim) => {
+      // World coordinates must be read before returnHome resets position.
+      const { x, y, z } = victim.getCoordinates();
+      victim.returnHome();
+      return { pawnId: victim.id, color: victim.color, x, y, z };
     });
-  }
-
-  toGlobalPosition() {
-    return this.positionToGlobalPosition(this.position);
-  }
-
-  //
-  //  Non-refractored below
-  //
-  getPosition(height = 0) {
-    const { x, y, z } = this.getCoordinates(height);
-    return `${x} ${y} ${z}`;
+    EventBus.fire(EventKeys.pawn.captured, { attackerId: this.id, victims: sent });
   }
 
   // Pass `target` to reuse an object instead of allocating — the render loop
@@ -120,189 +130,24 @@ class Pawn {
   // Where this pawn would stand at `position` (0 home, 1-40 track, 41-44
   // target lane) — App.vue uses it to face the next field.
   getCoordinatesAt(position, height = 0, target = null) {
-    let x, y, z;
-    let fields = ApplicationStore.fields;
+    const fields = ApplicationStore.fields;
+    let field;
     if (!position) {
-      x = fields.home[this.playerIndex].fields[this.startingPlace - 1].x;
-      y = height;
-      z = fields.home[this.playerIndex].fields[this.startingPlace - 1].z;
+      field = fields.home[this.seat].fields[this.startingPlace - 1];
     } else if (position <= 40) {
-      const globalPosition = this.positionToGlobalPosition(position);
-      x = fields.path[globalPosition].x;
-      y = height;
-      z = fields.path[globalPosition].z;
+      field = fields.path[this.positionToGlobalPosition(position)];
     } else {
-      x = fields.target[this.playerIndex].fields[position - 41].x;
-      y = height;
-      z = fields.target[this.playerIndex].fields[position - 41].z;
+      field = fields.target[this.seat].fields[position - 41];
     }
 
     if (target) {
-      target.x = x;
-      target.y = y;
-      target.z = z;
+      target.x = field.x;
+      target.y = height;
+      target.z = field.z;
       return target;
     }
-    return { x, y, z };
+    return { x: field.x, y: height, z: field.z };
   }
-
-  // Returns pawn classes
-  classes() {
-    return [
-      this.isSkipping ? 'is-skipping' : '',                            // TODO Skip animation
-    ];
-  }
-
-  // Returns pawn home (Triggered by other players)
-  returnHome() {
-    if (this.activeMoveTimeout) {
-      clearTimeout(this.activeMoveTimeout);
-      this.activeMoveTimeout = null;
-    }
-
-    this.isMoving = false;
-    this.position = 0;
-    this.globalPosition = this.startingGlobalPosition;
-    this.isInDestinationField = false;
-    this.isActive = false;
-  }
-
-  canLeaveHome(steps) {
-    let doorIsFree = true;
-    let player = ApplicationStore.players[ApplicationStore.playingPlayerIndex];
-
-    player.pawns.forEach(function(pawn) {
-      if (pawn.position === 1) doorIsFree = false;
-    });
-
-    return this.position === 0 && steps === 6 && doorIsFree;
-  };
-
-  pathEnds(steps) {
-    return this.position + steps >= 45;
-  }
-
-  targetFieldIsEmpty(steps) {
-    if (this.position === 0) return false;
-
-    let targetFieldId = this.position + steps;
-    let targetFieldIsEmpty = true;
-    let player = ApplicationStore.players[ApplicationStore.playingPlayerIndex];
-
-    player.pawns.forEach((pawn) => {
-      if (pawn !== this && pawn.position === targetFieldId) {
-        targetFieldIsEmpty = false;
-      }
-    });
-
-    return targetFieldIsEmpty;
-  }
-
-  isAvaliable(steps) {
-
-    return (this.canLeaveHome(steps) || this.targetFieldIsEmpty(steps)) &&
-        !this.pathEnds(steps);
-  }
-
-  // Adds and removes skipping state
-  skippingAnimation(targetIndex) {
-    this.isSkippingTo = targetIndex;
-    this.isSkipping = true;
-    setTimeout(function() {
-      this.isSkipping = false;
-    }.bind(this), 100);
-  }
-
-  // Checks if an opponents pawn is on the target, if so removes it.
-  // (Win detection lives in endOfMove / the server — not here.)
-  // Capture is logically instant (returnHome); one pawn.captured event per
-  // move carries every victim so App.vue plays a single Finisher for them.
-  removeOpponentPawns(targetField) {
-    const victims = [];
-    ApplicationStore.players.forEach(function(player) {
-      if (!player.isPlaying) {
-        player.pawns.forEach(function(pawn) {
-          if (pawn.position !== 0 && pawn.globalPosition === targetField && !pawn.isInDestinationField) {
-            // World coordinates must be read before returnHome resets position.
-            const { x, y, z } = pawn.getCoordinates();
-            pawn.returnHome();
-            victims.push({ pawnId: pawn.id, color: pawn.color, x, y, z });
-          }
-        });
-      }
-    });
-    if (victims.length) {
-      EventBus.fire(EventKeys.pawn.captured, { attackerId: this.id, victims });
-    }
-  }
-
-  enterDestinationZone(steps) {
-    this.isInDestinationField = true;
-    this.position += steps;
-    this.globalPosition = -13 * this.startingGlobalPosition;
-    this.endOfMove();
-  }
-
-  positionToGlobalPosition(position) {
-    if (!position) {
-      return this.startingGlobalPosition;
-    }
-
-    return (this.startingGlobalPosition + position - 1) % 40;
-  }
-
-  lockMoveSelection() {
-    const currentPlayer = ApplicationStore.players[ApplicationStore.playingPlayerIndex];
-
-    ApplicationStore.gamePlayStatus.isMoving = false;
-
-    currentPlayer?.pawns.forEach((pawn) => {
-      pawn.isActive = false;
-    });
-  }
-
-  applyMoveState(state, stepIndex) {
-    this.position = state.position;
-    this.globalPosition = state.globalPosition;
-    this.isInDestinationField = state.isInDestinationField;
-    this.skippingAnimation(stepIndex);
-  }
-
-  runMoveSequence(states, options = {}) {
-    const { captureField = null } = options;
-
-    if (!states.length) {
-      this.endOfMove();
-      return;
-    }
-
-    const applyStep = (index) => {
-      // Presentation hint for App.vue: this hop may land on a Capture, so the
-      // mesh stops beside the victim instead of on top of it.
-      this.landingOnCapture = captureField !== null && index === states.length - 1;
-      this.passingStep = index < states.length - 1;
-      this.applyMoveState(states[index], index);
-
-      if (index < states.length - 1) {
-        this.activeMoveTimeout = window.setTimeout(() => {
-          applyStep(index + 1);
-        }, PAWN_STEP_DURATION_MS);
-        return;
-      }
-
-      this.activeMoveTimeout = window.setTimeout(() => {
-        this.landingOnCapture = false;
-        if (captureField !== null) {
-          this.removeOpponentPawns(captureField);
-        }
-
-        this.endOfMove();
-      }, PAWN_STEP_DURATION_MS);
-    };
-
-    applyStep(0);
-  }
-
 }
 
 export default Pawn;

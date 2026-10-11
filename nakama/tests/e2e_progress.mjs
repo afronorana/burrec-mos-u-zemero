@@ -9,23 +9,8 @@
 
 globalThis.window = globalThis;
 
-import { Client } from '@heroiclabs/nakama-js';
+import { assert, client, delay, failures, rpc, stamp } from './harness.mjs';
 import { OpCode, POINTS, REFERRAL_INVITER_POINTS, REFERRAL_JOINER_POINTS, SOLO_RATE, WELCOME_BONUS, decodePayload, encodePayload } from '../../shared/protocol.js';
-
-const client = new Client('burrec-dev-key', '127.0.0.1', '7350', false);
-const failures = [];
-const stamp = Date.now();
-const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-function assert(condition, label) {
-  console.log(`${condition ? 'ok  ' : 'FAIL'} ${label}`);
-  if (!condition) failures.push(label);
-}
-
-async function rpc(session, id, input) {
-  const response = await client.rpc(session, id, input || {});
-  return typeof response.payload === 'string' ? JSON.parse(response.payload) : (response.payload || {});
-}
 
 async function balance(session) {
   const account = await client.getAccount(session);

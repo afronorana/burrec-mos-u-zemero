@@ -8,22 +8,8 @@
 
 globalThis.window = globalThis;
 
-import { Client } from '@heroiclabs/nakama-js';
 import { OpCode, decodePayload } from '../../shared/protocol.js';
-
-const client = new Client('burrec-dev-key', '127.0.0.1', '7350', false);
-const failures = [];
-const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-function assert(condition, label) {
-  console.log(`${condition ? 'ok  ' : 'FAIL'} ${label}`);
-  if (!condition) failures.push(label);
-}
-
-async function rpc(session, id, input) {
-  const response = await client.rpc(session, id, input || {});
-  return typeof response.payload === 'string' ? JSON.parse(response.payload) : (response.payload || {});
-}
+import { assert, client, delay, failures, rpc } from './harness.mjs';
 
 function uid() {
   return `e2e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;

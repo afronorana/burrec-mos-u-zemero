@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "serve": "vite preview",
+    "test": "node --test tests/*.test.mjs",
     "nakama:build": "pnpm --dir nakama build",
     "nakama:test": "pnpm --dir nakama test",
     "nakama:up": "docker compose -f nakama/docker-compose.yml up -d",

@@ -52,6 +52,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Pure modules only (plain node, no docker): rules, the match reducer,
+      # Roster, presentation lock, Finisher timing budget.
+      - name: Unit tests
+        run: |
+          pnpm test
+          pnpm nakama:test
+
       - name: Build client
         run: pnpm build
 
